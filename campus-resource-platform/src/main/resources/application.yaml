@@ -1,0 +1,39 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: campus-resource-platform
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/campus_resource_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USERNAME:root}
+    # 本地数据库密码请通过环境变量注入，避免把个人密码提交到远程仓库。
+    password: ${MYSQL_PASSWORD:}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # 本地 Redis 密码请通过环境变量注入；无密码实例保持为空即可。
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+
+  servlet:
+    multipart:
+      max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE:50MB}
+      max-request-size: ${APP_UPLOAD_MAX_REQUEST_SIZE:60MB}
+
+mybatis:
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: com.john.campus.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:campus-resource-platform-dev-secret-change-me}
+    expiration-seconds: ${JWT_EXPIRATION_SECONDS:7200}
+  upload:
+    storage-path: ${APP_UPLOAD_STORAGE_PATH:./data/uploads}

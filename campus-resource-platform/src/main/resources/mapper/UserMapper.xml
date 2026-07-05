@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.john.campus.mapper.UserMapper">
+
+    <!-- 用户实体字段映射，显式处理 password_hash、avatar_url 等下划线字段。 -->
+    <resultMap id="UserResultMap" type="com.john.campus.entity.User">
+        <id column="id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="password_hash" property="passwordHash"/>
+        <result column="nickname" property="nickname"/>
+        <result column="email" property="email"/>
+        <result column="phone" property="phone"/>
+        <result column="role" property="role"/>
+        <result column="status" property="status"/>
+        <result column="avatar_url" property="avatarUrl"/>
+        <result column="last_login_at" property="lastLoginAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 公共列清单集中维护，避免多个查询遗漏敏感但业务必需的字段。 -->
+    <sql id="BaseColumnList">
+        id,
+        username,
+        password_hash,
+        nickname,
+        email,
+        phone,
+        role,
+        status,
+        avatar_url,
+        last_login_at,
+        created_at,
+        updated_at
+    </sql>
+
+    <!-- 登录和注册去重都按 username 查询，数据库唯一索引保证最多一条记录。 -->
+    <select id="selectByUsername" resultMap="UserResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `user`
+        WHERE username = #{username}
+        LIMIT 1
+    </select>
+
+    <!-- 当前用户查询按主键读取，用于校验 Token 对应用户是否仍存在。 -->
+    <select id="selectById" resultMap="UserResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `user`
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <!-- 注册插入用户；可选字段为空时不写入，保留数据库默认值和唯一索引语义。 -->
+    <insert id="insert" parameterType="com.john.campus.entity.User" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `user`
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            username,
+            password_hash,
+            nickname,
+            <if test="email != null and email != ''">
+                email,
+            </if>
+            <if test="phone != null and phone != ''">
+                phone,
+            </if>
+            <if test="role != null">
+                role,
+            </if>
+            <if test="status != null">
+                status,
+            </if>
+            <if test="avatarUrl != null and avatarUrl != ''">
+                avatar_url,
+            </if>
+            <if test="lastLoginAt != null">
+                last_login_at,
+            </if>
+        </trim>
+        <trim prefix="VALUES (" suffix=")" suffixOverrides=",">
+            #{username},
+            #{passwordHash},
+            #{nickname},
+            <if test="email != null and email != ''">
+                #{email},
+            </if>
+            <if test="phone != null and phone != ''">
+                #{phone},
+            </if>
+            <if test="role != null">
+                #{role},
+            </if>
+            <if test="status != null">
+                #{status},
+            </if>
+            <if test="avatarUrl != null and avatarUrl != ''">
+                #{avatarUrl},
+            </if>
+            <if test="lastLoginAt != null">
+                #{lastLoginAt},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 登录成功后只更新最近登录时间，避免误改用户其他资料。 -->
+    <update id="updateLastLoginAt">
+        UPDATE `user`
+        SET last_login_at = #{lastLoginAt}
+        WHERE id = #{id}
+    </update>
+
+</mapper>

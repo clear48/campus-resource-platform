@@ -1,0 +1,18 @@
+* text=auto
+
+# Unix shell scripts and Maven wrapper entrypoint should keep LF line endings.
+*.sh text eol=lf
+mvnw text eol=lf
+
+# Windows command scripts should keep CRLF line endings.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary artifacts must never be line-ending normalized.
+*.jar binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

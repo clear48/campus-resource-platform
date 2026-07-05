@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.john.campus.mapper.CategoryMapper">
+
+    <!-- 分类实体字段映射，接口层会再转换为 CategoryVO，避免直接暴露 Entity。 -->
+    <resultMap id="CategoryResultMap" type="com.john.campus.entity.Category">
+        <id column="id" property="id"/>
+        <result column="parent_id" property="parentId"/>
+        <result column="category_name" property="categoryName"/>
+        <result column="description" property="description"/>
+        <result column="sort_order" property="sortOrder"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 分类查询公共列清单，保留 status 便于实体层判断启用状态。 -->
+    <sql id="BaseColumnList">
+        id,
+        parent_id,
+        category_name,
+        description,
+        sort_order,
+        status,
+        created_at,
+        updated_at
+    </sql>
+
+    <!-- 上传前分类选择只返回启用分类，并使用稳定排序保证前端展示顺序一致。 -->
+    <select id="selectEnabledByParentId" resultMap="CategoryResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM category
+        WHERE parent_id = #{parentId}
+          AND status = 1
+        ORDER BY sort_order ASC, id ASC
+    </select>
+
+</mapper>

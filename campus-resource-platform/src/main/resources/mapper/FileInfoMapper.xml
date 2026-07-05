@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.john.campus.mapper.FileInfoMapper">
+
+    <!-- 文件实体字段映射，显式处理 file_md5、stored_name 等下划线字段。 -->
+    <resultMap id="FileInfoResultMap" type="com.john.campus.entity.FileInfo">
+        <id column="id" property="id"/>
+        <result column="file_md5" property="fileMd5"/>
+        <result column="original_name" property="originalName"/>
+        <result column="stored_name" property="storedName"/>
+        <result column="file_ext" property="fileExt"/>
+        <result column="mime_type" property="mimeType"/>
+        <result column="file_size" property="fileSize"/>
+        <result column="storage_type" property="storageType"/>
+        <result column="storage_path" property="storagePath"/>
+        <result column="uploader_id" property="uploaderId"/>
+        <result column="ref_count" property="refCount"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 公共列清单集中维护，避免多个查询列不一致。 -->
+    <sql id="BaseColumnList">
+        id,
+        file_md5,
+        original_name,
+        stored_name,
+        file_ext,
+        mime_type,
+        file_size,
+        storage_type,
+        storage_path,
+        uploader_id,
+        ref_count,
+        status,
+        created_at,
+        updated_at
+    </sql>
+
+    <!-- 秒传去重按 (file_md5, file_size) 查询，命中 uk_file_md5_size 唯一索引，最多一条。 -->
+    <select id="selectByMd5AndSize" resultMap="FileInfoResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM file_info
+        WHERE file_md5 = #{fileMd5}
+          AND file_size = #{fileSize}
+        LIMIT 1
+    </select>
+
+    <!-- 插入文件；可选字段为空时不写入，保留数据库默认值（storage_type、ref_count、status）。 -->
+    <insert id="insert" parameterType="com.john.campus.entity.FileInfo" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO file_info
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            file_md5,
+            original_name,
+            stored_name,
+            file_ext,
+            file_size,
+            storage_path,
+            uploader_id,
+            <if test="mimeType != null and mimeType != ''">
+                mime_type,
+            </if>
+            <if test="storageType != null">
+                storage_type,
+            </if>
+            <if test="refCount != null">
+                ref_count,
+            </if>
+            <if test="status != null">
+                status,
+            </if>
+        </trim>
+        <trim prefix="VALUES (" suffix=")" suffixOverrides=",">
+            #{fileMd5},
+            #{originalName},
+            #{storedName},
+            #{fileExt},
+            #{fileSize},
+            #{storagePath},
+            #{uploaderId},
+            <if test="mimeType != null and mimeType != ''">
+                #{mimeType},
+            </if>
+            <if test="storageType != null">
+                #{storageType},
+            </if>
+            <if test="refCount != null">
+                #{refCount},
+            </if>
+            <if test="status != null">
+                #{status},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 秒传命中对引用次数原子自增，避免读改写并发问题。 -->
+    <update id="increaseRefCount">
+        UPDATE file_info
+        SET ref_count = ref_count + 1
+        WHERE id = #{id}
+    </update>
+
+</mapper>

@@ -1,0 +1,50 @@
+# Maven / Java build outputs
+target/
+**/target/
+!**/src/main/**/target/
+!**/src/test/**/target/
+build/
+dist/
+*.class
+*.jar
+*.war
+
+# Maven wrapper cache kept out of version control in this project
+**/.mvn/wrapper/maven-wrapper.jar
+
+# Spring Initializr generated help file
+HELP.md
+
+# IDE and editor local files
+.idea/
+.vscode/
+*.iws
+*.iml
+*.ipr
+.classpath
+.project
+.settings/
+.factorypath
+.apt_generated/
+.sts4-cache/
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# Local environment and runtime noise
+.env
+.env.*
+*.log
+logs/
+tmp/
+temp/
+
+# Agent/tool generated local state
+.agents/
+.git-backups/
+.github/modernize/
+
+# OS files
+.DS_Store
+Thumbs.db
