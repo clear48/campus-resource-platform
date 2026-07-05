@@ -576,7 +576,15 @@ fix: handle duplicate favorite exception
 test: add download limit test cases
 ```
 
-每次任务完成后，需要给出建议的 commit message。
+模块内小功能开发节奏：
+
+* 开发模块时，需要将模块拆分为可以独立验证的小功能。
+* 每完成一个模块内小功能，必须先完成针对性测试或说明无法测试的原因。
+* 测试通过后，必须立即执行一次 Git commit，并推送到当前开发分支。
+* 当前开发分支通常为 `dev` 或 `feature/模块名`；不要把未稳定的小功能直接推送到 `main`。
+* `main` 只接收已经验证可长期运行的版本，需在 `dev` 或功能分支稳定后再合并。
+
+每次任务完成后，需要给出实际使用的 commit message；如果因为用户明确要求不提交，必须在总结中说明原因。
 
 \---
 
@@ -675,7 +683,8 @@ test: add download limit test cases
 9. 接口文档已更新；
 10. 模块文档已更新；
 11. 给出测试方式；
-12. 给出 Git commit message。
+12. 完成 Git commit 并推送到当前开发分支；
+13. 给出实际使用的 Git commit message。
 
 如果某项不涉及，需要明确说明：
 
@@ -952,4 +961,3 @@ docs/modules/xx-module-name-development-process.md
 补全已完成事项、待完成事项、修改文件记录、测试记录和面试可讲点，
 文档与代码不一致时以代码为准。
 ```
-
