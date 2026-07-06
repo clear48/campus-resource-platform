@@ -34,6 +34,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/v1/auth/register",
                         // 分类是上传前公开枚举数据，只读查询不需要登录态。
                         "/api/v1/categories",
+                        // 仅放行一段式资料详情路径，不能放行 /api/v1/resources，否则创建资料会绕过登录校验。
+                        "/api/v1/resources/*",
                         "/api/v1/search/**",
                         "/api/v1/rankings/**",
                         "/error"

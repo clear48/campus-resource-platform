@@ -1,7 +1,7 @@
 # 资料模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**开发中，步骤 1 已完成**。`Resource` 实体已创建；文中其余“拟新增/计划实现”的 Mapper、DTO、VO、Service、Controller 仍为下一阶段开发建议，不代表当前代码已经存在。
+> 当前状态：**首版已完成，步骤 1-10 已完成**。资料模块已实现创建资料、公开详情和我的上传列表三类能力，并完成 MockMvc 测试、数据库集成测试、Postman 示例、接口文档、数据库记录、项目进度文档和 README 同步。
 
 ---
 
@@ -13,7 +13,7 @@
 | 英文标识 | resource |
 | 文档路径 | `docs/modules/03-resource-development-process.md` |
 | 建议分支 | `feature/resource` |
-| 当前状态 | 开发中，步骤 1 已完成 |
+| 当前状态 | 首版已完成，步骤 1-10 已完成 |
 | 前置依赖模块 | 用户认证模块、分类查询模块、文件上传模块 |
 | 下游模块 | 审核模块、搜索模块、下载模块、收藏模块、排行榜模块 |
 | 接口前缀 | `/api/v1/resources`、`/api/v1/users/me/resources` |
@@ -60,7 +60,7 @@
 
 ## 5. 涉及接口
 
-> 当前为下一阶段规划，真实接口需在代码实现后再次校准 `docs/04-api-doc.md`。
+> 以下为当前 `ResourceController` 已实现的资料模块接口，已同步到 `docs/04-api-doc.md`。
 
 ### 5.1 创建资料
 
@@ -154,7 +154,7 @@
 
 ### 6.3 `category` 分类表
 
-创建资料时校验分类是否存在且启用。当前 `CategoryMapper` 只有按父分类查询方法，资料模块需要补充按 ID 查询启用分类的方法，或新增专用 Mapper 查询。
+创建资料时校验分类是否存在且启用。当前已通过 `CategoryMapper.selectEnabledById` 按主键查询 `status = 1` 的启用分类。
 
 ---
 
@@ -186,13 +186,13 @@
 | mapper | `FileInfoMapper`、`CategoryMapper` | 文件和分类校验 |
 | exception | `BusinessException`、`GlobalExceptionHandler` | 业务异常和统一异常处理 |
 
-### 8.2 拟新增类
+### 8.2 本模块新增或修改类
 
 | 类型 | 类 | 职责 |
 | --- | --- | --- |
 | entity | `Resource` | 映射 `resource` 表，封装资料状态常量 |
 | dto | `ResourceCreateDTO` | 创建资料请求体 |
-| dto | `ResourceQueryDTO` 或复用 `PageQuery` | 我的上传列表查询参数 |
+| dto | `PageQuery` | 我的上传列表分页参数，复用已有通用分页模型 |
 | vo | `ResourceCreateVO` | 创建资料响应 |
 | vo | `ResourceDetailVO` | 公开详情响应 |
 | vo | `MyResourceVO` | 我的上传列表项 |
@@ -323,8 +323,9 @@ FileUploadVO.fileId
 5. 实现 `ResourceService` 与 `ResourceServiceImpl`。
 6. 实现 `ResourceController`。
 7. 更新 `WebMvcConfig`，仅开放 `GET /api/v1/resources/{resourceId}` 所需的路径模式。
-8. 更新 `docs/04-api-doc.md`、`docs/database/database-change-log.md`、`docs/06-project-progress.md`。
-9. 补充接口测试和必要的自动化测试。
+8. 补充接口测试、数据库集成测试和 Postman 示例。
+9. 更新 `docs/04-api-doc.md`、`docs/database/database-change-log.md`、`docs/06-project-progress.md` 和 `README.md`。
+10. 校准本模块开发流程文档。
 
 ---
 
@@ -347,16 +348,23 @@ FileUploadVO.fileId
 - 已明确本模块只消费文件上传模块返回的 `fileId`，不再把文件上传和资料创建混在一个接口里。
 - 已生成本模块开发流程文档初稿。
 - 步骤 1 已完成：创建 `Resource` 实体，字段对齐 `resource` 表，并补充资料状态、资料类型常量和公开可见性判断方法。
+- 步骤 2 已完成：创建 `ResourceMapper` 和 `ResourceMapper.xml`，提供资料插入、公开详情查询、我的上传分页、总数统计和重复提交计数方法。
+- 步骤 3 已完成：补充 `CategoryMapper.selectEnabledById` 和 `FileInfoMapper.selectNormalById`，供资料创建时校验分类和文件是否可引用。
+- 步骤 4 已完成：创建 `ResourceCreateDTO`、`ResourceCreateVO`、`ResourceDetailVO`、`MyResourceVO`，用于资料创建、公开详情和我的上传列表响应。
+- 步骤 5 已完成：创建 `ResourceService` 和 `ResourceServiceImpl`，实现创建资料的文件校验、分类校验、重复提交校验、标签清洗和待审核资料入库。
+- 步骤 6 已完成：在 `ResourceService` 和 `ResourceServiceImpl` 中实现公开资料详情查询和我的上传资料分页查询。
+- 步骤 7 已完成：创建 `ResourceController`，实现资料创建、公开详情、我的上传列表三个入口，并在 `WebMvcConfig` 中仅放行 `/api/v1/resources/*` 公开详情路径。
+- 步骤 8 已完成：新增 `ResourceControllerTest` 覆盖资料接口层和鉴权路径，新增 `ResourceDatabaseIntegrationTest` 覆盖真实 Mapper SQL 与 Service 数据库读写链路，更新 Postman 集合补充资料模块请求示例，并记录验证命令。
+- 步骤 9 已完成：同步 `docs/04-api-doc.md`、`docs/database/database-change-log.md`、`docs/06-project-progress.md` 和 `README.md`，资料模块已从规划状态更新为首版完成状态。
+- 步骤 10 已完成：根据当前真实代码校准本模块开发流程文档，补全状态、测试、文件清单、后续优化和下一阶段建议。
 
 ---
 
 ## 19. 待完成事项
 
-- 创建 `ResourceMapper` 和 `ResourceMapper.xml`。
-- 补充分类与文件校验查询能力。
-- 创建资料模块 DTO、VO、Service、Controller。
-- 补充 Postman 或 MockMvc 测试。
-- 模块完成后回填本文件的真实修改文件记录、测试记录和已完成事项。
+- 资料模块首版范围内暂无未完成事项。
+- 下一阶段建议进入审核模块：管理员待审核列表、审核通过、审核拒绝、下架资料和审核记录。
+- 资料模块后续增强项包括详情缓存、浏览次数统计、标签表拆分、重新提交审核和上传频率限制。
 
 ---
 
@@ -392,6 +400,62 @@ FileUploadVO.fileId
 | 未登录查询 | 返回 `40101` |
 | 非法分页参数 | 返回 `40001` |
 
+### 20.4 当前验证记录
+
+- 已执行 `.\mvnw.cmd -DskipTests compile`，编译通过。
+- 已执行 `.\mvnw.cmd -Dtest=ResourceControllerTest test`，`ResourceControllerTest` 共 11 个用例全部通过。
+- 已执行 `.\mvnw.cmd -Dtest=ResourceDatabaseIntegrationTest test`，`ResourceDatabaseIntegrationTest` 共 5 个数据库集成用例全部通过。
+- 已执行 `.\mvnw.cmd test`，共 17 个测试全部通过。
+- 测试输出仍包含 Lombok/Netty Unsafe 提示和 Mockito 动态 Agent 提示，当前不影响测试结果；如后续升级到更严格的 JDK 运行策略，可按 Mockito 官方建议配置测试 Java Agent。
+
+### 20.5 自动化测试覆盖
+
+| 测试类 | 覆盖内容 |
+| --- | --- |
+| `ResourceControllerTest` | `GET /api/v1/resources/{resourceId}` 匿名访问成功 |
+| `ResourceControllerTest` | `POST /api/v1/resources` 未登录返回 `40101` |
+| `ResourceControllerTest` | 创建资料请求体参数非法返回 `40001` 且不进入 Service |
+| `ResourceControllerTest` | 创建资料成功返回待审核状态 `status = 0` |
+| `ResourceControllerTest` | 文件不存在返回 `40401` |
+| `ResourceControllerTest` | 分类不存在返回 `40401` |
+| `ResourceControllerTest` | 重复提交同一文件返回 `40002` |
+| `ResourceControllerTest` | 公开详情遇到未审核通过资料返回 `40901` |
+| `ResourceControllerTest` | 我的上传列表绑定 `status`、`pageNo`、`pageSize` |
+| `ResourceControllerTest` | 我的上传列表非法分页返回 `40001` |
+| `ResourceControllerTest` | 我的上传列表未登录返回 `40101` |
+| `ResourceDatabaseIntegrationTest` | 使用 H2 MySQL 模式执行真实 MyBatis XML，验证创建资料写入 `resource` 并可读回 |
+| `ResourceDatabaseIntegrationTest` | 验证 `ResourceMapper.insert` 自增主键回填、默认统计字段和标签清洗入库 |
+| `ResourceDatabaseIntegrationTest` | 验证公开详情只读取 `status = 1` 资料，待审核资料不可公开 |
+| `ResourceDatabaseIntegrationTest` | 验证“我的上传”分页、状态筛选、总数统计和用户隔离 |
+| `ResourceDatabaseIntegrationTest` | 验证重复提交同一文件资料被真实数据库计数拦截 |
+| `ResourceDatabaseIntegrationTest` | 验证已删除文件、禁用分类不会被资料创建流程引用 |
+
+### 20.6 Postman 手工测试说明
+
+`postman/campus-resource-platform.postman_collection.json` 已新增 `03 Resource Module` 分组。运行前建议准备以下环境变量：
+
+| 变量 | 说明 |
+| --- | --- |
+| `baseUrl` | 后端服务地址，例如 `http://localhost:8080` |
+| `username` / `password` | 可登录用户；可先运行认证模块注册和登录流程 |
+| `resourceFileId` | 已上传成功且 `file_info.status = 1` 的文件 ID |
+| `resourceCategoryId` | 已启用且 `category.status = 1` 的分类 ID |
+| `publicResourceId` | 已审核通过且 `resource.status = 1` 的资料 ID，用于公开详情成功用例 |
+| `pendingResourceId` | 待审核资料 ID；创建资料成功后集合会自动写入 |
+
+| Postman 请求 | 覆盖场景 |
+| --- | --- |
+| `Refresh Token For Resource Tests` | 刷新 `accessToken`，避免认证流程退出登录后 Token 失效 |
+| `Create Resource` | 合法文件、分类和资料参数创建成功 |
+| `Create Resource Without Token Should Fail` | 未登录创建资料返回 `40101` |
+| `Create Resource File Not Found Should Fail` | 文件不存在返回 `40401` |
+| `Create Resource Category Not Found Should Fail` | 分类不存在返回 `40401` |
+| `Create Resource Duplicate Should Fail` | 同一用户重复提交同一文件返回 `40002` |
+| `Public Resource Detail` | 匿名查询已审核通过资料详情 |
+| `Public Pending Resource Detail Should Fail` | 匿名查询待审核资料返回 `40901` |
+| `My Resources` | 登录用户查询自己的上传资料分页 |
+| `My Resources Invalid Page Should Fail` | 非法分页参数返回 `40001` |
+
 ---
 
 ## 21. 修改文件记录
@@ -401,13 +465,32 @@ FileUploadVO.fileId
 | 文件 | 说明 |
 | --- | --- |
 | `campus-resource-platform/src/main/java/com/john/campus/entity/Resource.java` | 新增资料实体，映射 `resource` 表并封装状态/类型常量 |
-| `docs/modules/03-resource-development-process.md` | 新增资料模块开发流程规划文档 |
-| `docs/06-project-progress.md` | 标记资料模块为下一阶段优先开发模块 |
-| `docs/04-api-doc.md` | 已校准资料创建与文件上传接口边界 |
-| `README.md` | 已同步当前模块完成状态与下一阶段说明 |
-| `docs/database/database-change-log.md` | 已补充文件上传模块数据库使用记录 |
+| `campus-resource-platform/src/main/java/com/john/campus/mapper/ResourceMapper.java` | 新增资料表 Mapper 接口，定义资料插入和查询方法 |
+| `campus-resource-platform/src/main/resources/mapper/ResourceMapper.xml` | 新增资料表 MyBatis XML，维护字段映射和基础 SQL |
+| `campus-resource-platform/src/main/java/com/john/campus/mapper/CategoryMapper.java` | 新增按 ID 查询启用分类的方法 |
+| `campus-resource-platform/src/main/resources/mapper/CategoryMapper.xml` | 新增按 ID 查询启用分类 SQL |
+| `campus-resource-platform/src/main/java/com/john/campus/mapper/FileInfoMapper.java` | 新增按 ID 查询正常文件的方法 |
+| `campus-resource-platform/src/main/resources/mapper/FileInfoMapper.xml` | 新增按 ID 查询正常文件 SQL |
+| `campus-resource-platform/src/main/java/com/john/campus/dto/ResourceCreateDTO.java` | 新增创建资料请求 DTO，并添加基础参数校验 |
+| `campus-resource-platform/src/main/java/com/john/campus/vo/ResourceCreateVO.java` | 新增创建资料响应 VO |
+| `campus-resource-platform/src/main/java/com/john/campus/vo/ResourceDetailVO.java` | 新增公开资料详情响应 VO |
+| `campus-resource-platform/src/main/java/com/john/campus/vo/MyResourceVO.java` | 新增我的上传资料列表项 VO |
+| `campus-resource-platform/src/main/java/com/john/campus/service/ResourceService.java` | 新增资料业务接口，定义创建资料、公开详情和我的上传列表方法 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/ResourceServiceImpl.java` | 新增资料业务实现，完成创建资料和查询主流程 |
+| `campus-resource-platform/src/main/java/com/john/campus/controller/ResourceController.java` | 新增资料接口入口，提供创建资料、公开详情和我的上传列表接口 |
+| `campus-resource-platform/src/main/java/com/john/campus/config/WebMvcConfig.java` | 放行公开资料详情路径 `/api/v1/resources/*`，同时保留创建资料接口登录保护 |
+| `campus-resource-platform/pom.xml` | 新增 H2 测试依赖，用于本地可重复的数据库集成测试 |
+| `campus-resource-platform/src/test/java/com/john/campus/controller/ResourceControllerTest.java` | 新增资料 Controller 层 MockMvc 测试，覆盖核心接口、鉴权路径和异常映射 |
+| `campus-resource-platform/src/test/java/com/john/campus/service/ResourceDatabaseIntegrationTest.java` | 新增资料数据库集成测试，覆盖真实 SQL 写入、读取、分页、重复提交和关联校验 |
+| `campus-resource-platform/src/test/resources/sql/resource-db-test-schema.sql` | 新增资料模块测试用最小表结构，供 H2 MySQL 模式初始化数据库 |
+| `postman/campus-resource-platform.postman_collection.json` | 新增资料模块 Postman 分组，覆盖创建、公开详情、我的上传列表和异常场景 |
+| `docs/modules/03-resource-development-process.md` | 记录资料模块完整开发流程、接口、表、测试、文件清单和后续方向 |
+| `docs/06-project-progress.md` | 同步资料模块首版完成状态，并将审核模块列为下一阶段建议 |
+| `docs/04-api-doc.md` | 按真实 Controller、DTO、VO 和错误码校准资料模块接口说明 |
+| `README.md` | 同步资料模块首版完成状态、测试命令和下一阶段建议 |
+| `docs/database/database-change-log.md` | 记录资料模块复用 `resource`、`file_info`、`category` 表，无生产库结构变更 |
 
-后续每完成一个步骤需要继续补充真实代码文件清单。
+资料模块首版修改文件清单已补齐，后续进入审核模块时应新建对应模块开发流程记录。
 
 ---
 
@@ -449,19 +532,20 @@ FileUploadVO.fileId
 ## 25. Git commit message 建议
 
 ```text
-docs(resource): plan next resource module
+feat(resource): complete resource module MVP
 
-- add resource module development process draft
-- define scope, APIs, tables and implementation steps
-- clarify dependencies on auth, category and file upload modules
-- split resource creation from physical file upload
+- add resource entity, mapper, service and controller
+- support creating pending resources from uploaded files
+- support public approved detail and my resource pagination
+- add controller and database integration tests
+- sync API, progress, database and module docs
 ```
 
 ---
 
 ## 26. 分步骤开发提示词
 
-> 使用说明：以下提示词按 `docs/AGENTS.md` 第 24 节要求拆分，每一步都是一个最小可执行任务。执行时请一次只复制一条提示词给 Agent，完成并验证后再进入下一步。
+> 使用说明：以下提示词是本轮资料模块首版开发已使用并校准过的分步提示词，可作为复盘记录，也可在重建同类模块时复用。若再次执行，请一次只复制一条提示词给 Agent，完成并验证后再进入下一步。
 
 ### 步骤 1：创建 Resource 实体
 

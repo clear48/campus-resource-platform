@@ -1,0 +1,45 @@
+package com.john.campus.mapper;
+
+import com.john.campus.entity.Resource;
+import java.util.List;
+import org.apache.ibatis.annotations.Param;
+
+/**
+ * 资料表数据访问接口，当前仅提供资料模块首版所需的基础写入与查询能力。
+ */
+public interface ResourceMapper {
+
+    /**
+     * 插入资料记录，数据库自增主键会回填到 resource.id。
+     */
+    int insert(Resource resource);
+
+    /**
+     * 按 ID 查询资料原始记录，供 Service 层区分不存在和状态不可见。
+     */
+    Resource selectById(@Param("id") Long id);
+
+    /**
+     * 查询公开资料详情，只返回审核通过的资料，避免未审核资料被匿名访问。
+     */
+    Resource selectPublicDetailById(@Param("id") Long id);
+
+    /**
+     * 按上传者查询资料列表，支持可选状态筛选，用于“我的上传资料”分页。
+     */
+    List<Resource> selectByUploader(
+            @Param("uploaderId") Long uploaderId,
+            @Param("status") Integer status,
+            @Param("offset") Integer offset,
+            @Param("pageSize") Integer pageSize);
+
+    /**
+     * 统计上传者资料数量，与 selectByUploader 使用同一筛选条件。
+     */
+    long countByUploader(@Param("uploaderId") Long uploaderId, @Param("status") Integer status);
+
+    /**
+     * 统计同一用户、同一文件下仍处于待审核或已通过状态的资料，用于防重复提交。
+     */
+    long countActiveByUploaderAndFileId(@Param("uploaderId") Long uploaderId, @Param("fileId") Long fileId);
+}

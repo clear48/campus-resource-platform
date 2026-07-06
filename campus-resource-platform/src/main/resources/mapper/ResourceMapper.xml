@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.john.campus.mapper.ResourceMapper">
+
+    <!-- 资料实体字段映射，显式处理 resource_type、file_id 等下划线字段。 -->
+    <resultMap id="ResourceResultMap" type="com.john.campus.entity.Resource">
+        <id column="id" property="id"/>
+        <result column="title" property="title"/>
+        <result column="description" property="description"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="course_name" property="courseName"/>
+        <result column="resource_type" property="resourceType"/>
+        <result column="tags" property="tags"/>
+        <result column="file_id" property="fileId"/>
+        <result column="uploader_id" property="uploaderId"/>
+        <result column="status" property="status"/>
+        <result column="reject_reason" property="rejectReason"/>
+        <result column="offline_reason" property="offlineReason"/>
+        <result column="view_count" property="viewCount"/>
+        <result column="download_count" property="downloadCount"/>
+        <result column="favorite_count" property="favoriteCount"/>
+        <result column="hot_score" property="hotScore"/>
+        <result column="approved_at" property="approvedAt"/>
+        <result column="offline_at" property="offlineAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 公共列清单集中维护，避免详情和列表查询返回字段不一致。 -->
+    <sql id="BaseColumnList">
+        id,
+        title,
+        description,
+        category_id,
+        course_name,
+        resource_type,
+        tags,
+        file_id,
+        uploader_id,
+        status,
+        reject_reason,
+        offline_reason,
+        view_count,
+        download_count,
+        favorite_count,
+        hot_score,
+        approved_at,
+        offline_at,
+        created_at,
+        updated_at
+    </sql>
+
+    <!-- 插入资料；可选字段为空时不写入，保留数据库默认状态和统计字段。 -->
+    <insert id="insert" parameterType="com.john.campus.entity.Resource" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `resource`
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            title,
+            category_id,
+            course_name,
+            file_id,
+            uploader_id,
+            <if test="description != null and description != ''">
+                description,
+            </if>
+            <if test="resourceType != null">
+                resource_type,
+            </if>
+            <if test="tags != null and tags != ''">
+                tags,
+            </if>
+            <if test="status != null">
+                status,
+            </if>
+            <if test="rejectReason != null and rejectReason != ''">
+                reject_reason,
+            </if>
+            <if test="offlineReason != null and offlineReason != ''">
+                offline_reason,
+            </if>
+            <if test="viewCount != null">
+                view_count,
+            </if>
+            <if test="downloadCount != null">
+                download_count,
+            </if>
+            <if test="favoriteCount != null">
+                favorite_count,
+            </if>
+            <if test="hotScore != null">
+                hot_score,
+            </if>
+            <if test="approvedAt != null">
+                approved_at,
+            </if>
+            <if test="offlineAt != null">
+                offline_at,
+            </if>
+        </trim>
+        <trim prefix="VALUES (" suffix=")" suffixOverrides=",">
+            #{title},
+            #{categoryId},
+            #{courseName},
+            #{fileId},
+            #{uploaderId},
+            <if test="description != null and description != ''">
+                #{description},
+            </if>
+            <if test="resourceType != null">
+                #{resourceType},
+            </if>
+            <if test="tags != null and tags != ''">
+                #{tags},
+            </if>
+            <if test="status != null">
+                #{status},
+            </if>
+            <if test="rejectReason != null and rejectReason != ''">
+                #{rejectReason},
+            </if>
+            <if test="offlineReason != null and offlineReason != ''">
+                #{offlineReason},
+            </if>
+            <if test="viewCount != null">
+                #{viewCount},
+            </if>
+            <if test="downloadCount != null">
+                #{downloadCount},
+            </if>
+            <if test="favoriteCount != null">
+                #{favoriteCount},
+            </if>
+            <if test="hotScore != null">
+                #{hotScore},
+            </if>
+            <if test="approvedAt != null">
+                #{approvedAt},
+            </if>
+            <if test="offlineAt != null">
+                #{offlineAt},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 按主键查询完整资料记录，状态判断统一放到 Service 层处理。 -->
+    <select id="selectById" resultMap="ResourceResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `resource`
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <!-- 公开详情只允许返回已审核通过资料，命中 idx_resource_status_created 的状态前缀。 -->
+    <select id="selectPublicDetailById" resultMap="ResourceResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `resource`
+        WHERE id = #{id}
+          AND status = 1
+        LIMIT 1
+    </select>
+
+    <!-- 我的上传列表按当前用户隔离；状态可选，排序保持最新资料优先。 -->
+    <select id="selectByUploader" resultMap="ResourceResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `resource`
+        WHERE uploader_id = #{uploaderId}
+        <if test="status != null">
+          AND status = #{status}
+        </if>
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <!-- 与列表查询保持同一过滤条件，用于 PageResult.total。 -->
+    <select id="countByUploader" resultType="long">
+        SELECT COUNT(1)
+        FROM `resource`
+        WHERE uploader_id = #{uploaderId}
+        <if test="status != null">
+          AND status = #{status}
+        </if>
+    </select>
+
+    <!-- 重复提交只拦截仍有业务效力的待审核和已通过资料，拒绝/下架资料允许后续另行处理。 -->
+    <select id="countActiveByUploaderAndFileId" resultType="long">
+        SELECT COUNT(1)
+        FROM `resource`
+        WHERE uploader_id = #{uploaderId}
+          AND file_id = #{fileId}
+          AND status IN (0, 1)
+    </select>
+
+</mapper>

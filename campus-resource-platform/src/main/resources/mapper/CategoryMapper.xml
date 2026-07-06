@@ -29,6 +29,16 @@
         updated_at
     </sql>
 
+    <!-- 资料创建时按 ID 校验分类是否启用，避免新资料引用禁用分类。 -->
+    <select id="selectEnabledById" resultMap="CategoryResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM category
+        WHERE id = #{id}
+          AND status = 1
+        LIMIT 1
+    </select>
+
     <!-- 上传前分类选择只返回启用分类，并使用稳定排序保证前端展示顺序一致。 -->
     <select id="selectEnabledByParentId" resultMap="CategoryResultMap">
         SELECT

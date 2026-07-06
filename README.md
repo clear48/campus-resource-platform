@@ -80,6 +80,15 @@ cd campus-resource-platform
 .\mvnw.cmd -DskipTests package
 ```
 
+## 测试验证
+
+```powershell
+cd campus-resource-platform
+.\mvnw.cmd test
+```
+
+当前测试覆盖资料模块 Controller 层、资料数据库读写集成链路和 Spring Boot 上下文加载。
+
 ## 当前完成内容
 
 - Spring Boot 基础依赖：Web、Validation、MyBatis、MySQL、Redis、JWT 基础库。
@@ -94,5 +103,7 @@ cd campus-resource-platform
 - 用户认证模块：注册、登录、退出登录、当前用户查询、BCrypt 密码加密、JWT 签发与解析、Redis Token 黑名单。
 - 分类查询模块：公开查询启用分类列表 `/api/v1/categories`。
 - 文件上传模块：`POST /api/v1/files` 上传文件、`GET /api/v1/files/check` 做 MD5 预检，支持 `file_md5 + file_size` 去重、秒传、本地存储、`file_info` 入库和 Redis MD5 缓存。
+- 资料模块首版：`POST /api/v1/resources` 创建待审核资料、`GET /api/v1/resources/{resourceId}` 查询公开资料详情、`GET /api/v1/users/me/resources` 查询我的上传资料列表，支持文件/分类校验、重复提交拦截、分页和状态筛选。
+- 资料模块测试：已补充 `ResourceControllerTest` 和 `ResourceDatabaseIntegrationTest`，验证接口层、鉴权路径、真实 MyBatis SQL、数据库写入与读取。
 
-当前下一阶段规划为“资料模块”：基于已上传文件 `fileId` 创建 `resource` 资料记录，并提供公开详情和我的上传资料列表。规划文档见 `docs/modules/03-resource-development-process.md`，总体进度见 `docs/06-project-progress.md`。
+当前下一阶段建议开发“审核模块”：消费 `resource.status = 0` 的待审核资料，实现管理员审核通过、审核拒绝、下架和审核记录。资料模块记录见 `docs/modules/03-resource-development-process.md`，总体进度见 `docs/06-project-progress.md`。

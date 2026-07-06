@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "f0a0c7bb-3fd5-4d25-a8d1-45acda147201",
     "name": "Campus Resource Platform",
-    "description": "校园资料共享与智能检索平台接口测试集合。当前覆盖认证模块完整链路：健康检查、注册、登录、当前用户、退出登录、退出后验证 Token 失效。",
+    "description": "校园资料共享与智能检索平台接口测试集合。当前覆盖认证模块完整链路，以及资料模块的创建资料、公开详情、我的上传列表和核心异常场景。",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -301,6 +301,541 @@
                 "v1",
                 "users",
                 "me"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 Resource Module",
+      "description": "资料模块接口示例。运行前请准备正常文件 ID 和启用分类 ID，并在环境变量中设置 resourceFileId、resourceCategoryId；公开详情成功用例需要 publicResourceId 指向已审核通过资料。",
+      "item": [
+        {
+          "name": "Refresh Token For Resource Tests",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('resource login status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('resource login success and save token', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.code).to.eql(0);",
+                  "  pm.expect(json.data.accessToken).to.be.a('string').and.not.empty;",
+                  "  pm.environment.set('accessToken', json.data.accessToken);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Resource",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (!pm.environment.get('resourceFileId')) {",
+                  "  pm.environment.set('resourceFileId', '1');",
+                  "}",
+                  "if (!pm.environment.get('resourceCategoryId')) {",
+                  "  pm.environment.set('resourceCategoryId', '1');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('create resource status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('create resource success and save resource id', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.code).to.eql(0);",
+                  "  pm.expect(json.data.status).to.eql(0);",
+                  "  pm.environment.set('createdResourceId', json.data.resourceId);",
+                  "  pm.environment.set('pendingResourceId', json.data.resourceId);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileId\": {{resourceFileId}},\n  \"title\": \"Java 期末复习课件\",\n  \"description\": \"覆盖集合、IO 和并发基础\",\n  \"categoryId\": {{resourceCategoryId}},\n  \"courseName\": \"Java 程序设计\",\n  \"resourceType\": 1,\n  \"tags\": [\"Java\", \"复习\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/resources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "resources"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Resource Without Token Should Fail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('anonymous create should be unauthorized', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.code).to.eql(40101);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileId\": {{resourceFileId}},\n  \"title\": \"Java 期末复习课件\",\n  \"categoryId\": {{resourceCategoryId}},\n  \"courseName\": \"Java 程序设计\",\n  \"resourceType\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/resources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "resources"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Resource File Not Found Should Fail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('file not found should return 40401', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.code).to.eql(40401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileId\": 999999999,\n  \"title\": \"不存在文件测试\",\n  \"categoryId\": {{resourceCategoryId}},\n  \"courseName\": \"Java 程序设计\",\n  \"resourceType\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/resources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "resources"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Resource Category Not Found Should Fail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('category not found should return 40401', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.code).to.eql(40401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileId\": {{resourceFileId}},\n  \"title\": \"不存在分类测试\",\n  \"categoryId\": 999999999,\n  \"courseName\": \"Java 程序设计\",\n  \"resourceType\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/resources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "resources"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Resource Duplicate Should Fail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('duplicate create should return 40002', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.code).to.eql(40002);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileId\": {{resourceFileId}},\n  \"title\": \"Java 期末复习课件\",\n  \"description\": \"重复提交同一文件\",\n  \"categoryId\": {{resourceCategoryId}},\n  \"courseName\": \"Java 程序设计\",\n  \"resourceType\": 1,\n  \"tags\": [\"Java\", \"复习\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/resources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "resources"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Public Resource Detail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('public detail status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('public detail returns approved resource', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.code).to.eql(0);",
+                  "  pm.expect(json.data.status).to.eql(1);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/resources/{{publicResourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "resources",
+                "{{publicResourceId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Public Pending Resource Detail Should Fail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('pending detail should be invisible', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.code).to.eql(40901);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/resources/{{pendingResourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "resources",
+                "{{pendingResourceId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "My Resources",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('my resources status code is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('my resources returns page result', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.code).to.eql(0);",
+                  "  pm.expect(json.data.records).to.be.an('array');",
+                  "  pm.expect(json.data.pageNo).to.eql(1);",
+                  "  pm.expect(json.data.pageSize).to.eql(10);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me/resources?status=0&pageNo=1&pageSize=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "resources"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "0"
+                },
+                {
+                  "key": "pageNo",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "My Resources Invalid Page Should Fail",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('invalid page should return 40001', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.code).to.eql(40001);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me/resources?pageNo=0&pageSize=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "resources"
+              ],
+              "query": [
+                {
+                  "key": "pageNo",
+                  "value": "0"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10"
+                }
               ]
             }
           },

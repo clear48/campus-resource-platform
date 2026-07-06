@@ -1,5 +1,41 @@
 # 数据库变更记录
 
+## 2026-07-06 资料模块
+
+### 变更结论
+
+本模块没有新增生产数据库表、字段或索引，复用 `sql/init.sql` 中已设计的 `resource`、`file_info`、`category` 表。
+
+### 使用到的已有表
+
+| 表名 | 使用方式 |
+| --- | --- |
+| `resource` | 创建待审核资料、公开详情查询、我的上传分页查询、重复提交计数 |
+| `file_info` | 创建资料时按 `fileId` 校验文件是否存在且 `status = 1` |
+| `category` | 创建资料时按 `categoryId` 校验分类是否存在且 `status = 1`，详情中补充分类名称 |
+
+### 使用到的已有索引
+
+| 索引 | 使用场景 |
+| --- | --- |
+| `idx_resource_uploader_status` | 支撑 `uploader_id` + 可选 `status` 的我的上传列表和总数统计 |
+| `idx_resource_status_created` | 支撑审核通过资料的公开可见性查询方向 |
+| `idx_resource_file` | 支撑按 `file_id` 关联文件和重复提交排查 |
+| `idx_category_parent_status` | 分类模块继续用于公开分类列表；资料模块新增按主键查询启用分类 |
+| `uk_file_md5_size` | 文件上传模块继续用于物理文件去重；资料模块通过 `file_info.id` 引用文件 |
+
+### 测试用数据库结构
+
+本模块新增 `campus-resource-platform/src/test/resources/sql/resource-db-test-schema.sql`，仅用于 H2 MySQL 模式下的自动化集成测试，不属于生产数据库结构变更。
+
+### 备注
+
+- `ResourceMapper.insert` 写入 `resource` 并回填自增 ID。
+- `ResourceMapper.selectByUploader` / `countByUploader` 用于我的上传分页。
+- `ResourceMapper.countActiveByUploaderAndFileId` 只统计待审核和已通过资料，防止同一用户重复提交同一文件。
+- `CategoryMapper.selectEnabledById` 和 `FileInfoMapper.selectNormalById` 是资料创建流程新增的校验查询。
+- 当前资料模块不修改 `file_info.ref_count`，物理文件复用仍由文件上传模块负责。
+
 ## 2026-07-05 文件上传模块
 
 ### 变更结论
@@ -23,7 +59,7 @@
 
 - 当前文件上传模块复用了 `sql/init.sql` 中已设计的 `file_info` 表结构。
 - 文件上传模块只写入物理文件信息，不创建 `resource` 资料记录。
-- `resource` 表将在下一阶段资料模块中使用，详见 `docs/modules/03-resource-development-process.md`。
+- `resource` 表已在资料模块中使用，文件上传模块仍只负责生成可引用的 `fileId`，详见 `docs/modules/03-resource-development-process.md`。
 
 ## 2026-07-05 分类查询模块
 

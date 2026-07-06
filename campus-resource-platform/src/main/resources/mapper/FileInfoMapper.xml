@@ -41,6 +41,16 @@
         updated_at
     </sql>
 
+    <!-- 资料创建时按 ID 校验文件是否正常，避免引用已逻辑删除的物理文件。 -->
+    <select id="selectNormalById" resultMap="FileInfoResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM file_info
+        WHERE id = #{id}
+          AND status = 1
+        LIMIT 1
+    </select>
+
     <!-- 秒传去重按 (file_md5, file_size) 查询，命中 uk_file_md5_size 唯一索引，最多一条。 -->
     <select id="selectByMd5AndSize" resultMap="FileInfoResultMap">
         SELECT

@@ -339,6 +339,8 @@
 
 ## 4. 资料模块
 
+本节已按当前 `ResourceController`、`ResourceServiceImpl`、DTO/VO 和测试结果同步。资料模块首版只实现资料创建、公开详情、我的上传列表，不包含审核、搜索、下载、收藏和排行榜能力。
+
 ### 4.1 获取公开资料详情
 
 | 项目 | 内容 |
@@ -347,7 +349,7 @@
 | 请求方法 | `GET` |
 | URL | `/api/v1/resources/{resourceId}` |
 | 是否需要登录 | 否 |
-| 权限要求 | 无，普通用户只能查看 `APPROVED` 资料 |
+| 权限要求 | 无，仅返回 `APPROVED` 资料 |
 
 请求参数：
 
@@ -355,12 +357,10 @@
 | --- | --- | --- | --- |
 | `resourceId` | long | 是 | 路径参数，资料 ID |
 
-请求示例 JSON：
+请求示例：
 
-```json
-{
-  "resourceId": 20001
-}
+```http
+GET /api/v1/resources/20001
 ```
 
 响应示例 JSON：
@@ -382,19 +382,27 @@
     "downloadCount": 128,
     "favoriteCount": 35,
     "hotScore": 745.0,
-    "createdAt": "2026-07-02 10:00:00",
-    "favorited": false
+    "createdAt": "2026-07-02T10:00:00",
+    "favorited": null
   },
   "traceId": "r2000001"
 }
 ```
+
+实现说明：
+
+- 该接口在 `WebMvcConfig` 中通过 `/api/v1/resources/*` 匿名放行。
+- Service 层先按 ID 查询资料，再通过状态判断只允许 `status = 1` 的资料公开返回。
+- 当前不返回下载地址，也不返回 `file_info.storage_path`、`stored_name` 等内部存储字段。
+- `favorited` 字段预留给收藏模块；收藏模块未接入前返回 `null`。
 
 可能的错误码：
 
 | 错误码 | 说明 |
 | --- | --- |
 | `40401` | 资料不存在 |
-| `40901` | 资料未审核通过或已下架 |
+| `40001` | `resourceId` 不合法 |
+| `40901` | 资料未审核通过、已下架或已删除 |
 
 ### 4.2 获取我的上传资料
 
@@ -410,18 +418,14 @@
 
 | 参数 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
-| `status` | int | 否 | 资料状态：0 待审核，1 通过，2 拒绝，3 下架 |
+| `status` | int | 否 | 资料状态：0 待审核，1 通过，2 拒绝，3 下架，4 已删除 |
 | `pageNo` | int | 否 | 页码，默认 1 |
 | `pageSize` | int | 否 | 每页数量，默认 10 |
 
-请求示例 JSON：
+请求示例：
 
-```json
-{
-  "status": 0,
-  "pageNo": 1,
-  "pageSize": 10
-}
+```http
+GET /api/v1/users/me/resources?status=0&pageNo=1&pageSize=10
 ```
 
 响应示例 JSON：
@@ -439,7 +443,7 @@
         "status": 0,
         "rejectReason": null,
         "offlineReason": null,
-        "createdAt": "2026-07-02 10:30:00"
+        "createdAt": "2026-07-02T10:30:00"
       }
     ],
     "pageNo": 1,
@@ -458,7 +462,7 @@
 | `40101` | 未登录 |
 | `40001` | 分页参数或状态参数错误 |
 
-### 4.3 创建资料（下一阶段规划）
+### 4.3 创建资料
 
 | 项目 | 内容 |
 | --- | --- |
@@ -520,8 +524,14 @@
 | `40101` | 未登录 |
 | `40001` | 资料标题、课程、分类、类型或标签参数错误 |
 | `40002` | 同一用户已提交相同待审核或已通过资料 |
-| `40401` | 文件或分类不存在 |
-| `40901` | 文件已删除或分类不可用 |
+| `40401` | 文件不存在、文件已删除、分类不存在或分类已禁用 |
+
+实现说明：
+
+- 上传者来自 JWT 拦截器写入的 `UserContextHolder`，不接受前端传入 `uploaderId`。
+- 创建资料前会校验 `file_info.status = 1` 和 `category.status = 1`。
+- 标签在 Service 层去空白、去重、保序后以逗号分隔字符串写入 `resource.tags`。
+- 当前不修改 `file_info.ref_count`，物理文件复用语义仍由文件上传模块维护。
 
 ### 4.4 获取分类列表
 
