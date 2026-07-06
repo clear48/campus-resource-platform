@@ -106,4 +106,4 @@ cd campus-resource-platform
 - 资料模块首版：`POST /api/v1/resources` 创建待审核资料、`GET /api/v1/resources/{resourceId}` 查询公开资料详情、`GET /api/v1/users/me/resources` 查询我的上传资料列表，支持文件/分类校验、重复提交拦截、分页和状态筛选。
 - 资料模块测试：已补充 `ResourceControllerTest` 和 `ResourceDatabaseIntegrationTest`，验证接口层、鉴权路径、真实 MyBatis SQL、数据库写入与读取。
 
-当前下一阶段建议开发“审核模块”：消费 `resource.status = 0` 的待审核资料，实现管理员审核通过、审核拒绝、下架和审核记录。资料模块记录见 `docs/modules/03-resource-development-process.md`，总体进度见 `docs/06-project-progress.md`。
+当前下一阶段建议开发“审核模块”：消费 `resource.status = 0` 的待审核资料，实现管理员审核通过、审核拒绝、下架和审核记录。审核模块规划见 `docs/modules/04-audit-development-process.md`，资料模块记录见 `docs/modules/03-resource-development-process.md`，总体进度见 `docs/06-project-progress.md`。

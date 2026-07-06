@@ -30,6 +30,7 @@
 | `docs/modules/category-module.md` | 已完成 | 分类查询模块开发记录 |
 | `docs/modules/02-file-upload-development-process.md` | 已完成 | 文件上传模块开发流程记录 |
 | `docs/modules/03-resource-development-process.md` | 已完成 | 资料模块首版开发流程、测试记录和后续优化记录 |
+| `docs/modules/04-audit-development-process.md` | 已规划 | 审核模块下一阶段开发流程、接口边界、状态机和分步骤提示词 |
 | `docs/database/database-change-log.md` | 已同步 | 记录认证、分类、文件上传、资料模块均复用已有生产表结构 |
 | `README.md` | 已同步 | 启动说明、当前完成模块、测试命令和下一阶段建议 |
 
@@ -149,6 +150,8 @@
 ### 8.1 审核模块
 
 建议下一阶段优先开发。
+
+开发流程文档：`docs/modules/04-audit-development-process.md`。
 
 待实现功能：
 
