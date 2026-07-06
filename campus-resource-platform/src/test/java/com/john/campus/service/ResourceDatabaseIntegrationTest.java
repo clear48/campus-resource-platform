@@ -162,6 +162,76 @@ class ResourceDatabaseIntegrationTest {
     }
 
     @Test
+    void mapperShouldPagePendingReviewsWithFilters() {
+        insertCategory(CATEGORY_ID, "计算机基础", 1);
+        insertFile(FILE_ID, 1);
+        insertFile(21L, 1);
+        insertFile(22L, 1);
+        insertResource(100L, CURRENT_USER_ID, FILE_ID, CATEGORY_ID, Resource.STATUS_PENDING_REVIEW,
+                "较早待审核资料", LocalDateTime.of(2026, 1, 2, 10, 0));
+        insertResource(101L, CURRENT_USER_ID, 21L, CATEGORY_ID, Resource.STATUS_PENDING_REVIEW,
+                "较晚待审核资料", LocalDateTime.of(2026, 1, 3, 10, 0));
+        insertResource(102L, OTHER_USER_ID, 22L, CATEGORY_ID, Resource.STATUS_PENDING_REVIEW,
+                "其他用户待审核资料", LocalDateTime.of(2026, 1, 4, 10, 0));
+        insertResource(103L, CURRENT_USER_ID, 23L, CATEGORY_ID, Resource.STATUS_APPROVED,
+                "已通过资料不进审核池", LocalDateTime.of(2026, 1, 5, 10, 0));
+
+        List<Resource> records = resourceMapper.selectPendingReviews(
+                "Java", Resource.TYPE_COURSEWARE, CURRENT_USER_ID, 0, 10);
+        long total = resourceMapper.countPendingReviews("Java", Resource.TYPE_COURSEWARE, CURRENT_USER_ID);
+        long typeMismatchTotal = resourceMapper.countPendingReviews("Java", Resource.TYPE_NOTE, CURRENT_USER_ID);
+
+        assertThat(records).extracting(Resource::getId).containsExactly(100L, 101L);
+        assertThat(records).extracting(Resource::getStatus).containsOnly(Resource.STATUS_PENDING_REVIEW);
+        assertThat(total).isEqualTo(2L);
+        assertThat(typeMismatchTotal).isZero();
+    }
+
+    @Test
+    void mapperShouldUpdateAuditStatusesOnlyFromExpectedPreviousStatus() {
+        insertCategory(CATEGORY_ID, "计算机基础", 1);
+        insertFile(FILE_ID, 1);
+        insertFile(21L, 1);
+        insertFile(22L, 1);
+        insertFile(23L, 1);
+        insertResource(100L, CURRENT_USER_ID, FILE_ID, CATEGORY_ID, Resource.STATUS_PENDING_REVIEW,
+                "待通过资料", LocalDateTime.of(2026, 1, 2, 10, 0));
+        insertResource(101L, CURRENT_USER_ID, 21L, CATEGORY_ID, Resource.STATUS_PENDING_REVIEW,
+                "待拒绝资料", LocalDateTime.of(2026, 1, 3, 10, 0));
+        insertResource(102L, CURRENT_USER_ID, 22L, CATEGORY_ID, Resource.STATUS_APPROVED,
+                "待下架资料", LocalDateTime.of(2026, 1, 4, 10, 0));
+        insertResource(103L, CURRENT_USER_ID, 23L, CATEGORY_ID, Resource.STATUS_REJECTED,
+                "非法状态资料", LocalDateTime.of(2026, 1, 5, 10, 0));
+        LocalDateTime approvedAt = LocalDateTime.of(2026, 1, 6, 9, 0);
+        LocalDateTime offlineAt = LocalDateTime.of(2026, 1, 7, 9, 0);
+
+        int approveRows = resourceMapper.approvePendingReview(100L, approvedAt);
+        int rejectRows = resourceMapper.rejectPendingReview(101L, "内容不完整");
+        int offlineRows = resourceMapper.offlineApprovedResource(102L, "版权风险", offlineAt);
+        int invalidApproveRows = resourceMapper.approvePendingReview(103L, approvedAt);
+        int invalidOfflineRows = resourceMapper.offlineApprovedResource(101L, "重复下架", offlineAt);
+
+        Resource approved = resourceMapper.selectById(100L);
+        Resource rejected = resourceMapper.selectById(101L);
+        Resource offline = resourceMapper.selectById(102L);
+        Resource unchanged = resourceMapper.selectById(103L);
+
+        assertThat(approveRows).isEqualTo(1);
+        assertThat(rejectRows).isEqualTo(1);
+        assertThat(offlineRows).isEqualTo(1);
+        assertThat(invalidApproveRows).isZero();
+        assertThat(invalidOfflineRows).isZero();
+        assertThat(approved.getStatus()).isEqualTo(Resource.STATUS_APPROVED);
+        assertThat(approved.getApprovedAt()).isEqualTo(approvedAt);
+        assertThat(rejected.getStatus()).isEqualTo(Resource.STATUS_REJECTED);
+        assertThat(rejected.getRejectReason()).isEqualTo("内容不完整");
+        assertThat(offline.getStatus()).isEqualTo(Resource.STATUS_OFFLINE);
+        assertThat(offline.getOfflineReason()).isEqualTo("版权风险");
+        assertThat(offline.getOfflineAt()).isEqualTo(offlineAt);
+        assertThat(unchanged.getStatus()).isEqualTo(Resource.STATUS_REJECTED);
+    }
+
+    @Test
     void createShouldRejectDuplicateActiveResourceFromDatabase() {
         insertCategory(CATEGORY_ID, "计算机基础", 1);
         insertFile(FILE_ID, 1);

@@ -1,6 +1,7 @@
 package com.john.campus.mapper;
 
 import com.john.campus.entity.Resource;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.apache.ibatis.annotations.Param;
 
@@ -42,4 +43,40 @@ public interface ResourceMapper {
      * 统计同一用户、同一文件下仍处于待审核或已通过状态的资料，用于防重复提交。
      */
     long countActiveByUploaderAndFileId(@Param("uploaderId") Long uploaderId, @Param("fileId") Long fileId);
+
+    /**
+     * 查询待审核资料列表，固定只返回 PENDING_REVIEW 状态并支持后台筛选。
+     */
+    List<Resource> selectPendingReviews(
+            @Param("courseName") String courseName,
+            @Param("resourceType") Integer resourceType,
+            @Param("uploaderId") Long uploaderId,
+            @Param("offset") Integer offset,
+            @Param("pageSize") Integer pageSize);
+
+    /**
+     * 统计待审核资料数量，与 selectPendingReviews 使用完全一致的筛选条件。
+     */
+    long countPendingReviews(
+            @Param("courseName") String courseName,
+            @Param("resourceType") Integer resourceType,
+            @Param("uploaderId") Long uploaderId);
+
+    /**
+     * 审核通过待审核资料，旧状态条件用于防止重复审核和并发状态覆盖。
+     */
+    int approvePendingReview(@Param("resourceId") Long resourceId, @Param("approvedAt") LocalDateTime approvedAt);
+
+    /**
+     * 审核拒绝待审核资料，只允许从 PENDING_REVIEW 状态流转到 REJECTED。
+     */
+    int rejectPendingReview(@Param("resourceId") Long resourceId, @Param("rejectReason") String rejectReason);
+
+    /**
+     * 下架已通过资料，只允许从 APPROVED 状态流转到 OFFLINE。
+     */
+    int offlineApprovedResource(
+            @Param("resourceId") Long resourceId,
+            @Param("offlineReason") String offlineReason,
+            @Param("offlineAt") LocalDateTime offlineAt);
 }

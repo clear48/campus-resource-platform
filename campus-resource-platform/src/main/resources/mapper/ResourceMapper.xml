@@ -195,4 +195,73 @@
           AND status IN (0, 1)
     </select>
 
+    <!-- 待审核列表固定过滤 status=0，并提供后台审核常用筛选条件。 -->
+    <select id="selectPendingReviews" resultMap="ResourceResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `resource`
+        WHERE status = 0
+        <if test="courseName != null and courseName != ''">
+          AND course_name LIKE CONCAT('%', #{courseName}, '%')
+        </if>
+        <if test="resourceType != null">
+          AND resource_type = #{resourceType}
+        </if>
+        <if test="uploaderId != null">
+          AND uploader_id = #{uploaderId}
+        </if>
+        ORDER BY created_at ASC, id ASC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <!-- 与待审核列表保持同一过滤条件，供 PageResult.total 使用。 -->
+    <select id="countPendingReviews" resultType="long">
+        SELECT COUNT(1)
+        FROM `resource`
+        WHERE status = 0
+        <if test="courseName != null and courseName != ''">
+          AND course_name LIKE CONCAT('%', #{courseName}, '%')
+        </if>
+        <if test="resourceType != null">
+          AND resource_type = #{resourceType}
+        </if>
+        <if test="uploaderId != null">
+          AND uploader_id = #{uploaderId}
+        </if>
+    </select>
+
+    <!-- 审核通过必须带旧状态条件，更新行数为 0 时由 Service 判断为非法状态流转。 -->
+    <update id="approvePendingReview">
+        UPDATE `resource`
+        SET status = 1,
+            approved_at = #{approvedAt},
+            reject_reason = NULL,
+            offline_reason = NULL,
+            offline_at = NULL
+        WHERE id = #{resourceId}
+          AND status = 0
+    </update>
+
+    <!-- 审核拒绝只允许处理待审核资料，同时记录最近一次拒绝原因供上传者查看。 -->
+    <update id="rejectPendingReview">
+        UPDATE `resource`
+        SET status = 2,
+            reject_reason = #{rejectReason},
+            approved_at = NULL,
+            offline_reason = NULL,
+            offline_at = NULL
+        WHERE id = #{resourceId}
+          AND status = 0
+    </update>
+
+    <!-- 下架只允许处理已通过资料，防止待审核或已拒绝资料被越级下架。 -->
+    <update id="offlineApprovedResource">
+        UPDATE `resource`
+        SET status = 3,
+            offline_reason = #{offlineReason},
+            offline_at = #{offlineAt}
+        WHERE id = #{resourceId}
+          AND status = 1
+    </update>
+
 </mapper>
