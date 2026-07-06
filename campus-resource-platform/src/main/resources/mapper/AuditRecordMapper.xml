@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.john.campus.mapper.AuditRecordMapper">
+
+    <!-- 审核记录字段映射，audit_record 表没有 updated_at，因此只映射实际存在的列。 -->
+    <resultMap id="AuditRecordResultMap" type="com.john.campus.entity.AuditRecord">
+        <id column="id" property="id"/>
+        <result column="resource_id" property="resourceId"/>
+        <result column="auditor_id" property="auditorId"/>
+        <result column="action_type" property="actionType"/>
+        <result column="before_status" property="beforeStatus"/>
+        <result column="after_status" property="afterStatus"/>
+        <result column="audit_reason" property="auditReason"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <!-- 公共列清单集中维护，避免插入后的查询字段遗漏审计关键信息。 -->
+    <sql id="BaseColumnList">
+        id,
+        resource_id,
+        auditor_id,
+        action_type,
+        before_status,
+        after_status,
+        audit_reason,
+        created_at
+    </sql>
+
+    <!-- 写入审核留痕；created_at 交由数据库默认值生成，保证审计时间来自服务端数据库。 -->
+    <insert id="insert" parameterType="com.john.campus.entity.AuditRecord" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `audit_record` (
+            resource_id,
+            auditor_id,
+            action_type,
+            before_status,
+            after_status,
+            audit_reason
+        ) VALUES (
+            #{resourceId},
+            #{auditorId},
+            #{actionType},
+            #{beforeStatus},
+            #{afterStatus},
+            #{auditReason}
+        )
+    </insert>
+
+    <!-- 按 resource_id 查询并按时间倒序返回，匹配 idx_audit_resource_created 的查询方向。 -->
+    <select id="selectByResourceId" resultMap="AuditRecordResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `audit_record`
+        WHERE resource_id = #{resourceId}
+        ORDER BY created_at DESC, id DESC
+    </select>
+
+</mapper>
