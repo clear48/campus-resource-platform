@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS audit_record;
 DROP TABLE IF EXISTS `resource`;
 DROP TABLE IF EXISTS file_info;
 DROP TABLE IF EXISTS category;
@@ -58,4 +59,19 @@ CREATE TABLE `resource` (
   KEY idx_resource_status_created (status, created_at),
   KEY idx_resource_uploader_status (uploader_id, status, created_at),
   KEY idx_resource_file (file_id)
+);
+
+CREATE TABLE audit_record (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  resource_id BIGINT NOT NULL,
+  auditor_id BIGINT NOT NULL,
+  action_type TINYINT NOT NULL,
+  before_status TINYINT NOT NULL,
+  after_status TINYINT NOT NULL,
+  audit_reason VARCHAR(500),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_audit_resource_created (resource_id, created_at),
+  KEY idx_audit_auditor_created (auditor_id, created_at),
+  KEY idx_audit_action_created (action_type, created_at)
 );
