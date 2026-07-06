@@ -458,7 +458,72 @@
 | `40101` | 未登录 |
 | `40001` | 分页参数或状态参数错误 |
 
-### 4.3 获取分类列表
+### 4.3 创建资料（下一阶段规划）
+
+| 项目 | 内容 |
+| --- | --- |
+| 接口名称 | 创建资料 |
+| 请求方法 | `POST` |
+| URL | `/api/v1/resources` |
+| 是否需要登录 | 是 |
+| 权限要求 | 学生或管理员 |
+
+说明：文件上传模块当前只负责生成 `fileId`，本接口负责把已上传文件转换为业务资料记录。新资料默认进入 `PENDING_REVIEW` 状态，等待管理员审核。
+
+请求参数：
+
+| 参数 | 类型 | 是否必填 | 说明 |
+| --- | --- | --- | --- |
+| `fileId` | long | 是 | 已上传成功的文件 ID |
+| `title` | string | 是 | 资料标题 |
+| `description` | string | 否 | 资料简介 |
+| `categoryId` | long | 是 | 分类 ID，必须是启用分类 |
+| `courseName` | string | 是 | 课程名称 |
+| `resourceType` | int | 是 | 资料类型：1课件 2笔记 3真题 4实验报告 5课程设计 99其他 |
+| `tags` | array | 否 | 标签列表，首版可转换为逗号分隔字符串存储 |
+
+请求示例 JSON：
+
+```json
+{
+  "fileId": 30001,
+  "title": "数据结构期末复习提纲",
+  "description": "覆盖排序、树、图等重点内容",
+  "categoryId": 10,
+  "courseName": "数据结构",
+  "resourceType": 2,
+  "tags": ["数据结构", "复习", "期末"]
+}
+```
+
+响应示例 JSON：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "resourceId": 20001,
+    "fileId": 30001,
+    "status": 0,
+    "statusName": "PENDING_REVIEW",
+    "message": "资料已创建，等待管理员审核"
+  },
+  "traceId": "r2000004"
+}
+```
+
+可能的错误码：
+
+| 错误码 | 说明 |
+| --- | --- |
+| `40101` | 未登录 |
+| `40001` | 资料标题、课程、分类、类型或标签参数错误 |
+| `40002` | 同一用户已提交相同待审核或已通过资料 |
+| `40401` | 文件或分类不存在 |
+| `40901` | 文件已删除或分类不可用 |
+
+### 4.4 获取分类列表
 
 | 项目 | 内容 |
 | --- | --- |
@@ -520,27 +585,24 @@ GET /api/v1/categories?parentId=0
 | 项目 | 内容 |
 | --- | --- |
 | 接口名称 | 文件 MD5 去重检查 |
-| 请求方法 | `POST` |
-| URL | `/api/v1/files/md5-checks` |
+| 请求方法 | `GET` |
+| URL | `/api/v1/files/check` |
 | 是否需要登录 | 是 |
 | 权限要求 | 学生或管理员 |
+
+说明：该接口已按当前代码实现同步。前端可在上传前计算文件 MD5，并用 `fileMd5 + fileSize` 判断是否可秒传。
 
 请求参数：
 
 | 参数 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
-| `fileMd5` | string | 是 | 文件 MD5，32 位 |
-| `fileSize` | long | 是 | 文件大小，单位字节 |
-| `originalName` | string | 否 | 原始文件名，用于辅助校验扩展名 |
+| `fileMd5` | string | 是 | 文件 MD5，32 位十六进制 |
+| `fileSize` | long | 是 | 文件大小，单位字节，不能小于 0 |
 
-请求示例 JSON：
+请求示例：
 
-```json
-{
-  "fileMd5": "5d41402abc4b2a76b9719d911017c592",
-  "fileSize": 1048576,
-  "originalName": "数据结构复习.pdf"
-}
+```http
+GET /api/v1/files/check?fileMd5=5d41402abc4b2a76b9719d911017c592&fileSize=1048576
 ```
 
 响应示例 JSON：
@@ -550,12 +612,8 @@ GET /api/v1/categories?parentId=0
   "code": 0,
   "message": "success",
   "data": {
-    "duplicated": true,
-    "fileId": 30001,
-    "reuseAllowed": true,
-    "originalName": "数据结构复习.pdf",
-    "fileExt": "pdf",
-    "fileSize": 1048576
+    "secondUpload": true,
+    "fileId": 30001
   },
   "traceId": "f3000001"
 }
@@ -567,45 +625,32 @@ GET /api/v1/categories?parentId=0
 | --- | --- |
 | `40101` | 未登录 |
 | `40001` | MD5 或文件大小不合法 |
-| `41501` | 文件类型不允许 |
 
-### 5.2 上传文件并创建资料
+### 5.2 上传文件
 
 | 项目 | 内容 |
 | --- | --- |
-| 接口名称 | 上传文件并创建资料 |
+| 接口名称 | 上传文件 |
 | 请求方法 | `POST` |
-| URL | `/api/v1/resources` |
+| URL | `/api/v1/files` |
 | 是否需要登录 | 是 |
 | 权限要求 | 学生或管理员 |
+
+说明：该接口只保存物理文件并返回 `fileId`，不创建 `resource` 资料记录。资料标题、课程、分类、标签等业务信息由资料模块的 `POST /api/v1/resources` 处理。
 
 请求参数：
 
 | 参数 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
 | `file` | file | 是 | 上传文件，`multipart/form-data` |
-| `fileMd5` | string | 是 | 客户端计算的文件 MD5，后端仍需校验 |
-| `title` | string | 是 | 资料标题 |
-| `description` | string | 否 | 资料简介 |
-| `categoryId` | long | 是 | 分类 ID |
-| `courseName` | string | 是 | 课程名称 |
-| `resourceType` | int | 是 | 资料类型 |
-| `tags` | array | 否 | 标签列表 |
 
-请求示例 JSON：
+请求示例：
 
-```json
-{
-  "contentType": "multipart/form-data",
-  "file": "数据结构复习.pdf",
-  "fileMd5": "5d41402abc4b2a76b9719d911017c592",
-  "title": "数据结构期末复习提纲",
-  "description": "覆盖排序、树、图等重点内容",
-  "categoryId": 10,
-  "courseName": "数据结构",
-  "resourceType": 2,
-  "tags": ["数据结构", "复习", "期末"]
-}
+```http
+POST /api/v1/files
+Content-Type: multipart/form-data
+
+file=@数据结构复习.pdf
 ```
 
 响应示例 JSON：
@@ -615,12 +660,12 @@ GET /api/v1/categories?parentId=0
   "code": 0,
   "message": "success",
   "data": {
-    "resourceId": 20001,
     "fileId": 30001,
-    "fileReused": false,
-    "status": 0,
-    "statusName": "PENDING_REVIEW",
-    "message": "上传成功，资料已进入待审核状态"
+    "fileMd5": "5d41402abc4b2a76b9719d911017c592",
+    "originalName": "数据结构复习.pdf",
+    "fileSize": 1048576,
+    "fileExt": "pdf",
+    "secondUpload": false
   },
   "traceId": "f3000002"
 }
@@ -631,75 +676,10 @@ GET /api/v1/categories?parentId=0
 | 错误码 | 说明 |
 | --- | --- |
 | `40101` | 未登录 |
-| `40001` | 资料标题、课程、分类或 MD5 参数错误 |
+| `40001` | 文件为空或参数错误 |
 | `41301` | 文件过大 |
 | `41501` | 文件类型不允许 |
-| `42901` | 上传过于频繁 |
-| `40002` | 同一用户已提交相同待审核或已通过资料 |
 | `50001` | 文件保存失败或数据库保存失败 |
-
-### 5.3 复用已存在文件创建资料
-
-| 项目 | 内容 |
-| --- | --- |
-| 接口名称 | 复用已存在文件创建资料 |
-| 请求方法 | `POST` |
-| URL | `/api/v1/files/{fileId}/resources` |
-| 是否需要登录 | 是 |
-| 权限要求 | 学生或管理员 |
-
-请求参数：
-
-| 参数 | 类型 | 是否必填 | 说明 |
-| --- | --- | --- | --- |
-| `fileId` | long | 是 | 路径参数，已存在文件 ID |
-| `title` | string | 是 | 资料标题 |
-| `description` | string | 否 | 资料简介 |
-| `categoryId` | long | 是 | 分类 ID |
-| `courseName` | string | 是 | 课程名称 |
-| `resourceType` | int | 是 | 资料类型 |
-| `tags` | array | 否 | 标签列表 |
-
-请求示例 JSON：
-
-```json
-{
-  "fileId": 30001,
-  "title": "数据结构重点题型整理",
-  "description": "基于同一份 PDF 创建新的资料说明",
-  "categoryId": 10,
-  "courseName": "数据结构",
-  "resourceType": 2,
-  "tags": ["题型", "复习"]
-}
-```
-
-响应示例 JSON：
-
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "resourceId": 20003,
-    "fileId": 30001,
-    "fileReused": true,
-    "status": 0,
-    "statusName": "PENDING_REVIEW"
-  },
-  "traceId": "f3000003"
-}
-```
-
-可能的错误码：
-
-| 错误码 | 说明 |
-| --- | --- |
-| `40101` | 未登录 |
-| `40401` | 文件不存在 |
-| `40001` | 资料参数错误 |
-| `40002` | 重复提交相同资料 |
-| `42901` | 上传过于频繁 |
 
 ## 6. 审核模块
 
@@ -1615,7 +1595,7 @@ GET /api/v1/categories?parentId=0
 
 | 能力 | 对应接口 | 体现点 |
 | --- | --- | --- |
-| 文件 MD5 去重 | `POST /api/v1/files/md5-checks` | 上传前判断文件是否已存在，支持复用 `file_info` |
+| 文件 MD5 去重 | `GET /api/v1/files/check` | 上传前判断文件是否已存在，支持复用 `file_info` |
 | 上传后待审核 | `POST /api/v1/resources` | 创建资料后状态为 `PENDING_REVIEW` |
 | 审核状态流转 | 审核模块接口 | 通过、拒绝、下架都校验状态机并写 `audit_record` |
 | 非公开资料隔离 | `GET /api/v1/search/resources` | 强制只返回 `APPROVED` 资料 |

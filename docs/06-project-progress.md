@@ -2,11 +2,13 @@
 
 ## 1. 当前阶段结论
 
-项目当前处于“基础工程 + 用户认证模块 + 分类查询模块 + 文件上传模块（核心代码完成，待测试）”阶段。
+项目当前处于“基础工程 + 用户认证模块 + 分类查询模块 + 文件上传模块（核心代码完成，待接口/自动化测试）”阶段。
 
 已经完成的内容主要包括：项目需求与设计文档、MySQL 初始化脚本、Spring Boot 后端基础骨架、统一响应与异常处理、用户实体、用户 Mapper、密码加密、JWT 工具类、JWT 鉴权拦截器、注册/登录/退出登录/当前用户查询接口、Redis Token 黑名单，以及资料上传前使用的公开分类查询接口。
 
-文件上传模块（含文件 MD5 去重与秒传）已完成核心代码并通过编译，测试待补充，详见 `docs/modules/02-file-upload-development-process.md`。其余核心业务模块仍待开发，包括资料创建、资料审核、搜索、下载、收藏、排行榜、下载限流、下载量统计同步等。
+文件上传模块（含文件 MD5 去重与秒传）已完成核心代码并通过编译，测试待补充，详见 `docs/modules/02-file-upload-development-process.md`。当前上传模块只负责 `file_info` 物理文件，不直接创建 `resource` 资料记录。
+
+下一阶段建议优先开发“资料模块”，把已上传文件转换为业务资料记录，并提供资料详情和我的上传列表能力。审核、搜索、下载、收藏、排行榜等模块依赖 `resource` 数据，仍放在资料模块之后逐步开发。
 
 ## 2. 进度状态说明
 
@@ -24,12 +26,14 @@
 | `docs/01-requirements.md` | 已完成 | 项目背景、用户角色、功能需求、非功能需求、项目亮点 |
 | `docs/02-business-flow.md` | 已完成 | 上传、审核、搜索、下载、收藏等核心业务流程和状态流转 |
 | `docs/03-database-design.md` | 已完成 | MySQL 表结构、字段说明、索引、设计理由和知识点 |
-| `docs/04-api-doc.md` | 已完成，后续需随代码同步 | RESTful API 总体设计，认证模块和分类查询模块已按实际代码同步 |
+| `docs/04-api-doc.md` | 已完成，后续需随代码同步 | RESTful API 总体设计，认证、分类查询、文件上传模块已按实际代码同步 |
 | `docs/05-redis-design.md` | 已完成，后续需随代码同步 | Redis Key、数据结构、TTL、一致性策略，Token 黑名单已按实际代码同步 |
 | `docs/modules/module.md` | 已完成 | 用户认证模块开发记录 |
 | `docs/modules/category-module.md` | 已完成 | 分类查询模块开发记录 |
-| `docs/database/database-change-log.md` | 已完成 | 认证模块和分类查询模块均未新增数据库结构，复用已有表 |
-| `README.md` | 部分完成 | 包含项目启动说明，但“当前完成内容”仍偏向早期骨架阶段，后续可更新 |
+| `docs/modules/02-file-upload-development-process.md` | 已完成，测试待补充 | 文件上传模块开发流程记录，已按实际代码同步上传、预检、MD5 缓存与补偿逻辑 |
+| `docs/modules/03-resource-development-process.md` | 已规划 | 下一阶段资料模块开发流程初稿，用于指导后续小步实现 |
+| `docs/database/database-change-log.md` | 已完成 | 认证、分类查询、文件上传模块均未新增数据库结构，复用已有表 |
+| `README.md` | 已同步 | 包含项目启动说明、当前已完成模块与下一阶段模块说明 |
 
 ## 4. 已完成的数据库与脚本
 
@@ -44,7 +48,7 @@
 | `user` | 已设计 | 已被认证模块使用 |
 | `category` | 已设计 | 已被分类查询模块使用 |
 | `file_info` | 已设计 | 已被文件上传模块使用 |
-| `resource` | 已设计 | 当前代码暂未使用 |
+| `resource` | 已设计 | 下一阶段资料模块优先使用 |
 | `favorite` | 已设计 | 当前代码暂未使用 |
 | `download_record` | 已设计 | 当前代码暂未使用 |
 | `audit_record` | 已设计 | 当前代码暂未使用 |
@@ -157,10 +161,11 @@
 
 | 类型 | 状态 | 说明 |
 | --- | --- | --- |
-| 编译验证 | 已完成 | `.\mvnw.cmd -DskipTests compile` 已通过 |
+| 编译验证 | 已完成 | `.\mvnw.cmd -DskipTests compile` 已通过，文件上传核心代码已纳入编译 |
 | Postman 集合 | 已准备 | `postman/campus-resource-platform.postman_collection.json` |
 | Postman 环境 | 已准备 | `postman/campus-local.postman_environment.json` |
-| 自动化单元测试 | 待开发 | 当前暂未针对认证模块和分类查询模块补充单元测试 |
+| 文件上传接口测试 | 待补充 | 需补充上传成功、秒传、预检命中/未命中、文件过大、非法类型、未登录等用例 |
+| 自动化单元测试 | 待开发 | 当前暂未针对认证、分类、文件上传模块补充单元测试 |
 | 集成测试 | 待开发 | 当前暂未使用 Testcontainers 或 MockMvc 做完整链路测试 |
 
 ## 9. 部分完成的模块
@@ -168,45 +173,52 @@
 | 模块 | 当前状态 | 已有基础 | 尚缺内容 |
 | --- | --- | --- | --- |
 | 用户模块 | 部分完成 | 注册、登录、退出登录、当前用户查询 | 用户资料修改、头像、管理员禁用用户、用户列表、角色管理 |
-| Redis 能力 | 部分完成 | Token 黑名单已实现 | 排行榜、下载限流、下载量统计、资料详情缓存、文件 MD5 缓存暂未实现 |
-| 数据库模块 | 部分完成 | 完整建表 SQL 已有，`user`、`category` 表已被使用 | 其余业务表还没有 Mapper、Entity、Service、Controller |
-| 接口文档 | 部分完成 | 整体接口已设计，认证模块已按代码同步 | 其余模块接口待开发后继续校准 |
+| Redis 能力 | 部分完成 | Token 黑名单、文件 MD5 去重缓存已实现 | 排行榜、下载限流、下载量统计、资料详情缓存暂未实现 |
+| 数据库模块 | 部分完成 | 完整建表 SQL 已有，`user`、`category`、`file_info` 表已被使用 | `resource`、`favorite`、`download_record`、`audit_record` 还没有 Mapper、Entity、Service、Controller |
+| 接口文档 | 部分完成 | 整体接口已设计，认证、分类、文件上传模块已按代码同步 | 资料、审核、搜索、下载、收藏等模块待开发后继续校准 |
 
 ## 10. 待开发的核心业务模块
 
-### 10.1 文件上传模块
+### 10.1 文件上传模块（核心已完成，非下一阶段主线）
 
-待实现功能：
+已实现功能：
 
-- 文件类型校验。
+- 文件类型白名单校验。
 - 文件大小校验。
 - 计算文件 MD5。
 - 根据 `file_md5` 和 `file_size` 判断是否重复文件。
-- 保存文件到本地或对象存储。
+- 保存文件到本地存储。
 - 写入 `file_info` 表。
 - 文件复用或秒传。
 - 上传失败后的文件清理。
+- Redis 文件 MD5 去重缓存。
+
+待补充功能：
+
 - 上传频率限制。
+- 文件上传接口手工测试与自动化测试。
+- 严格 MIME/文件头校验。
 
 涉及表：
 
 - `file_info`
-- `resource`
+- `resource`（下一阶段资料模块使用）
 
 涉及 Redis Key：
 
 - `crp:cache:file:md5:{fileMd5}:{fileSize}`
 
-### 10.2 资料模块
+### 10.2 资料模块（下一阶段优先开发）
 
-待实现功能：
+下一阶段建议实现功能：
 
 - 上传文件后创建资料记录。
 - 资料进入待审核状态。
 - 查询资料详情。
 - 查询我的上传资料。
 - 资料状态展示。
-- 资料浏览次数统计。
+- 校验分类、文件状态和上传者权限。
+- 资料浏览次数统计可作为本模块后续增强，首版可先保留默认值。
 
 涉及表：
 
@@ -347,7 +359,7 @@
 | --- | --- | --- |
 | 文件上传 | 核心已完成（待测试） | `POST /api/v1/files` 上传 + `GET /api/v1/files/check` 预检 |
 | 文件 MD5 去重 | 已完成 | `file_md5 + file_size` 唯一索引去重与秒传，Redis 缓存加速 |
-| 资料创建 | 未实现 | `resource` 表已设计 |
+| 资料创建 | 未实现（下一阶段优先） | `resource` 表已设计，文件上传模块已返回可引用的 `fileId` |
 | 分类查询 | 已实现 | `GET /api/v1/categories?parentId=0`，只返回启用分类 |
 | 审核状态流转 | 未实现 | 需求和流程已设计 |
 | 审核记录 | 未实现 | `audit_record` 表已设计 |
@@ -381,29 +393,40 @@
 - 分类查询保持只读边界：复用已有 `category` 表，公开查询启用分类，但不提前实现上传和审核模块。
 - 文档体系较完整：需求、流程、数据库、接口、Redis、模块记录都有对应文档。
 
-## 13. 推荐下一阶段开发顺序
+## 13. 推荐下一阶段开发模块
 
-建议下一阶段优先开发“文件上传 + 资料创建”模块，因为它是搜索、审核、下载、收藏的前置基础。
+建议下一阶段优先开发“资料模块”，而不是继续扩展审核、搜索或下载。原因如下：
 
-推荐顺序：
+1. 文件上传模块已经能产出稳定的 `fileId`，但平台还缺少 `resource` 业务资料记录，搜索、审核、下载、收藏都没有可消费的业务主体。
+2. `resource.status` 是后续审核状态机、搜索可见性、下载权限和收藏校验的共同基础。
+3. 资料模块可以复用已完成的认证、分类查询、文件上传、分页模型和统一异常能力，开发边界清晰。
+4. 资料模块首版不需要新增数据库结构，直接复用 `resource`、`file_info`、`category` 表，风险较低。
 
-1. 健康检查接口已补全（`HealthController` 暴露 `GET /api/v1/health`）；后续可继续同步 README「当前完成内容」中的认证与分类模块描述。
-2. 创建 `FileInfo`、`Resource` 实体和基础 Mapper。
-3. 实现文件 MD5 检查接口。
-4. 实现文件上传并创建资料接口，让资料进入待审核状态。
-5. 实现管理员审核通过/拒绝/下架流程。
-6. 实现资料详情和资料搜索。
-7. 实现下载接口、下载限流和 Redis 下载量统计。
-8. 实现收藏接口和热门资料排行榜。
-9. 补充单元测试、集成测试和模块开发记录。
+下一阶段资料模块建议边界：
+
+- 实现 `POST /api/v1/resources`：基于已上传 `fileId` 创建资料，默认 `status = 0 PENDING_REVIEW`。
+- 实现 `GET /api/v1/resources/{resourceId}`：查询已审核通过的公开资料详情。
+- 实现 `GET /api/v1/users/me/resources`：查询当前用户上传资料列表和审核状态。
+- 校验 `file_info` 是否存在且正常、`category` 是否启用、资料标题/课程/类型/标签是否合法。
+- 暂不实现管理员审核、全文搜索、下载、收藏、排行榜和定时同步。
+
+推荐小步开发顺序：
+
+1. 根据 `docs/modules/03-resource-development-process.md` 确认模块边界。
+2. 创建 `Resource` 实体、`ResourceMapper` 和 `ResourceMapper.xml`。
+3. 创建资料 DTO/VO，统一处理 tags 存储和展示转换。
+4. 实现创建资料 Service：校验文件、分类、重复提交，并写入 `resource`。
+5. 实现公开详情和我的上传列表查询。
+6. 补充 `ResourceController`，并更新 `WebMvcConfig` 中公开详情接口的 JWT 排除规则。
+7. 补充接口测试、模块文档、数据库变更记录和进度文档。
 
 ## 14. 当前可提交总结
 
 ```text
-docs(progress): add project progress overview
+docs(progress): plan resource module as next milestone
 
-- summarize completed authentication and infrastructure modules
-- list implemented APIs, database usage and Redis keys
-- clarify pending business modules and unimplemented features
-- propose next development order for resource upload and review flow
+- sync file upload module status with current implementation
+- clarify resource module as the next development target
+- record resource module scope, dependencies and development order
+- add module planning document for the next implementation phase
 ```

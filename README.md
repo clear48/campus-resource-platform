@@ -1,6 +1,6 @@
 # 校园资料共享与智能检索平台
 
-这是一个面向 Java 后端实习项目的 Spring Boot 后端骨架，配套文档已经放在 `docs/` 目录下。
+这是一个面向 Java 后端实习项目的校园资料共享与智能检索平台后端工程，配套需求、流程、数据库、接口、Redis 和模块开发文档放在 `docs/` 目录下。
 
 ## 项目结构
 
@@ -24,7 +24,7 @@ vo             响应视图对象
 common         统一响应、错误码、分页结果
 config         Web、MyBatis 等配置
 exception      业务异常、全局异常处理
-interceptor    JWT 拦截器骨架
+interceptor    JWT 拦截器
 ```
 
 ## 环境要求
@@ -89,7 +89,10 @@ cd campus-resource-platform
 - 全局异常处理 `GlobalExceptionHandler`。
 - 业务异常 `BusinessException`。
 - MyBatis Mapper 扫描配置。
-- Web CORS 配置和 JWT 拦截器骨架。
+- Web CORS 配置和 JWT 鉴权拦截器。
 - 健康检查接口 `/api/v1/health`。
+- 用户认证模块：注册、登录、退出登录、当前用户查询、BCrypt 密码加密、JWT 签发与解析、Redis Token 黑名单。
+- 分类查询模块：公开查询启用分类列表 `/api/v1/categories`。
+- 文件上传模块：`POST /api/v1/files` 上传文件、`GET /api/v1/files/check` 做 MD5 预检，支持 `file_md5 + file_size` 去重、秒传、本地存储、`file_info` 入库和 Redis MD5 缓存。
 
-当前阶段只搭建项目骨架和公共能力，业务接口会在后续按 `docs/04-api-doc.md` 逐步实现。
+当前下一阶段规划为“资料模块”：基于已上传文件 `fileId` 创建 `resource` 资料记录，并提供公开详情和我的上传资料列表。规划文档见 `docs/modules/03-resource-development-process.md`，总体进度见 `docs/06-project-progress.md`。
