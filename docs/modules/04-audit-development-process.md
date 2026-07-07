@@ -1,7 +1,7 @@
 # 审核模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**规划中，下一阶段待开发**。资料模块首版已完成，能够产生 `resource.status = 0 PENDING_REVIEW` 的待审核资料；审核模块将基于这些资料实现管理员审核通过、审核拒绝、下架和审核记录能力。
+> 当前状态：**首版已完成并通过测试**。资料模块能够产生 `resource.status = 0 PENDING_REVIEW` 的待审核资料；审核模块已基于这些资料实现管理员审核通过、审核拒绝、下架和审核记录能力。
 
 ---
 
@@ -12,8 +12,8 @@
 | 模块名称 | 审核模块 |
 | 英文标识 | audit |
 | 文档路径 | `docs/modules/04-audit-development-process.md` |
-| 建议分支 | `feature/audit` |
-| 当前状态 | 规划中，下一阶段待开发 |
+| 当前分支 | `dev` |
+| 当前状态 | 首版已完成并通过测试 |
 | 前置依赖模块 | 用户认证模块、资料模块 |
 | 下游模块 | 搜索模块、下载模块、收藏模块、排行榜模块 |
 | 接口前缀 | `/api/v1/admin/resources` |
@@ -61,7 +61,7 @@
 
 ## 5. 涉及接口
 
-> 以下为下一阶段计划实现的审核接口，当前代码尚未存在。真实实现后需要同步校准 `docs/04-api-doc.md`。
+> 以下接口已在 `AuditController` 中实现，并已同步到 `docs/04-api-doc.md`。
 
 ### 5.1 获取待审核资料列表
 
@@ -189,7 +189,7 @@ APPROVED(1)       -> OFFLINE(3)
 
 ### 6.3 `user` 用户表
 
-首版不需要查询完整用户信息即可完成审核动作，管理员身份优先从 `UserContextHolder.getRequiredRole()` 校验。若待审核列表需要展示上传者昵称，可后续按 `resource.uploader_id` 关联 `user`。
+首版不需要查询完整用户信息即可完成审核动作，管理员身份来自 JWT 拦截器写入的 `LoginUser`，由 `AuditServiceImpl.requireAdmin()` 调用 `LoginUser.isAdmin()` 校验 `role = 2`。若待审核列表需要展示上传者昵称，可后续按 `resource.uploader_id` 关联 `user`。
 
 ---
 
@@ -219,7 +219,7 @@ APPROVED(1)       -> OFFLINE(3)
 | mapper | `ResourceMapper` | 查询和更新资料状态 |
 | exception | `BusinessException`、`GlobalExceptionHandler` | 业务异常和统一异常处理 |
 
-### 8.2 拟新增或修改类
+### 8.2 已新增或修改类
 
 | 类型 | 类 | 职责 |
 | --- | --- | --- |
@@ -231,7 +231,7 @@ APPROVED(1)       -> OFFLINE(3)
 | vo | `AuditResultVO` | 审核动作结果 |
 | vo | `AuditRecordVO` | 审核记录响应 |
 | mapper | `AuditRecordMapper` + XML | 写入和查询审核记录 |
-| mapper | `ResourceMapper` + XML | 补充待审核分页、状态更新、必要的锁定查询 |
+| mapper | `ResourceMapper` + XML | 补充待审核分页、状态更新 SQL |
 | service | `AuditService` / `AuditServiceImpl` | 审核状态流转和审计记录编排 |
 | controller | `AuditController` | 管理员审核接口入口 |
 
@@ -335,7 +335,7 @@ resource.status = 1(APPROVED)
 - 普通学生访问审核接口应返回 `40301 FORBIDDEN`。
 - 管理员身份不接受前端传参，必须来自 JWT 解析后的 `UserContextHolder`。
 
-首版可以在 `AuditServiceImpl` 内集中实现 `requireAdmin()`，后续若管理员接口增多，可再抽取拦截器或注解式权限校验。
+当前在 `AuditServiceImpl` 内集中实现 `requireAdmin()`，后续若管理员接口增多，可再抽取拦截器或注解式权限校验。
 
 ---
 
@@ -384,8 +384,8 @@ resource.status = 1(APPROVED)
 
 并发注意点：
 
-- 首版可以使用带前置状态条件的更新 SQL，例如 `WHERE id = ? AND status = ?`，更新行数为 0 时按状态不允许处理。
-- 如需更严格并发控制，可在查询资料时使用 `SELECT ... FOR UPDATE`，但要评估 H2 测试兼容性和 MySQL 锁粒度。
+- 当前使用带前置状态条件的更新 SQL，例如 `WHERE id = ? AND status = ?`，更新行数为 0 时按状态不允许处理。
+- 如需更严格并发控制，可在查询资料时使用 `SELECT ... FOR UPDATE`，但要评估本机 MySQL 测试覆盖、锁粒度和接口响应时延。
 
 ---
 
@@ -420,23 +420,25 @@ resource.status = 1(APPROVED)
 
 ## 18. 已完成事项
 
-- 已确认下一阶段优先开发审核模块。
-- 已明确审核模块依赖资料模块产生的 `PENDING_REVIEW` 资料。
-- 已明确首版审核模块不新增生产数据库结构，复用 `resource` 和 `audit_record` 表。
-- 已生成本模块开发流程文档初稿。
+- 已创建 `AuditRecord` 实体，映射 `audit_record` 表并封装审核动作常量。
+- 已创建 `AuditRecordMapper` 和 XML，实现审核记录写入与按资料查询。
+- 已增强 `ResourceMapper` 和 XML，实现待审核分页、计数、审核通过、审核拒绝和下架状态更新 SQL。
+- 已创建审核请求 DTO：`AuditApproveDTO`、`AuditRejectDTO`、`ResourceOfflineDTO`。
+- 已创建审核响应 VO：`PendingReviewResourceVO`、`AuditResultVO`、`AuditRecordVO`。
+- 已实现 `AuditService` 和 `AuditServiceImpl`，完成管理员校验、状态机、事务和审核记录编排。
+- 已实现 `AuditController`，提供 5 个管理员审核接口。
+- 已确认 `/api/v1/admin/resources/**` 不在公开排除列表中，未登录返回 `40101`，普通用户返回 `40301`。
+- 已补充 `AuditControllerTest` 和 `AuditServiceDatabaseIntegrationTest`。
+- 已同步 `docs/04-api-doc.md`、`docs/database/database-change-log.md`、`docs/06-project-progress.md`、`README.md` 和本模块开发流程文档。
 
 ---
 
 ## 19. 待完成事项
 
-- 创建 `AuditRecord` 实体。
-- 创建 `AuditRecordMapper` 和 XML。
-- 增强 `ResourceMapper` 审核相关查询和状态更新 SQL。
-- 创建审核 DTO/VO。
-- 实现审核 Service 和状态机。
-- 实现审核 Controller。
-- 补充管理员权限测试、状态流转测试和数据库集成测试。
-- 同步接口文档、数据库记录、项目进度和 README。
+- 本模块首版功能已完成。
+- 后续可补充审核列表关联上传者昵称、文件大小、分类名称等辅助信息。
+- 后续资料详情缓存上线后，审核通过、拒绝、下架需要删除或刷新 `crp:cache:resource:detail:{resourceId}`。
+- 后续搜索模块上线后，审核通过可触发搜索索引刷新；下架时需要移除公开搜索结果。
 
 ---
 
@@ -489,6 +491,19 @@ resource.status = 1(APPROVED)
 | 查询不存在资料记录 | 返回 `40401` |
 | 普通用户查询记录 | 返回 `40301` |
 
+### 20.6 已执行测试记录
+
+| 测试命令 | 结果 | 说明 |
+| --- | --- | --- |
+| `.\mvnw.cmd test` | 通过，`Tests run: 37, Failures: 0, Errors: 0, Skipped: 0` | 审核数据库集成测试使用本机 MySQL 独立测试库 `campus_resource_platform_audit_test` |
+
+已覆盖的审核模块自动化测试：
+
+| 测试类 | 覆盖重点 |
+| --- | --- |
+| `AuditControllerTest` | 管理员接口路由、JWT 保护、未登录、非管理员、参数校验、资料不存在、非法状态异常映射 |
+| `AuditServiceDatabaseIntegrationTest` | 待审核筛选、审核通过、审核拒绝、下架、审核记录、非管理员拒绝、资料不存在、非法状态、事务回滚 |
+
 ---
 
 ## 21. 修改文件记录
@@ -497,9 +512,28 @@ resource.status = 1(APPROVED)
 
 | 文件 | 说明 |
 | --- | --- |
-| `docs/modules/04-audit-development-process.md` | 新增审核模块开发流程规划文档 |
-
-后续每完成一个步骤需要继续补充真实代码文件清单。
+| `campus-resource-platform/src/main/java/com/john/campus/entity/AuditRecord.java` | 新增审核记录实体和动作常量 |
+| `campus-resource-platform/src/main/java/com/john/campus/mapper/AuditRecordMapper.java` | 新增审核记录 Mapper |
+| `campus-resource-platform/src/main/resources/mapper/AuditRecordMapper.xml` | 新增审核记录插入和查询 SQL |
+| `campus-resource-platform/src/main/java/com/john/campus/mapper/ResourceMapper.java` | 增加审核列表、计数和状态更新方法 |
+| `campus-resource-platform/src/main/resources/mapper/ResourceMapper.xml` | 增加待审核查询和状态流转 SQL |
+| `campus-resource-platform/src/main/java/com/john/campus/dto/AuditApproveDTO.java` | 新增审核通过请求 DTO |
+| `campus-resource-platform/src/main/java/com/john/campus/dto/AuditRejectDTO.java` | 新增审核拒绝请求 DTO |
+| `campus-resource-platform/src/main/java/com/john/campus/dto/ResourceOfflineDTO.java` | 新增资料下架请求 DTO |
+| `campus-resource-platform/src/main/java/com/john/campus/vo/PendingReviewResourceVO.java` | 新增待审核列表响应 VO |
+| `campus-resource-platform/src/main/java/com/john/campus/vo/AuditResultVO.java` | 新增审核动作结果 VO |
+| `campus-resource-platform/src/main/java/com/john/campus/vo/AuditRecordVO.java` | 新增审核记录响应 VO |
+| `campus-resource-platform/src/main/java/com/john/campus/service/AuditService.java` | 新增审核业务接口 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/AuditServiceImpl.java` | 新增审核状态机、权限校验、事务和审计记录编排 |
+| `campus-resource-platform/src/main/java/com/john/campus/controller/AuditController.java` | 新增管理员审核接口 |
+| `campus-resource-platform/src/test/java/com/john/campus/controller/AuditControllerTest.java` | 新增/补充审核 Controller 测试 |
+| `campus-resource-platform/src/test/java/com/john/campus/service/AuditServiceDatabaseIntegrationTest.java` | 新增/补充审核数据库集成测试 |
+| `campus-resource-platform/src/test/resources/sql/resource-db-test-schema.sql` | 补充审核记录测试表结构 |
+| `docs/04-api-doc.md` | 同步审核模块接口文档 |
+| `docs/database/database-change-log.md` | 记录审核模块复用已有生产表结构 |
+| `docs/06-project-progress.md` | 更新审核模块完成状态和测试结果 |
+| `README.md` | 更新当前完成内容和测试说明 |
+| `docs/modules/04-audit-development-process.md` | 更新审核模块开发流程文档 |
 
 ---
 
@@ -541,12 +575,12 @@ resource.status = 1(APPROVED)
 ## 25. Git commit message 建议
 
 ```text
-docs(audit): plan audit module development process
+docs(audit): sync audit module documentation
 
-- add audit module scope and implementation plan
-- define admin review APIs and state transitions
-- document database tables, transactions and permissions
-- add step-by-step prompts for audit module development
+- align API docs with AuditController and VO fields
+- record audit table usage and MySQL test coverage
+- mark audit module as completed in progress docs
+- update audit module development process
 ```
 
 ---
@@ -790,19 +824,19 @@ docs(audit): plan audit module development process
 
 本步目标：
 - 补充 MockMvc 测试，覆盖审核 Controller 路径、权限、参数校验和异常映射。
-- 补充数据库集成测试，使用 H2 MySQL 模式执行真实 MyBatis XML。
+- 补充数据库集成测试，使用本机 MySQL 独立测试库执行真实 MyBatis XML。
 - 测试审核通过、审核拒绝、下架资料时 `resource` 更新和 `audit_record` 写入是否在同一事务中完成。
 - 补充普通用户访问管理员接口返回 `40301` 的测试。
 
 涉及文件或类：
 - `src/test/java/.../AuditControllerTest.java`
-- `src/test/java/.../AuditDatabaseIntegrationTest.java`
+- `src/test/java/.../AuditServiceDatabaseIntegrationTest.java`
 - `src/test/resources/sql/...`（如需要测试专用 schema）
 
 完成标准：
 - 至少覆盖成功、未登录、非管理员、资料不存在、非法状态、参数错误。
 - 至少执行 `.\mvnw.cmd test` 并记录结果。
-- 不依赖本机真实 MySQL 才能运行自动化测试。
+- 数据库测试通过 `MYSQL_TEST_URL` / `MYSQL_TEST_USERNAME` / `MYSQL_TEST_PASSWORD` 或 `MYSQL_USERNAME` / `MYSQL_PASSWORD` 读取本机 MySQL 连接信息，不把密码写入仓库。
 
 本步不做什么：
 - 不为了测试引入重量级依赖。

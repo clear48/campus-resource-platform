@@ -2,11 +2,11 @@
 
 ## 1. 当前阶段结论
 
-项目当前处于“基础工程 + 用户认证模块 + 分类查询模块 + 文件上传模块 + 资料模块首版完成”阶段。
+项目当前处于“基础工程 + 用户认证模块 + 分类查询模块 + 文件上传模块 + 资料模块首版 + 审核模块首版完成”阶段。
 
-已经完成的核心能力包括：Spring Boot 后端基础骨架、统一响应与异常处理、JWT 鉴权、Redis Token 黑名单、用户注册/登录/退出登录/当前用户查询、公开分类查询、文件上传与 MD5 秒传、基于 `fileId` 创建资料、公开资料详情、我的上传资料分页查询，以及资料模块的 Controller 测试和数据库集成测试。
+已经完成的核心能力包括：Spring Boot 后端基础骨架、统一响应与异常处理、JWT 鉴权、Redis Token 黑名单、用户注册/登录/退出登录/当前用户查询、公开分类查询、文件上传与 MD5 秒传、基于 `fileId` 创建资料、公开资料详情、我的上传资料分页查询、管理员待审核列表、审核通过、审核拒绝、下架资料和审核记录查询。
 
-资料模块首版已经把 `file_info` 物理文件转换为 `resource` 业务资料主体，后续审核、搜索、下载、收藏、排行榜都可以围绕 `resource` 继续开发。下一阶段建议优先开发“审核模块”，消费 `status = 0 PENDING_REVIEW` 的资料并实现审核通过、审核拒绝、下架和审核记录。
+资料模块首版已经把 `file_info` 物理文件转换为 `resource` 业务资料主体，审核模块进一步把待审核资料推进到 `APPROVED`、`REJECTED`、`OFFLINE` 状态，并通过 `audit_record` 保留审计流水。下一阶段建议优先开发“搜索模块”，只消费 `status = 1 APPROVED` 的公开资料。
 
 ## 2. 进度状态说明
 
@@ -24,14 +24,14 @@
 | `docs/01-requirements.md` | 已完成 | 项目背景、用户角色、功能需求、非功能需求、项目亮点 |
 | `docs/02-business-flow.md` | 已完成 | 上传、审核、搜索、下载、收藏等核心业务流程和状态流转 |
 | `docs/03-database-design.md` | 已完成 | MySQL 表结构、字段说明、索引、设计理由和知识点 |
-| `docs/04-api-doc.md` | 已同步 | 认证、分类、文件上传、资料模块已按当前代码校准；审核等后续模块仍为设计接口 |
+| `docs/04-api-doc.md` | 已同步 | 认证、分类、文件上传、资料模块、审核模块已按当前代码校准；搜索、下载、收藏、排行榜仍为设计接口 |
 | `docs/05-redis-design.md` | 已完成，后续需同步 | Token 黑名单和文件 MD5 缓存已落地，排行榜/限流等仍为后续设计 |
 | `docs/modules/module.md` | 已完成 | 用户认证模块开发记录 |
 | `docs/modules/category-module.md` | 已完成 | 分类查询模块开发记录 |
 | `docs/modules/02-file-upload-development-process.md` | 已完成 | 文件上传模块开发流程记录 |
 | `docs/modules/03-resource-development-process.md` | 已完成 | 资料模块首版开发流程、测试记录和后续优化记录 |
-| `docs/modules/04-audit-development-process.md` | 已规划 | 审核模块下一阶段开发流程、接口边界、状态机和分步骤提示词 |
-| `docs/database/database-change-log.md` | 已同步 | 记录认证、分类、文件上传、资料模块均复用已有生产表结构 |
+| `docs/modules/04-audit-development-process.md` | 已完成 | 审核模块开发流程、真实接口、状态机、权限、测试记录和后续优化 |
+| `docs/database/database-change-log.md` | 已同步 | 记录认证、分类、文件上传、资料模块、审核模块均复用已有生产表结构 |
 | `README.md` | 已同步 | 启动说明、当前完成模块、测试命令和下一阶段建议 |
 
 ## 4. 数据库与脚本状态
@@ -39,7 +39,7 @@
 | 文件 | 状态 | 说明 |
 | --- | --- | --- |
 | `sql/init.sql` | 已完成 | MySQL 8.x 初始化脚本，包含核心业务表 |
-| `campus-resource-platform/src/test/resources/sql/resource-db-test-schema.sql` | 已完成 | 资料模块 H2 集成测试使用的最小表结构，不属于生产库变更 |
+| `campus-resource-platform/src/test/resources/sql/resource-db-test-schema.sql` | 已完成 | 资料模块 H2 集成测试和审核模块本机 MySQL 集成测试使用的最小表结构，不属于生产库变更 |
 
 `sql/init.sql` 当前表使用状态：
 
@@ -51,7 +51,7 @@
 | `resource` | 已设计 | 已被资料模块使用 |
 | `favorite` | 已设计 | 当前代码暂未使用 |
 | `download_record` | 已设计 | 当前代码暂未使用 |
-| `audit_record` | 已设计 | 当前代码暂未使用 |
+| `audit_record` | 已设计 | 已被审核模块使用 |
 
 ## 5. 后端基础能力
 
@@ -122,14 +122,31 @@
 
 当前资料模块暂未使用 Redis，后续可接入 `crp:cache:resource:detail:{resourceId}`。
 
+### 6.5 审核模块
+
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| 待审核资料列表 | 已完成 | `GET /api/v1/admin/resources/pending-reviews`，管理员查询 `status = 0` 资料，支持课程名、类型、上传者和分页筛选 |
+| 审核通过 | 已完成 | `POST /api/v1/admin/resources/{resourceId}/audit-approvals`，待审核变为已通过，写入 `approved_at` 和审核记录 |
+| 审核拒绝 | 已完成 | `POST /api/v1/admin/resources/{resourceId}/audit-rejections`，待审核变为已拒绝，写入拒绝原因和审核记录 |
+| 下架资料 | 已完成 | `POST /api/v1/admin/resources/{resourceId}/offline-records`，已通过变为已下架，写入下架原因、下架时间和审核记录 |
+| 审核记录查询 | 已完成 | `GET /api/v1/admin/resources/{resourceId}/audit-records`，按资料 ID 查询审核流水 |
+| 管理员权限 | 已完成 | JWT 拦截器保证登录，`AuditServiceImpl.requireAdmin()` 校验 `role = 2` |
+| 事务一致性 | 已完成 | 审核通过、拒绝、下架使用 `@Transactional(rollbackFor = Exception.class)` |
+| 并发兜底 | 已完成 | 状态更新 SQL 带旧状态条件，影响行数为 0 时返回非法状态流转 |
+
+涉及表：`resource`、`audit_record`。
+
+当前审核模块暂未使用 Redis；后续资料详情缓存上线后，需要在审核通过、拒绝、下架时删除 `crp:cache:resource:detail:{resourceId}`。
+
 ## 7. 测试与验证
 
 | 类型 | 状态 | 说明 |
 | --- | --- | --- |
 | 编译验证 | 已完成 | `.\mvnw.cmd -DskipTests compile` 已通过 |
-| 全量测试 | 已完成 | `.\mvnw.cmd test` 已通过，共 17 个测试 |
-| Controller 测试 | 已完成 | `ResourceControllerTest` 共 11 个用例，覆盖接口层、鉴权路径、异常映射 |
-| 数据库集成测试 | 已完成 | `ResourceDatabaseIntegrationTest` 共 5 个用例，覆盖真实 MyBatis SQL、写入、读取、分页和重复提交 |
+| 全量测试 | 已完成 | `.\mvnw.cmd test` 已通过，共 37 个测试 |
+| Controller 测试 | 已完成 | `ResourceControllerTest` 共 11 个用例，`AuditControllerTest` 共 9 个用例，覆盖接口层、鉴权路径、参数校验和异常映射 |
+| 数据库集成测试 | 已完成 | `ResourceDatabaseIntegrationTest` 共 7 个用例，`AuditServiceDatabaseIntegrationTest` 共 9 个用例；审核数据库测试使用本机 MySQL 独立测试库 |
 | Spring 上下文测试 | 已完成 | `CampusResourcePlatformApplicationTests.contextLoads` |
 | Postman 集合 | 已更新 | `postman/campus-resource-platform.postman_collection.json` 已新增资料模块分组 |
 
@@ -145,26 +162,24 @@
 | 文件不存在、分类不存在、重复提交 | Controller 测试 + 数据库集成测试 |
 | 已删除文件、禁用分类不可引用 | 数据库集成测试 |
 
+已验证的审核模块场景：
+
+| 场景 | 覆盖方式 |
+| --- | --- |
+| 管理员查询待审核资料并按条件筛选 | Controller 测试 + 数据库集成测试 |
+| 未登录访问审核接口返回 `40101` | Controller 测试 |
+| 普通用户访问审核接口返回 `40301` | Controller 测试 + 数据库集成测试 |
+| 审核通过待审核资料并写入 `audit_record` | 数据库集成测试 |
+| 审核拒绝待审核资料并写入拒绝原因 | 数据库集成测试 |
+| 下架已通过资料并写入下架原因和时间 | 数据库集成测试 |
+| 资料不存在返回 `40401` | Controller 测试 + 数据库集成测试 |
+| 非法状态流转返回 `40901` | Controller 测试 + 数据库集成测试 |
+| 审核记录查询按资料返回历史流水 | Controller 测试 + 数据库集成测试 |
+| 审核记录写入失败时回滚资料状态更新 | 本机 MySQL 数据库集成测试 |
+
 ## 8. 待开发模块
 
-### 8.1 审核模块
-
-建议下一阶段优先开发。
-
-开发流程文档：`docs/modules/04-audit-development-process.md`。
-
-待实现功能：
-
-- 管理员查询待审核资料。
-- 审核通过资料，设置 `resource.status = 1` 和 `approved_at`。
-- 审核拒绝资料，设置 `resource.status = 2` 和 `reject_reason`。
-- 下架已通过资料，设置 `resource.status = 3`、`offline_reason`、`offline_at`。
-- 写入 `audit_record`。
-- 校验状态流转，禁止非法审核。
-
-涉及表：`resource`、`audit_record`、`user`。
-
-### 8.2 搜索模块
+### 8.1 搜索模块
 
 待实现功能：只搜索审核通过资料、关键词/分类/课程/类型筛选、分页排序、搜索热词记录、可选接入 Elasticsearch。
 
@@ -172,7 +187,7 @@
 
 涉及 Redis Key：`crp:rank:search:keyword:{dateScope}`。
 
-### 8.3 下载模块
+### 8.2 下载模块
 
 待实现功能：下载权限校验、下载限流、写入下载记录、文件流返回、下载量 Redis 增量统计和定时同步。
 
@@ -180,7 +195,7 @@
 
 涉及 Redis Key：`crp:rate:download:user:{userId}`、`crp:rate:download:ip:{ip}`、`crp:dedup:download:{userId}:{resourceId}`、`crp:stats:resource:download:delta`。
 
-### 8.4 收藏模块
+### 8.3 收藏模块
 
 待实现功能：收藏资料、取消收藏、我的收藏列表、防重复收藏、收藏状态查询、更新收藏数和热度分。
 
@@ -188,7 +203,7 @@
 
 涉及 Redis Key：`crp:user:favorites:{userId}`、`crp:rank:resource:hot:{dateScope}`。
 
-### 8.5 排行榜与定时任务
+### 8.4 排行榜与定时任务
 
 待实现功能：热门资料排行榜、热门搜索词排行榜、下载量增量同步、热度分数计算与回写、分布式锁防重复同步。
 
@@ -200,8 +215,6 @@
 
 | 功能 | 当前状态 | 备注 |
 | --- | --- | --- |
-| 管理员审核 | 未实现 | 下一阶段建议优先开发 |
-| 审核记录 | 未实现 | `audit_record` 表已设计 |
 | 资料搜索 | 未实现 | 接口文档和 Redis 热词设计已完成 |
 | 热门搜索词 | 未实现 | Redis ZSet 设计已完成 |
 | 下载接口 | 未实现 | 接口文档、数据库表和 Redis 统计设计已完成 |
@@ -224,38 +237,38 @@
 - 文件上传支持 MD5 秒传：数据库唯一索引和 Redis 缓存共同支撑去重。
 - 资料创建有真实业务校验：文件状态、分类状态、上传者身份、重复提交、标签长度都在 Service 层兜底。
 - 数据库集成测试已落地：资料模块真实执行 MyBatis XML，验证写入和读取。
+- 审核模块不是简单改状态：通过状态机、旧状态条件 SQL、事务和 `audit_record` 审计流水保证可追溯。
+- 管理员权限做了双层边界：JWT 拦截器保证登录，Service 层基于 `LoginUser.role = 2` 兜底校验。
 - 分层结构清晰：Controller、Service、Mapper、DTO、VO、Entity、Common、Config、Exception、Interceptor 各自承担边界。
 
 ## 11. 推荐下一阶段开发模块
 
-建议下一阶段优先开发“审核模块”。
+建议下一阶段优先开发“搜索模块”。
 
 原因：
 
-1. 资料模块已经能稳定创建 `status = 0` 的待审核资料，审核模块有明确输入。
-2. 审核通过后，搜索、下载、收藏才有公开可消费的资料集合。
-3. 审核模块可以继续复用认证、资料、分页、统一异常和数据库状态常量。
-4. 首版审核模块仍可复用已有 `resource` 和 `audit_record` 表，不需要新增生产库结构。
+1. 审核模块已经能产生稳定的 `status = 1 APPROVED` 资料集合，搜索模块有明确输入。
+2. 搜索是下载、收藏、排行榜之前的公开消费入口，可以验证“只展示已通过资料”的权限边界。
+3. 首版可以先基于 MySQL 模糊查询实现，后续再通过接口抽象切换 Elasticsearch。
+4. 搜索关键词可以自然引出 Redis 热门搜索词统计，为后续排行榜模块铺路。
 
 推荐小步开发顺序：
 
-1. 创建 `AuditRecord` 实体和 `AuditRecordMapper`。
-2. 为 `ResourceMapper` 补充待审核分页和状态更新 SQL。
-3. 创建审核 DTO/VO。
-4. 实现审核 Service：通过、拒绝、下架和状态流转校验。
-5. 实现管理员审核 Controller。
-6. 更新 `WebMvcConfig` 或权限校验策略，确保审核接口仅管理员可访问。
-7. 补充 MockMvc 和数据库集成测试。
-8. 同步 API 文档、数据库记录和模块开发流程文档。
+1. 创建搜索请求 DTO 和搜索结果 VO。
+2. 为 `ResourceMapper` 补充只查询 `APPROVED` 资料的搜索 SQL。
+3. 实现搜索 Service，校验分页、排序和筛选参数。
+4. 实现 `GET /api/v1/search/resources`。
+5. 先用 MySQL 完成基础检索，再预留搜索服务接口扩展点。
+6. 补充 Controller 测试和数据库集成测试。
+7. 同步 API、Redis 设计和模块开发流程文档。
 
 ## 12. 当前可提交总结
 
 ```text
-feat(resource): complete resource module MVP
+docs(audit): sync audit module documentation
 
-- add resource entity, mapper, service and controller
-- support creating pending resources from uploaded files
-- support public approved detail and my resource pagination
-- add controller and database integration tests
-- sync API, progress, database and module docs
+- align audit API docs with real controller and VO fields
+- record audit module database table usage
+- mark audit module as completed in project progress
+- update audit module development process document
 ```

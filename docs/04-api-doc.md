@@ -693,6 +693,8 @@ file=@数据结构复习.pdf
 
 ## 6. 审核模块
 
+本节已按当前 `AuditController`、`AuditServiceImpl`、DTO/VO 和测试结果同步。审核模块首版实现管理员待审核列表、审核通过、审核拒绝、下架资料和审核记录查询；状态流转和审核记录写入由 Service 层事务保证。
+
 ### 6.1 获取待审核资料列表
 
 | 项目 | 内容 |
@@ -710,18 +712,13 @@ file=@数据结构复习.pdf
 | `courseName` | string | 否 | 课程名称筛选 |
 | `resourceType` | int | 否 | 资料类型 |
 | `uploaderId` | long | 否 | 上传用户 ID |
-| `pageNo` | int | 否 | 页码 |
-| `pageSize` | int | 否 | 每页数量 |
+| `pageNo` | int | 否 | 页码，默认 1 |
+| `pageSize` | int | 否 | 每页数量，默认 10，最大 100 |
 
-请求示例 JSON：
+请求示例：
 
-```json
-{
-  "courseName": "数据结构",
-  "resourceType": 2,
-  "pageNo": 1,
-  "pageSize": 10
-}
+```http
+GET /api/v1/admin/resources/pending-reviews?courseName=数据结构&resourceType=2&pageNo=1&pageSize=10
 ```
 
 响应示例 JSON：
@@ -735,12 +732,15 @@ file=@数据结构复习.pdf
       {
         "resourceId": 20001,
         "title": "数据结构期末复习提纲",
+        "description": "覆盖排序、树、图等重点内容",
+        "categoryId": 10,
         "courseName": "数据结构",
         "resourceType": 2,
+        "tags": ["数据结构", "复习"],
+        "fileId": 30001,
         "uploaderId": 10001,
-        "uploaderName": "张三",
         "status": 0,
-        "createdAt": "2026-07-02 10:00:00"
+        "createdAt": "2026-07-02T10:00:00"
       }
     ],
     "pageNo": 1,
@@ -758,7 +758,7 @@ file=@数据结构复习.pdf
 | --- | --- |
 | `40101` | 未登录 |
 | `40301` | 非管理员 |
-| `40001` | 查询参数错误 |
+| `40001` | 分页、资料类型或上传者参数错误 |
 
 ### 6.2 审核通过资料
 
@@ -775,13 +775,12 @@ file=@数据结构复习.pdf
 | 参数 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
 | `resourceId` | long | 是 | 路径参数，资料 ID |
-| `auditReason` | string | 否 | 审核意见 |
+| `auditReason` | string | 否 | 审核意见，最大 500 字符 |
 
 请求示例 JSON：
 
 ```json
 {
-  "resourceId": 20001,
   "auditReason": "资料内容完整，允许发布"
 }
 ```
@@ -794,10 +793,13 @@ file=@数据结构复习.pdf
   "message": "success",
   "data": {
     "resourceId": 20001,
+    "actionType": 1,
     "beforeStatus": 0,
     "afterStatus": 1,
     "auditRecordId": 50001,
-    "approvedAt": "2026-07-02 11:00:00"
+    "auditReason": "资料内容完整，允许发布",
+    "approvedAt": "2026-07-02T11:00:00",
+    "offlineAt": null
   },
   "traceId": "a4000002"
 }
@@ -809,6 +811,7 @@ file=@数据结构复习.pdf
 | --- | --- |
 | `40101` | 未登录 |
 | `40301` | 非管理员 |
+| `40001` | `resourceId` 不合法或审核意见超过 500 字符 |
 | `40401` | 资料不存在 |
 | `40901` | 当前状态不是待审核，禁止审核通过 |
 
@@ -827,13 +830,12 @@ file=@数据结构复习.pdf
 | 参数 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
 | `resourceId` | long | 是 | 路径参数，资料 ID |
-| `rejectReason` | string | 是 | 拒绝原因 |
+| `rejectReason` | string | 是 | 拒绝原因，最大 500 字符 |
 
 请求示例 JSON：
 
 ```json
 {
-  "resourceId": 20001,
   "rejectReason": "文件内容与课程无关，请重新上传"
 }
 ```
@@ -846,10 +848,13 @@ file=@数据结构复习.pdf
   "message": "success",
   "data": {
     "resourceId": 20001,
+    "actionType": 2,
     "beforeStatus": 0,
     "afterStatus": 2,
     "auditRecordId": 50002,
-    "rejectReason": "文件内容与课程无关，请重新上传"
+    "auditReason": "文件内容与课程无关，请重新上传",
+    "approvedAt": null,
+    "offlineAt": null
   },
   "traceId": "a4000003"
 }
@@ -861,7 +866,7 @@ file=@数据结构复习.pdf
 | --- | --- |
 | `40101` | 未登录 |
 | `40301` | 非管理员 |
-| `40001` | 拒绝原因为空 |
+| `40001` | `resourceId` 不合法、拒绝原因为空或超过 500 字符 |
 | `40401` | 资料不存在 |
 | `40901` | 当前状态不是待审核，禁止审核拒绝 |
 
@@ -880,13 +885,12 @@ file=@数据结构复习.pdf
 | 参数 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
 | `resourceId` | long | 是 | 路径参数，资料 ID |
-| `offlineReason` | string | 是 | 下架原因 |
+| `offlineReason` | string | 是 | 下架原因，最大 500 字符 |
 
 请求示例 JSON：
 
 ```json
 {
-  "resourceId": 20001,
   "offlineReason": "收到举报，经核实存在版权风险"
 }
 ```
@@ -899,10 +903,13 @@ file=@数据结构复习.pdf
   "message": "success",
   "data": {
     "resourceId": 20001,
+    "actionType": 3,
     "beforeStatus": 1,
     "afterStatus": 3,
     "auditRecordId": 50003,
-    "offlineAt": "2026-07-02 12:00:00"
+    "auditReason": "收到举报，经核实存在版权风险",
+    "approvedAt": null,
+    "offlineAt": "2026-07-02T12:00:00"
   },
   "traceId": "a4000004"
 }
@@ -914,7 +921,7 @@ file=@数据结构复习.pdf
 | --- | --- |
 | `40101` | 未登录 |
 | `40301` | 非管理员 |
-| `40001` | 下架原因为空 |
+| `40001` | `resourceId` 不合法、下架原因为空或超过 500 字符 |
 | `40401` | 资料不存在 |
 | `40901` | 当前状态不是审核通过，禁止下架 |
 
@@ -934,12 +941,10 @@ file=@数据结构复习.pdf
 | --- | --- | --- | --- |
 | `resourceId` | long | 是 | 路径参数，资料 ID |
 
-请求示例 JSON：
+请求示例：
 
-```json
-{
-  "resourceId": 20001
-}
+```http
+GET /api/v1/admin/resources/20001/audit-records
 ```
 
 响应示例 JSON：
@@ -953,12 +958,11 @@ file=@数据结构复习.pdf
       "auditRecordId": 50001,
       "resourceId": 20001,
       "auditorId": 90001,
-      "auditorName": "管理员A",
       "actionType": 1,
       "beforeStatus": 0,
       "afterStatus": 1,
       "auditReason": "资料内容完整，允许发布",
-      "createdAt": "2026-07-02 11:00:00"
+      "createdAt": "2026-07-02T11:00:00"
     }
   ],
   "traceId": "a4000005"
@@ -971,6 +975,7 @@ file=@数据结构复习.pdf
 | --- | --- |
 | `40101` | 未登录 |
 | `40301` | 非管理员 |
+| `40001` | `resourceId` 不合法 |
 | `40401` | 资料不存在 |
 
 ## 7. 收藏模块

@@ -1,5 +1,40 @@
 # 数据库变更记录
 
+## 2026-07-07 审核模块
+
+### 变更结论
+
+本模块没有新增生产数据库表、字段或索引，复用 `sql/init.sql` 中已设计的 `resource` 和 `audit_record` 表。
+
+### 使用到的已有表
+
+| 表名 | 使用方式 |
+| --- | --- |
+| `resource` | 查询待审核资料、校验资料存在性、执行审核通过/拒绝/下架状态流转 |
+| `audit_record` | 每次审核通过、拒绝、下架后追加审核记录，支持按资料 ID 查询审核历史 |
+| `user` | 不直接查询用户表；管理员身份来自 JWT 解析后的 `LoginUser.role = 2` |
+
+### 使用到的已有索引
+
+| 索引 | 使用场景 |
+| --- | --- |
+| `idx_resource_status_created` | 支撑待审核列表按 `status = 0` 和创建时间倒序分页 |
+| `idx_resource_uploader_status` | 支撑按上传者筛选待审核资料 |
+| `idx_audit_resource_created` | 支撑按资料 ID 查询审核记录并按时间倒序返回 |
+| `idx_audit_auditor_created` | 后续可支撑按管理员维度统计审核记录 |
+| `idx_audit_action_created` | 后续可支撑按审核动作类型统计 |
+
+### 测试用数据库结构
+
+审核模块复用 `campus-resource-platform/src/test/resources/sql/resource-db-test-schema.sql` 初始化测试表结构。当前 `AuditServiceDatabaseIntegrationTest` 使用本机 MySQL 独立测试库 `campus_resource_platform_audit_test` 执行真实 MyBatis XML，不属于生产数据库结构变更。
+
+### 备注
+
+- `ResourceMapper.selectPendingReviews` / `countPendingReviews` 固定过滤 `status = 0`，支持课程名、资料类型和上传者筛选。
+- `ResourceMapper.approvePendingReview`、`rejectPendingReview`、`offlineApprovedResource` 均带旧状态条件，通过影响行数识别重复审核或非法状态流转。
+- `AuditRecordMapper.insert` 写入审核流水并回填自增 ID。
+- 审核通过、拒绝、下架在 Service 层使用 `@Transactional(rollbackFor = Exception.class)` 保证 `resource` 状态更新和 `audit_record` 写入一致。
+
 ## 2026-07-06 资料模块
 
 ### 变更结论

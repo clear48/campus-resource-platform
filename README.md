@@ -88,6 +88,7 @@ cd campus-resource-platform
 ```
 
 当前测试覆盖资料模块 Controller 层、资料数据库读写集成链路和 Spring Boot 上下文加载。
+审核模块数据库集成测试使用本机 MySQL 独立测试库，运行前需要保证 `MYSQL_PASSWORD` 或 `MYSQL_TEST_PASSWORD` 环境变量可用。
 
 ## 当前完成内容
 
@@ -104,6 +105,9 @@ cd campus-resource-platform
 - 分类查询模块：公开查询启用分类列表 `/api/v1/categories`。
 - 文件上传模块：`POST /api/v1/files` 上传文件、`GET /api/v1/files/check` 做 MD5 预检，支持 `file_md5 + file_size` 去重、秒传、本地存储、`file_info` 入库和 Redis MD5 缓存。
 - 资料模块首版：`POST /api/v1/resources` 创建待审核资料、`GET /api/v1/resources/{resourceId}` 查询公开资料详情、`GET /api/v1/users/me/resources` 查询我的上传资料列表，支持文件/分类校验、重复提交拦截、分页和状态筛选。
-- 资料模块测试：已补充 `ResourceControllerTest` 和 `ResourceDatabaseIntegrationTest`，验证接口层、鉴权路径、真实 MyBatis SQL、数据库写入与读取。
+- 审核模块首版：`GET /api/v1/admin/resources/pending-reviews` 查询待审核资料，`POST /api/v1/admin/resources/{resourceId}/audit-approvals` 审核通过，`POST /api/v1/admin/resources/{resourceId}/audit-rejections` 审核拒绝，`POST /api/v1/admin/resources/{resourceId}/offline-records` 下架资料，`GET /api/v1/admin/resources/{resourceId}/audit-records` 查询审核记录。
+- 审核状态机：支持 `PENDING_REVIEW -> APPROVED`、`PENDING_REVIEW -> REJECTED`、`APPROVED -> OFFLINE`，使用事务保证 `resource` 状态更新和 `audit_record` 审核记录一致。
+- 审核权限：所有审核接口需要登录，Service 层统一校验管理员角色 `role = 2`，普通用户返回 `40301`。
+- 自动化测试：已补充 `ResourceControllerTest`、`ResourceDatabaseIntegrationTest`、`AuditControllerTest`、`AuditServiceDatabaseIntegrationTest`，验证接口层、鉴权路径、真实 MyBatis SQL、数据库状态流转和事务回滚。
 
-当前下一阶段建议开发“审核模块”：消费 `resource.status = 0` 的待审核资料，实现管理员审核通过、审核拒绝、下架和审核记录。审核模块规划见 `docs/modules/04-audit-development-process.md`，资料模块记录见 `docs/modules/03-resource-development-process.md`，总体进度见 `docs/06-project-progress.md`。
+当前下一阶段建议开发“搜索模块”：消费审核通过的 `resource.status = 1` 资料，实现公开资料检索、筛选、分页排序和搜索热词统计。审核模块记录见 `docs/modules/04-audit-development-process.md`，资料模块记录见 `docs/modules/03-resource-development-process.md`，总体进度见 `docs/06-project-progress.md`。
