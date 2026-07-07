@@ -45,6 +45,30 @@ public interface ResourceMapper {
     long countActiveByUploaderAndFileId(@Param("uploaderId") Long uploaderId, @Param("fileId") Long fileId);
 
     /**
+     * 搜索公开资料列表，固定只返回 APPROVED 状态并支持搜索模块首版筛选条件。
+     */
+    List<Resource> searchApprovedResources(
+            @Param("keyword") String keyword,
+            @Param("categoryId") Long categoryId,
+            @Param("courseName") String courseName,
+            @Param("resourceType") Integer resourceType,
+            @Param("tag") String tag,
+            @Param("sortBy") String sortBy,
+            @Param("order") String order,
+            @Param("offset") Integer offset,
+            @Param("pageSize") Integer pageSize);
+
+    /**
+     * 统计公开搜索结果数量，与 searchApprovedResources 使用完全一致的筛选条件。
+     */
+    long countApprovedResources(
+            @Param("keyword") String keyword,
+            @Param("categoryId") Long categoryId,
+            @Param("courseName") String courseName,
+            @Param("resourceType") Integer resourceType,
+            @Param("tag") String tag);
+
+    /**
      * 查询待审核资料列表，固定只返回 PENDING_REVIEW 状态并支持后台筛选。
      */
     List<Resource> selectPendingReviews(

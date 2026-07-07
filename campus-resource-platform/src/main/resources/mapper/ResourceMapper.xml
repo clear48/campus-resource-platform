@@ -53,6 +53,51 @@
         updated_at
     </sql>
 
+    <!-- 公开搜索统一过滤条件：任何普通搜索都必须固定 status=1，避免未审核资料泄露。 -->
+    <sql id="ApprovedSearchWhere">
+        WHERE status = 1
+        <if test="keyword != null and keyword != ''">
+          AND (
+              title LIKE CONCAT('%', #{keyword}, '%')
+              OR description LIKE CONCAT('%', #{keyword}, '%')
+              OR course_name LIKE CONCAT('%', #{keyword}, '%')
+              OR tags LIKE CONCAT('%', #{keyword}, '%')
+          )
+        </if>
+        <if test="categoryId != null">
+          AND category_id = #{categoryId}
+        </if>
+        <if test="courseName != null and courseName != ''">
+          AND course_name LIKE CONCAT('%', #{courseName}, '%')
+        </if>
+        <if test="resourceType != null">
+          AND resource_type = #{resourceType}
+        </if>
+        <if test="tag != null and tag != ''">
+          AND CONCAT(',', tags, ',') LIKE CONCAT('%,', #{tag}, ',%')
+        </if>
+    </sql>
+
+    <!-- 搜索排序白名单，禁止把前端原始字段直接拼进 ORDER BY。 -->
+    <sql id="ApprovedSearchOrderBy">
+        ORDER BY
+        <choose>
+            <when test="sortBy == 'downloadCount'">download_count</when>
+            <when test="sortBy == 'favoriteCount'">favorite_count</when>
+            <when test="sortBy == 'hotScore'">hot_score</when>
+            <otherwise>created_at</otherwise>
+        </choose>
+        <choose>
+            <when test="order == 'asc' or order == 'ASC'">ASC</when>
+            <otherwise>DESC</otherwise>
+        </choose>,
+        id
+        <choose>
+            <when test="order == 'asc' or order == 'ASC'">ASC</when>
+            <otherwise>DESC</otherwise>
+        </choose>
+    </sql>
+
     <!-- 插入资料；可选字段为空时不写入，保留数据库默认状态和统计字段。 -->
     <insert id="insert" parameterType="com.john.campus.entity.Resource" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO `resource`
@@ -193,6 +238,23 @@
         WHERE uploader_id = #{uploaderId}
           AND file_id = #{fileId}
           AND status IN (0, 1)
+    </select>
+
+    <!-- 公开搜索列表只返回审核通过资料，并通过白名单片段控制排序字段和方向。 -->
+    <select id="searchApprovedResources" resultMap="ResourceResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `resource`
+        <include refid="ApprovedSearchWhere"/>
+        <include refid="ApprovedSearchOrderBy"/>
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <!-- 与公开搜索列表共用过滤片段，保证分页 total 与 records 条件一致。 -->
+    <select id="countApprovedResources" resultType="long">
+        SELECT COUNT(1)
+        FROM `resource`
+        <include refid="ApprovedSearchWhere"/>
     </select>
 
     <!-- 待审核列表固定过滤 status=0，并提供后台审核常用筛选条件。 -->

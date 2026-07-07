@@ -188,6 +188,63 @@ class ResourceDatabaseIntegrationTest {
     }
 
     @Test
+    void mapperShouldSearchApprovedResourcesWithFiltersAndCount() {
+        insertCategory(CATEGORY_ID, "计算机基础", 1);
+        insertCategory(CATEGORY_ID + 1, "通识课程", 1);
+        insertFile(30L, 1);
+        insertFile(31L, 1);
+        insertFile(32L, 1);
+        insertSearchResource(200L, CURRENT_USER_ID, 30L, CATEGORY_ID, Resource.STATUS_APPROVED,
+                "数据结构期末复习提纲", "覆盖排序、树和图", "数据结构", Resource.TYPE_NOTE,
+                "数据结构,复习", 128L, 35L, "745.00", LocalDateTime.of(2026, 2, 1, 10, 0));
+        insertSearchResource(201L, CURRENT_USER_ID, 31L, CATEGORY_ID, Resource.STATUS_PENDING_REVIEW,
+                "数据结构未审核资料", "仍处于待审核状态", "数据结构", Resource.TYPE_NOTE,
+                "数据结构,复习", 99L, 20L, "600.00", LocalDateTime.of(2026, 2, 2, 10, 0));
+        insertSearchResource(202L, OTHER_USER_ID, 32L, CATEGORY_ID + 1, Resource.STATUS_APPROVED,
+                "操作系统课堂笔记", "进程调度和内存管理", "操作系统", Resource.TYPE_NOTE,
+                "操作系统,复习", 88L, 16L, "520.00", LocalDateTime.of(2026, 2, 3, 10, 0));
+
+        List<Resource> records = resourceMapper.searchApprovedResources(
+                "数据结构", CATEGORY_ID, "数据结构", Resource.TYPE_NOTE, "复习",
+                "createdAt", "desc", 0, 10);
+        long total = resourceMapper.countApprovedResources(
+                "数据结构", CATEGORY_ID, "数据结构", Resource.TYPE_NOTE, "复习");
+
+        assertThat(records).extracting(Resource::getId).containsExactly(200L);
+        assertThat(records).extracting(Resource::getStatus).containsOnly(Resource.STATUS_APPROVED);
+        assertThat(total).isEqualTo(1L);
+    }
+
+    @Test
+    void mapperShouldSearchApprovedResourcesWithSafeSortAndPaging() {
+        insertCategory(CATEGORY_ID, "计算机基础", 1);
+        insertFile(30L, 1);
+        insertFile(31L, 1);
+        insertFile(32L, 1);
+        insertSearchResource(200L, CURRENT_USER_ID, 30L, CATEGORY_ID, Resource.STATUS_APPROVED,
+                "Java 基础课件", "集合和 IO", "Java 程序设计", Resource.TYPE_COURSEWARE,
+                "Java,课件", 50L, 8L, "120.00", LocalDateTime.of(2026, 2, 1, 10, 0));
+        insertSearchResource(201L, CURRENT_USER_ID, 31L, CATEGORY_ID, Resource.STATUS_APPROVED,
+                "Java 并发笔记", "线程池和锁", "Java 程序设计", Resource.TYPE_NOTE,
+                "Java,并发", 200L, 22L, "680.00", LocalDateTime.of(2026, 2, 2, 10, 0));
+        insertSearchResource(202L, CURRENT_USER_ID, 32L, CATEGORY_ID, Resource.STATUS_APPROVED,
+                "Java 真题解析", "期末真题", "Java 程序设计", Resource.TYPE_EXAM,
+                "Java,真题", 100L, 15L, "360.00", LocalDateTime.of(2026, 2, 3, 10, 0));
+
+        List<Resource> topDownloads = resourceMapper.searchApprovedResources(
+                null, null, null, null, null, "downloadCount", "desc", 0, 2);
+        List<Resource> hotScoreAscending = resourceMapper.searchApprovedResources(
+                null, null, null, null, null, "hotScore", "asc", 0, 3);
+        List<Resource> fallbackSort = resourceMapper.searchApprovedResources(
+                null, null, null, null, null, "download_count desc", "desc;drop", 0, 3);
+
+        assertThat(topDownloads).extracting(Resource::getId).containsExactly(201L, 202L);
+        assertThat(hotScoreAscending).extracting(Resource::getId).containsExactly(200L, 202L, 201L);
+        // 非白名单排序参数应回退到 created_at DESC，验证 Mapper 不直接拼接前端原始排序值。
+        assertThat(fallbackSort).extracting(Resource::getId).containsExactly(202L, 201L, 200L);
+    }
+
+    @Test
     void mapperShouldUpdateAuditStatusesOnlyFromExpectedPreviousStatus() {
         insertCategory(CATEGORY_ID, "计算机基础", 1);
         insertFile(FILE_ID, 1);
@@ -326,6 +383,46 @@ class ResourceDatabaseIntegrationTest {
                 fileId,
                 uploaderId,
                 status,
+                createdAt,
+                createdAt);
+    }
+
+    private void insertSearchResource(
+            long id,
+            long uploaderId,
+            long fileId,
+            long categoryId,
+            int status,
+            String title,
+            String description,
+            String courseName,
+            int resourceType,
+            String tags,
+            long downloadCount,
+            long favoriteCount,
+            String hotScore,
+            LocalDateTime createdAt) {
+        jdbcTemplate.update("""
+                INSERT INTO `resource` (
+                    id, title, description, category_id, course_name, resource_type, tags,
+                    file_id, uploader_id, status, view_count, download_count, favorite_count,
+                    hot_score, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
+                """,
+                id,
+                title,
+                description,
+                categoryId,
+                courseName,
+                resourceType,
+                tags,
+                fileId,
+                uploaderId,
+                status,
+                downloadCount,
+                favoriteCount,
+                new BigDecimal(hotScore),
                 createdAt,
                 createdAt);
     }
