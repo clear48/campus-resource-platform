@@ -231,6 +231,7 @@
     </select>
 
     <!-- 审核通过必须带旧状态条件，更新行数为 0 时由 Service 判断为非法状态流转。 -->
+    <!-- 返回值为更新行数，Service 层可据此判断是否成功更新了待审核资料状态。 -->
     <update id="approvePendingReview">
         UPDATE `resource`
         SET status = 1,
