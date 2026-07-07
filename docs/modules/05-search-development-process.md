@@ -1,7 +1,7 @@
 # 搜索模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**待开发，已完成开发前规划文档初稿**。搜索模块将基于审核模块产生的 `resource.status = 1 APPROVED` 资料集合，提供公开资料检索能力，并通过 Redis ZSet 记录热门搜索词。
+> 当前状态：**步骤 1 已完成，搜索 DTO 与 VO 已创建**。搜索模块将基于审核模块产生的 `resource.status = 1 APPROVED` 资料集合，提供公开资料检索能力，并通过 Redis ZSet 记录热门搜索词。
 
 ---
 
@@ -13,7 +13,7 @@
 | 英文标识 | search |
 | 文档路径 | `docs/modules/05-search-development-process.md` |
 | 当前分支 | `dev` |
-| 当前状态 | 待开发，已完成开发流程文档初稿 |
+| 当前状态 | 步骤 1 已完成，搜索 DTO 与 VO 已创建 |
 | 前置依赖模块 | 用户认证模块、分类查询模块、资料模块、审核模块 |
 | 下游模块 | 下载模块、收藏模块、排行榜模块 |
 | 接口前缀 | `/api/v1/search` |
@@ -364,15 +364,15 @@ DELETED(4)        不进入搜索结果
 - 已阅读 `docs/05-redis-design.md` 热门搜索词设计，确认 Redis Key 为 `crp:rank:search:keyword:{period}`。
 - 已阅读 `docs/02-business-flow.md` 搜索流程，确认普通搜索必须固定过滤 `APPROVED`。
 - 已确认 `WebMvcConfig` 已放行 `/api/v1/search/**`。
-- 已确认当前真实代码中尚无 `SearchController`、`SearchService`、搜索 DTO/VO 和搜索 Mapper 方法。
+- 已确认当前真实代码中尚无 `SearchController`、`SearchService` 和搜索 Mapper 方法。
 - 已生成本搜索模块开发流程文档初稿。
+- 已创建 `SearchResourceQueryDTO`，承载关键词、分类、课程名、资料类型、标签、排序和分页参数。
+- 已创建 `SearchResourceVO`，作为搜索结果列表项，避免直接返回 `Resource` Entity。
 
 ---
 
 ## 19. 待完成事项
 
-- 创建 `SearchResourceQueryDTO`。
-- 创建 `SearchResourceVO`。
 - 为 `RedisKeyConstants` 补充搜索热词 Key 常量和方法。
 - 为 `ResourceMapper` 和 XML 补充搜索列表 SQL 与计数 SQL。
 - 实现 `SearchService` 和 `SearchServiceImpl`。
@@ -430,11 +430,12 @@ DELETED(4)        不进入搜索结果
 
 ### 20.4 已执行测试记录
 
-当前仅生成开发流程文档，未修改业务代码。
+当前已完成搜索 DTO/VO 和流程文档更新，搜索主链路尚未实现。
 
 | 测试命令 | 结果 | 说明 |
 | --- | --- | --- |
-| 本次暂未运行 Maven 测试 | 未运行 | 文档初稿生成不涉及 Java 编译或业务逻辑变更 |
+| `.\mvnw.cmd -DskipTests compile` | 通过 | 编译 73 个主代码文件，验证新增 DTO/VO 无编译问题 |
+| `.\mvnw.cmd test` | 通过，`Tests run: 37, Failures: 0, Errors: 0, Skipped: 0` | 全量测试通过，当前步骤未新增专门搜索测试 |
 
 ---
 
@@ -445,13 +446,13 @@ DELETED(4)        不进入搜索结果
 | 文件 | 说明 |
 | --- | --- |
 | `docs/modules/05-search-development-process.md` | 新增搜索模块开发流程文档初稿 |
+| `campus-resource-platform/src/main/java/com/john/campus/dto/SearchResourceQueryDTO.java` | 新增搜索请求参数 DTO，复用 `PageQuery` 分页默认值和校验 |
+| `campus-resource-platform/src/main/java/com/john/campus/vo/SearchResourceVO.java` | 新增搜索结果 VO，返回公开展示字段和统计快照 |
 
 后续预计修改或新增：
 
 | 文件 | 说明 |
 | --- | --- |
-| `campus-resource-platform/src/main/java/com/john/campus/dto/SearchResourceQueryDTO.java` | 搜索请求参数 DTO |
-| `campus-resource-platform/src/main/java/com/john/campus/vo/SearchResourceVO.java` | 搜索结果 VO |
 | `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java` | 补充搜索热词 Redis Key |
 | `campus-resource-platform/src/main/java/com/john/campus/mapper/ResourceMapper.java` | 补充搜索查询方法 |
 | `campus-resource-platform/src/main/resources/mapper/ResourceMapper.xml` | 补充搜索动态 SQL |
