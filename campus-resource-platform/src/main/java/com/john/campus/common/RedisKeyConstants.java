@@ -15,6 +15,11 @@ public final class RedisKeyConstants {
      */
     public static final String FILE_MD5_CACHE = "crp:cache:file:md5:%s:%d";
 
+    /**
+     * 热门搜索词排行榜 Key，使用 ZSet 记录归一化关键词和搜索次数。
+     */
+    public static final String SEARCH_KEYWORD_RANK = "crp:rank:search:keyword:%s";
+
     private RedisKeyConstants() {
     }
 
@@ -30,5 +35,12 @@ public final class RedisKeyConstants {
      */
     public static String fileMd5Cache(String fileMd5, long fileSize) {
         return String.format(FILE_MD5_CACHE, fileMd5, fileSize);
+    }
+
+    /**
+     * 生成热门搜索词排行榜完整 Key，period 取 daily、weekly、monthly 等统计周期。
+     */
+    public static String searchKeywordRank(String period) {
+        return String.format(SEARCH_KEYWORD_RANK, period);
     }
 }

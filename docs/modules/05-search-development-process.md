@@ -1,7 +1,7 @@
 # 搜索模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**步骤 1 已完成，搜索 DTO 与 VO 已创建**。搜索模块将基于审核模块产生的 `resource.status = 1 APPROVED` 资料集合，提供公开资料检索能力，并通过 Redis ZSet 记录热门搜索词。
+> 当前状态：**步骤 2 已完成，搜索 DTO/VO 与热词 Redis Key 常量已创建**。搜索模块将基于审核模块产生的 `resource.status = 1 APPROVED` 资料集合，提供公开资料检索能力，并通过 Redis ZSet 记录热门搜索词。
 
 ---
 
@@ -13,7 +13,7 @@
 | 英文标识 | search |
 | 文档路径 | `docs/modules/05-search-development-process.md` |
 | 当前分支 | `dev` |
-| 当前状态 | 步骤 1 已完成，搜索 DTO 与 VO 已创建 |
+| 当前状态 | 步骤 2 已完成，搜索 DTO/VO 与热词 Redis Key 常量已创建 |
 | 前置依赖模块 | 用户认证模块、分类查询模块、资料模块、审核模块 |
 | 下游模块 | 下载模块、收藏模块、排行榜模块 |
 | 接口前缀 | `/api/v1/search` |
@@ -368,12 +368,12 @@ DELETED(4)        不进入搜索结果
 - 已生成本搜索模块开发流程文档初稿。
 - 已创建 `SearchResourceQueryDTO`，承载关键词、分类、课程名、资料类型、标签、排序和分页参数。
 - 已创建 `SearchResourceVO`，作为搜索结果列表项，避免直接返回 `Resource` Entity。
+- 已为 `RedisKeyConstants` 补充 `SEARCH_KEYWORD_RANK` 常量和 `searchKeywordRank(String period)` 方法。
 
 ---
 
 ## 19. 待完成事项
 
-- 为 `RedisKeyConstants` 补充搜索热词 Key 常量和方法。
 - 为 `ResourceMapper` 和 XML 补充搜索列表 SQL 与计数 SQL。
 - 实现 `SearchService` 和 `SearchServiceImpl`。
 - 实现 `SearchController`。
@@ -430,11 +430,11 @@ DELETED(4)        不进入搜索结果
 
 ### 20.4 已执行测试记录
 
-当前已完成搜索 DTO/VO 和流程文档更新，搜索主链路尚未实现。
+当前已完成搜索 DTO/VO、搜索热词 Redis Key 常量和流程文档更新，搜索主链路尚未实现。
 
 | 测试命令 | 结果 | 说明 |
 | --- | --- | --- |
-| `.\mvnw.cmd -DskipTests compile` | 通过 | 编译 73 个主代码文件，验证新增 DTO/VO 无编译问题 |
+| `.\mvnw.cmd -DskipTests compile` | 通过 | 编译 73 个主代码文件，验证新增 Redis Key 常量无编译问题 |
 | `.\mvnw.cmd test` | 通过，`Tests run: 37, Failures: 0, Errors: 0, Skipped: 0` | 全量测试通过，当前步骤未新增专门搜索测试 |
 
 ---
@@ -448,12 +448,12 @@ DELETED(4)        不进入搜索结果
 | `docs/modules/05-search-development-process.md` | 新增搜索模块开发流程文档初稿 |
 | `campus-resource-platform/src/main/java/com/john/campus/dto/SearchResourceQueryDTO.java` | 新增搜索请求参数 DTO，复用 `PageQuery` 分页默认值和校验 |
 | `campus-resource-platform/src/main/java/com/john/campus/vo/SearchResourceVO.java` | 新增搜索结果 VO，返回公开展示字段和统计快照 |
+| `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java` | 新增搜索热词 ZSet Key 常量和生成方法 |
 
 后续预计修改或新增：
 
 | 文件 | 说明 |
 | --- | --- |
-| `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java` | 补充搜索热词 Redis Key |
 | `campus-resource-platform/src/main/java/com/john/campus/mapper/ResourceMapper.java` | 补充搜索查询方法 |
 | `campus-resource-platform/src/main/resources/mapper/ResourceMapper.xml` | 补充搜索动态 SQL |
 | `campus-resource-platform/src/main/java/com/john/campus/service/SearchService.java` | 搜索业务接口 |
