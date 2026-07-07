@@ -177,6 +177,32 @@ class AuditControllerTest {
     }
 
     @Test
+    void approveShouldMapResourceNotFoundException() throws Exception {
+        when(auditService.approve(eq(404L), any()))
+                .thenThrow(new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "资料不存在"));
+
+        mockMvc.perform(post("/api/v1/admin/resources/{resourceId}/audit-approvals", 404L)
+                        .with(bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(ErrorCode.RESOURCE_NOT_FOUND.getCode()));
+    }
+
+    @Test
+    void approveShouldMapInvalidResourceStateException() throws Exception {
+        when(auditService.approve(eq(101L), any()))
+                .thenThrow(new BusinessException(ErrorCode.RESOURCE_STATUS_INVALID, "资料状态已变化，无法审核通过"));
+
+        mockMvc.perform(post("/api/v1/admin/resources/{resourceId}/audit-approvals", 101L)
+                        .with(bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ErrorCode.RESOURCE_STATUS_INVALID.getCode()));
+    }
+
+    @Test
     void rejectShouldValidateReasonBeforeCallingService() throws Exception {
         String invalidBody = """
                 {

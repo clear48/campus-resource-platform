@@ -23,9 +23,9 @@ import com.john.campus.vo.AuditResultVO;
 import com.john.campus.vo.PendingReviewResourceVO;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.mybatis.spring.boot.test.autoconfigure.MybatisTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -33,22 +33,25 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.jdbc.Sql;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 审核服务数据库集成测试：验证 Service 状态机、事务内写库和审核记录留痕。
+ * 审核服务数据库集成测试：使用本机 MySQL 执行真实 MyBatis XML，验证状态机、事务和审核记录留痕。
  */
 @MybatisTest
 @Import({MyBatisConfig.class, AuditServiceImpl.class})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @TestPropertySource(properties = {
-        "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.datasource.url=jdbc:h2:mem:audit_service_test;MODE=MySQL;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1",
-        "spring.datasource.username=sa",
-        "spring.datasource.password=",
+        "spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver",
+        "spring.datasource.url=${MYSQL_TEST_URL:jdbc:mysql://localhost:3306/campus_resource_platform_audit_test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true}",
+        "spring.datasource.username=${MYSQL_TEST_USERNAME:${MYSQL_USERNAME:root}}",
+        "spring.datasource.password=${MYSQL_TEST_PASSWORD:${MYSQL_PASSWORD:}}",
         "mybatis.mapper-locations=classpath*:mapper/**/*.xml",
         "mybatis.type-aliases-package=com.john.campus.entity",
         "mybatis.configuration.map-underscore-to-camel-case=true"
 })
+@Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Sql(scripts = "/sql/resource-db-test-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 class AuditServiceDatabaseIntegrationTest {
 
@@ -204,6 +207,36 @@ class AuditServiceDatabaseIntegrationTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("code")
                 .isEqualTo(ErrorCode.PARAM_ERROR.getCode());
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(1) FROM audit_record", Long.class)).isZero();
+    }
+
+    @Test
+    void auditActionsShouldRejectMissingResource() {
+        mockAdmin();
+
+        assertThatThrownBy(() -> auditService.approve(999L, new AuditApproveDTO()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code")
+                .isEqualTo(ErrorCode.RESOURCE_NOT_FOUND.getCode());
+        assertThatThrownBy(() -> auditService.listAuditRecords(999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code")
+                .isEqualTo(ErrorCode.RESOURCE_NOT_FOUND.getCode());
+    }
+
+    @Test
+    void approveShouldRollbackResourceUpdateWhenAuditRecordInsertFails() {
+        insertResource(100L, STUDENT_USER_ID, 200L, Resource.STATUS_PENDING_REVIEW,
+                "Java 待回滚资料", Resource.TYPE_COURSEWARE, LocalDateTime.of(2026, 1, 2, 10, 0));
+        // 构造缺失管理员 ID 的登录态，让 resource 更新成功后在 audit_record NOT NULL 约束处失败。
+        UserContextHolder.set(new LoginUser(null, 2, "audit-admin-missing-id-jti"));
+
+        assertThatThrownBy(() -> auditService.approve(100L, new AuditApproveDTO()))
+                .isInstanceOf(RuntimeException.class);
+
+        Resource resource = resourceMapper.selectById(100L);
+        assertThat(resource.getStatus()).isEqualTo(Resource.STATUS_PENDING_REVIEW);
+        assertThat(resource.getApprovedAt()).isNull();
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(1) FROM audit_record", Long.class)).isZero();
     }
 
