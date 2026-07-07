@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.mybatis.spring.boot.test.autoconfigure.MybatisTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -99,6 +100,22 @@ class AuditServiceDatabaseIntegrationTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("code")
                 .isEqualTo(ErrorCode.FORBIDDEN.getCode());
+    }
+
+    @Test
+    void auditEntriesShouldRejectStudentRoleBeforeBusinessAccess() {
+        mockStudent();
+        AuditRejectDTO rejectDTO = new AuditRejectDTO();
+        rejectDTO.setRejectReason("内容不完整");
+        ResourceOfflineDTO offlineDTO = new ResourceOfflineDTO();
+        offlineDTO.setOfflineReason("版权风险");
+
+        // 管理员边界必须在状态机和数据库访问前统一生效，避免普通用户探测资料状态。
+        assertForbidden(() -> auditService.listPendingReviews(null, null, null, new PageQuery()));
+        assertForbidden(() -> auditService.approve(100L, new AuditApproveDTO()));
+        assertForbidden(() -> auditService.reject(100L, rejectDTO));
+        assertForbidden(() -> auditService.offline(100L, offlineDTO));
+        assertForbidden(() -> auditService.listAuditRecords(100L));
     }
 
     @Test
@@ -215,6 +232,13 @@ class AuditServiceDatabaseIntegrationTest {
 
     private void mockStudent() {
         UserContextHolder.set(new LoginUser(STUDENT_USER_ID, 1, "audit-student-jti"));
+    }
+
+    private void assertForbidden(ThrowingCallable action) {
+        assertThatThrownBy(action)
+                .isInstanceOf(BusinessException.class)
+                .extracting("code")
+                .isEqualTo(ErrorCode.FORBIDDEN.getCode());
     }
 
     private void insertResource(

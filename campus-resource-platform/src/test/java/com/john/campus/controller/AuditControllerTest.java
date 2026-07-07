@@ -23,6 +23,7 @@ import com.john.campus.dto.PageQuery;
 import com.john.campus.dto.ResourceOfflineDTO;
 import com.john.campus.entity.AuditRecord;
 import com.john.campus.entity.Resource;
+import com.john.campus.exception.BusinessException;
 import com.john.campus.exception.GlobalExceptionHandler;
 import com.john.campus.interceptor.JwtAuthenticationInterceptor;
 import com.john.campus.service.AuditService;
@@ -54,6 +55,10 @@ class AuditControllerTest {
      * 测试 Token 固定为短字符串，真实签名解析由 mock 的 JwtUtils 接管。
      */
     private static final String TEST_TOKEN = "audit-controller-test-token";
+    /**
+     * 普通学生 Token 用于确认管理端路径不会只校验“已登录”就放行。
+     */
+    private static final String STUDENT_TEST_TOKEN = "audit-controller-student-token";
 
     @Autowired
     private MockMvc mockMvc;
@@ -74,6 +79,13 @@ class AuditControllerTest {
                 90001L,
                 2,
                 "audit-controller-test-jti",
+                LocalDateTime.now().minusMinutes(1),
+                LocalDateTime.now().plusHours(1)
+        ));
+        when(jwtUtils.parseToken(STUDENT_TEST_TOKEN)).thenReturn(new JwtClaims(
+                10001L,
+                1,
+                "audit-controller-student-jti",
                 LocalDateTime.now().minusMinutes(1),
                 LocalDateTime.now().plusHours(1)
         ));
@@ -130,6 +142,22 @@ class AuditControllerTest {
                 .andExpect(jsonPath("$.code").value(ErrorCode.UNAUTHORIZED.getCode()));
 
         verify(auditService, never()).approve(any(), any());
+    }
+
+    @Test
+    void auditEndpointsShouldRejectStudentRole() throws Exception {
+        // Controller 经过真实 JWT 拦截器进入业务层后，管理员角色边界由 Service 统一兜底。
+        when(auditService.approve(eq(100L), any()))
+                .thenThrow(new BusinessException(ErrorCode.FORBIDDEN));
+
+        mockMvc.perform(post("/api/v1/admin/resources/{resourceId}/audit-approvals", 100L)
+                        .with(studentBearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(ErrorCode.FORBIDDEN.getCode()));
+
+        verify(auditService).approve(eq(100L), any());
     }
 
     @Test
@@ -208,8 +236,16 @@ class AuditControllerTest {
     }
 
     private RequestPostProcessor bearerToken() {
+        return bearerToken(TEST_TOKEN);
+    }
+
+    private RequestPostProcessor studentBearerToken() {
+        return bearerToken(STUDENT_TEST_TOKEN);
+    }
+
+    private RequestPostProcessor bearerToken(String token) {
         return request -> {
-            request.addHeader(AUTHORIZATION_HEADER, BEARER_PREFIX + TEST_TOKEN);
+            request.addHeader(AUTHORIZATION_HEADER, BEARER_PREFIX + token);
             return request;
         };
     }
