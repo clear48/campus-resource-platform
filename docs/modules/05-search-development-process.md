@@ -1,7 +1,7 @@
 # 搜索模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**步骤 5 已完成，搜索 Service 已接入 Redis 热门搜索词统计并通过全量集成测试**。搜索模块将基于审核模块产生的 `resource.status = 1 APPROVED` 资料集合，提供公开资料检索能力，并通过 Redis ZSet 记录热门搜索词。
+> 当前状态：**步骤 6 已完成，搜索接口 `GET /api/v1/search/resources` 已实现并通过全量测试**。搜索模块基于审核模块产生的 `resource.status = 1 APPROVED` 资料集合，提供公开资料检索能力，并通过 Redis ZSet 记录热门搜索词。
 
 ---
 
@@ -13,7 +13,7 @@
 | 英文标识 | search |
 | 文档路径 | `docs/modules/05-search-development-process.md` |
 | 当前分支 | `dev` |
-| 当前状态 | 步骤 5 已完成，搜索 Service 已接入 Redis 热门搜索词统计并通过全量集成测试 |
+| 当前状态 | 步骤 6 已完成，搜索接口 `GET /api/v1/search/resources` 已实现并通过全量测试 |
 | 前置依赖模块 | 用户认证模块、分类查询模块、资料模块、审核模块 |
 | 下游模块 | 下载模块、收藏模块、排行榜模块 |
 | 接口前缀 | `/api/v1/search` |
@@ -63,7 +63,7 @@
 
 ## 5. 涉及接口
 
-> 以下接口目前只在 `docs/04-api-doc.md` 中有设计，尚未在 Controller 中实现。后续开发完成后必须按真实代码同步校准。
+> 5.1 搜索资料接口已由 `SearchController` 实现（`GET /api/v1/search/resources`）；5.2 搜索建议接口仍为后续任务，尚未实现。`docs/04-api-doc.md` 待按真实代码同步校准。
 
 ### 5.1 搜索资料
 
@@ -378,13 +378,14 @@ DELETED(4)        不进入搜索结果
 - 已在 `SearchServiceImpl` 接入 Redis 热门搜索词统计：搜索成功后对 `daily`、`weekly`、`monthly` 三个 ZSet 递增关键词分数，并按 2/14/60 天设置 TTL，Key 统一走 `RedisKeyConstants.searchKeywordRank(period)`。
 - 已通过 `ObjectProvider<StringRedisTemplate>` 将热词统计声明为可选依赖：Redis 未装配（如 `@MybatisTest` 切片）时跳过统计，避免破坏现有集成测试上下文。
 - 已实现热词统计降级：空/空白关键词不写入，Redis 异常仅记录日志、不阻断搜索主流程。
+- 已创建 `SearchController`，实现 `GET /api/v1/search/resources`，通过 `@Valid SearchResourceQueryDTO` 绑定查询参数，返回 `ApiResponse<PageResult<SearchResourceVO>>`。
+- 已确认 `WebMvcConfig` 放行 `/api/v1/search/**`，接口匿名可访问，可见性由 Service 层固定 `APPROVED` 过滤保证。
 
 ---
 
 ## 19. 待完成事项
 
-- 实现 `SearchController`。
-- 补充搜索模块 Controller 测试。
+- 补充搜索模块 Controller 测试（`SearchControllerTest`）：覆盖公开访问、参数绑定、非法参数（`40001`）和异常映射，并确认匿名访问不触发 JWT 解析。
 - 补充热词统计的 Service 层单元测试：验证非空关键词写入三周期 ZSet、空关键词不写入、Redis 异常降级不影响搜索结果。
 - 同步 API 文档、Redis 文档、项目进度文档和 README。
 - 搜索模块完成后更新本文档的测试记录、修改文件记录和已完成事项。
@@ -445,8 +446,10 @@ DELETED(4)        不进入搜索结果
 | `.\mvnw.cmd -DskipTests compile` | 通过 | 步骤 5 接入 Redis 后主代码编译通过 |
 | `.\mvnw.cmd -Dtest=SearchServiceDatabaseIntegrationTest,ResourceDatabaseIntegrationTest test` | 通过，`Tests run: 12, Failures: 0, Errors: 0, Skipped: 0` | 步骤 5 改动后搜索相关集成测试全部通过，验证 ObjectProvider 可选注入不破坏切片上下文 |
 | `.\mvnw.cmd test` | 通过，`Tests run: 42, Failures: 0, Errors: 0, Skipped: 0` | 步骤 5 接入 Redis 热词统计后全量测试通过，无回归 |
+| `.\mvnw.cmd -DskipTests compile` | 通过 | 步骤 6 新增 SearchController 后主代码编译通过 |
+| `.\mvnw.cmd test` | 通过，`Tests run: 42, Failures: 0, Errors: 0, Skipped: 0` | 步骤 6 新增 SearchController 后全量测试通过，Spring 上下文正常装配，无回归 |
 
-> 说明：热词统计的 ZSet 写入尚未有专门的 Service 层单元测试（Redis 交互验证），已列入待完成事项，随 Controller 测试一并补充。
+> 说明：搜索接口 `SearchControllerTest` 与热词统计的 Service 层单元测试尚未编写，已列入待完成事项，将在步骤 7 补充。
 
 ---
 
@@ -466,12 +469,12 @@ DELETED(4)        不进入搜索结果
 | `campus-resource-platform/src/main/java/com/john/campus/service/SearchService.java` | 新增搜索业务接口 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/impl/SearchServiceImpl.java` | 新增搜索业务实现，完成校验、查询和 VO 转换；步骤 5 接入 Redis 热门搜索词统计（ObjectProvider 可选注入 + 三周期 ZSet 递增 + TTL + 异常降级） |
 | `campus-resource-platform/src/test/java/com/john/campus/service/SearchServiceDatabaseIntegrationTest.java` | 新增搜索 Service 数据库集成测试 |
+| `campus-resource-platform/src/main/java/com/john/campus/controller/SearchController.java` | 新增搜索接口入口，实现 `GET /api/v1/search/resources` |
 
 后续预计修改或新增：
 
 | 文件 | 说明 |
 | --- | --- |
-| `campus-resource-platform/src/main/java/com/john/campus/controller/SearchController.java` | 搜索接口入口 |
 | `campus-resource-platform/src/test/java/com/john/campus/controller/SearchControllerTest.java` | 搜索 Controller 测试 |
 | `docs/04-api-doc.md` | 搜索接口按真实代码同步 |
 | `docs/05-redis-design.md` | 搜索热词实现状态同步 |
