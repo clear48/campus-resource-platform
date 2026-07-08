@@ -1,7 +1,7 @@
 # 搜索模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**步骤 6 已完成，搜索接口 `GET /api/v1/search/resources` 已实现并通过全量测试**。搜索模块基于审核模块产生的 `resource.status = 1 APPROVED` 资料集合，提供公开资料检索能力，并通过 Redis ZSet 记录热门搜索词。
+> 当前状态：**搜索模块首版主链路已完成（DTO/VO → Mapper SQL → Redis 热词 Key → Service → Controller），并已同步 API、Redis、进度、README 文档**。搜索模块基于审核模块产生的 `resource.status = 1 APPROVED` 资料集合，提供公开资料检索能力，并通过 Redis ZSet 记录热门搜索词。剩余待补充：搜索接口测试、热词 Service 单测、搜索建议接口、搜索限流。
 
 ---
 
@@ -13,7 +13,7 @@
 | 英文标识 | search |
 | 文档路径 | `docs/modules/05-search-development-process.md` |
 | 当前分支 | `dev` |
-| 当前状态 | 步骤 6 已完成，搜索接口 `GET /api/v1/search/resources` 已实现并通过全量测试 |
+| 当前状态 | 首版主链路已完成并已同步 API/Redis/进度/README 文档，剩余测试与增强见待完成事项 |
 | 前置依赖模块 | 用户认证模块、分类查询模块、资料模块、审核模块 |
 | 下游模块 | 下载模块、收藏模块、排行榜模块 |
 | 接口前缀 | `/api/v1/search` |
@@ -380,6 +380,10 @@ DELETED(4)        不进入搜索结果
 - 已实现热词统计降级：空/空白关键词不写入，Redis 异常仅记录日志、不阻断搜索主流程。
 - 已创建 `SearchController`，实现 `GET /api/v1/search/resources`，通过 `@Valid SearchResourceQueryDTO` 绑定查询参数，返回 `ApiResponse<PageResult<SearchResourceVO>>`。
 - 已确认 `WebMvcConfig` 放行 `/api/v1/search/**`，接口匿名可访问，可见性由 Service 层固定 `APPROVED` 过滤保证。
+- 已同步 `docs/04-api-doc.md`：搜索资料接口标注为已实现，`42901` 标注为设计预留错误码。
+- 已同步 `docs/05-redis-design.md`：新增 6.8 节记录搜索热词 Key、三周期 ZSet 写入、TTL 和降级策略的真实实现状态。
+- 已同步 `docs/06-project-progress.md`：新增 6.6 搜索模块完成项，更新阶段结论、文档状态、未实现清单和下一阶段建议（下载模块）。
+- 已同步 `README.md`：新增搜索模块首版能力说明、测试覆盖和下一阶段建议。
 
 ---
 
@@ -387,8 +391,10 @@ DELETED(4)        不进入搜索结果
 
 - 补充搜索模块 Controller 测试（`SearchControllerTest`）：覆盖公开访问、参数绑定、非法参数（`40001`）和异常映射，并确认匿名访问不触发 JWT 解析。
 - 补充热词统计的 Service 层单元测试：验证非空关键词写入三周期 ZSet、空关键词不写入、Redis 异常降级不影响搜索结果。
-- 同步 API 文档、Redis 文档、项目进度文档和 README。
-- 搜索模块完成后更新本文档的测试记录、修改文件记录和已完成事项。
+- 实现搜索建议接口 `GET /api/v1/search/suggestions`（后续任务）。
+- 实现搜索限流（超限返回 `42901`，当前为设计预留）。
+
+> 备注：步骤 8 的 API/Redis/进度/README 文档同步已完成，见“已完成事项”。
 
 ---
 
@@ -536,6 +542,20 @@ docs(search): add search module development process
 ## 26. 分步骤开发提示词
 
 > 使用说明：以下提示词按 `docs/AGENTS.md` 第 24 节要求拆分，每一步都是一个最小可执行任务。执行时请一次只复制一条提示词给 Agent，完成并验证后再进入下一步。
+
+> 当前进度：步骤 1–6、步骤 8 已完成；步骤 5（Redis 热词）在步骤 4 之后、步骤 6 之前落地。**下一轮可直接复制的提示词是步骤 7（补充搜索模块测试）**，之后回到步骤 9 再次校准本文档。步骤 7 未做不影响首版主链路运行，但会留下接口层与热词写入的测试缺口。
+
+| 步骤 | 内容 | 状态 |
+| --- | --- | --- |
+| 步骤 1 | 创建搜索 DTO 与 VO | 已完成 |
+| 步骤 2 | 补充搜索热词 Redis Key 常量 | 已完成 |
+| 步骤 3 | 为 ResourceMapper 补充搜索 SQL | 已完成 |
+| 步骤 4 | 实现 SearchService | 已完成 |
+| 步骤 5 | 接入 Redis 热词统计 | 已完成 |
+| 步骤 6 | 实现 SearchController | 已完成 |
+| 步骤 7 | 补充搜索模块测试 | 待完成（下一轮） |
+| 步骤 8 | 同步搜索模块文档 | 已完成 |
+| 步骤 9 | 更新本模块开发流程文档 | 进行中，随每轮持续更新 |
 
 ### 步骤 1：创建搜索 DTO 与 VO
 

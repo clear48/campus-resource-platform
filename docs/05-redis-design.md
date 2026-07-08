@@ -332,6 +332,25 @@ Redis 宕机或数据丢失时，不影响资料搜索主流程，只影响热�
 - `ZINCRBY` 可直接累加搜索次数。
 - 周期榜只需不同 Key，不需要复杂表结构。
 
+### 6.8 当前实现状态
+
+搜索模块已实现热门搜索词写入，对应代码：
+
+```java
+RedisKeyConstants.SEARCH_KEYWORD_RANK      // "crp:rank:search:keyword:%s"
+RedisKeyConstants.searchKeywordRank(period) // period 取 daily、weekly、monthly
+```
+
+`SearchServiceImpl` 在搜索执行成功后，对 `daily`、`weekly`、`monthly` 三个 ZSet 执行 `ZINCRBY +1` 并按 2 天、14 天、60 天设置 TTL，与本节 6.4 一致。
+
+已落地的降级策略：
+
+- 关键词为空或 trim 后为空时不写入 Redis。
+- 通过 `ObjectProvider<StringRedisTemplate>` 声明为可选依赖，Redis 未装配时直接跳过统计，不影响搜索主流程。
+- Redis 写入异常时记录日志并吞掉异常，搜索结果照常返回。
+
+尚未实现：热门搜索词排行榜查询接口（归排行榜模块）、MySQL 搜索词快照表、搜索限流。
+
 ## 7. 用户下载限流
 
 ### 7.1 Key 设计

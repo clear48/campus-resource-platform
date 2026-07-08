@@ -2,11 +2,11 @@
 
 ## 1. 当前阶段结论
 
-项目当前处于“基础工程 + 用户认证模块 + 分类查询模块 + 文件上传模块 + 资料模块首版 + 审核模块首版完成”阶段。
+项目当前处于“基础工程 + 用户认证模块 + 分类查询模块 + 文件上传模块 + 资料模块首版 + 审核模块首版 + 搜索模块首版完成”阶段。
 
-已经完成的核心能力包括：Spring Boot 后端基础骨架、统一响应与异常处理、JWT 鉴权、Redis Token 黑名单、用户注册/登录/退出登录/当前用户查询、公开分类查询、文件上传与 MD5 秒传、基于 `fileId` 创建资料、公开资料详情、我的上传资料分页查询、管理员待审核列表、审核通过、审核拒绝、下架资料和审核记录查询。
+已经完成的核心能力包括：Spring Boot 后端基础骨架、统一响应与异常处理、JWT 鉴权、Redis Token 黑名单、用户注册/登录/退出登录/当前用户查询、公开分类查询、文件上传与 MD5 秒传、基于 `fileId` 创建资料、公开资料详情、我的上传资料分页查询、管理员待审核列表、审核通过、审核拒绝、下架资料、审核记录查询，以及公开资料搜索与热门搜索词写入。
 
-资料模块首版已经把 `file_info` 物理文件转换为 `resource` 业务资料主体，审核模块进一步把待审核资料推进到 `APPROVED`、`REJECTED`、`OFFLINE` 状态，并通过 `audit_record` 保留审计流水。下一阶段建议优先开发“搜索模块”，只消费 `status = 1 APPROVED` 的公开资料。
+资料模块首版已经把 `file_info` 物理文件转换为 `resource` 业务资料主体，审核模块进一步把待审核资料推进到 `APPROVED`、`REJECTED`、`OFFLINE` 状态，并通过 `audit_record` 保留审计流水。搜索模块首版消费 `status = 1 APPROVED` 的公开资料，提供关键词/分类/课程/类型/标签筛选、分页排序，并把非空关键词写入 Redis 热门搜索词 ZSet。下一阶段建议优先开发“下载模块”。
 
 ## 2. 进度状态说明
 
@@ -24,14 +24,15 @@
 | `docs/01-requirements.md` | 已完成 | 项目背景、用户角色、功能需求、非功能需求、项目亮点 |
 | `docs/02-business-flow.md` | 已完成 | 上传、审核、搜索、下载、收藏等核心业务流程和状态流转 |
 | `docs/03-database-design.md` | 已完成 | MySQL 表结构、字段说明、索引、设计理由和知识点 |
-| `docs/04-api-doc.md` | 已同步 | 认证、分类、文件上传、资料模块、审核模块已按当前代码校准；搜索、下载、收藏、排行榜仍为设计接口 |
-| `docs/05-redis-design.md` | 已完成，后续需同步 | Token 黑名单和文件 MD5 缓存已落地，排行榜/限流等仍为后续设计 |
+| `docs/04-api-doc.md` | 已同步 | 认证、分类、文件上传、资料模块、审核模块、搜索资料接口已按当前代码校准；搜索建议、下载、收藏、排行榜仍为设计接口 |
+| `docs/05-redis-design.md` | 已同步 | Token 黑名单、文件 MD5 缓存、搜索热门词 ZSet 已落地；排行榜/下载限流等仍为后续设计 |
 | `docs/modules/module.md` | 已完成 | 用户认证模块开发记录 |
 | `docs/modules/category-module.md` | 已完成 | 分类查询模块开发记录 |
 | `docs/modules/02-file-upload-development-process.md` | 已完成 | 文件上传模块开发流程记录 |
 | `docs/modules/03-resource-development-process.md` | 已完成 | 资料模块首版开发流程、测试记录和后续优化记录 |
 | `docs/modules/04-audit-development-process.md` | 已完成 | 审核模块开发流程、真实接口、状态机、权限、测试记录和后续优化 |
-| `docs/database/database-change-log.md` | 已同步 | 记录认证、分类、文件上传、资料模块、审核模块均复用已有生产表结构 |
+| `docs/modules/05-search-development-process.md` | 已完成 | 搜索模块开发流程、真实接口、排序白名单、Redis 热词统计、测试记录和后续优化 |
+| `docs/database/database-change-log.md` | 已同步 | 记录认证、分类、文件上传、资料模块、审核模块、搜索模块均复用已有生产表结构 |
 | `README.md` | 已同步 | 启动说明、当前完成模块、测试命令和下一阶段建议 |
 
 ## 4. 数据库与脚本状态
@@ -139,6 +140,24 @@
 
 当前审核模块暂未使用 Redis；后续资料详情缓存上线后，需要在审核通过、拒绝、下架时删除 `crp:cache:resource:detail:{resourceId}`。
 
+### 6.6 搜索模块
+
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| 搜索资料 | 已完成 | `GET /api/v1/search/resources`，匿名可访问，强制只返回 `status = 1 APPROVED` 资料 |
+| 筛选与排序 | 已完成 | 支持关键词、分类、课程名、资料类型、标签筛选；排序字段走白名单（`createdAt`/`downloadCount`/`favoriteCount`/`hotScore`），方向 `asc`/`desc` |
+| 参数校验 | 已完成 | DTO Bean Validation + `SearchServiceImpl` 兜底校验，非法参数返回 `40001` |
+| 结果 VO | 已完成 | 返回 `PageResult<SearchResourceVO>`，不直接暴露 `Resource` Entity |
+| 热门搜索词统计 | 已完成 | 搜索成功后对 `daily`/`weekly`/`monthly` 三个 ZSet `ZINCRBY +1` 并设 2/14/60 天 TTL |
+| Redis 降级 | 已完成 | 空关键词不写入；`ObjectProvider` 可选注入，Redis 缺失或异常时跳过统计、不阻断搜索 |
+| 搜索接口测试 | 待补充 | `SearchControllerTest` 与热词 Service 单测尚未编写，见模块流程文档待完成事项 |
+
+涉及表：`resource`。
+
+涉及 Redis Key：`crp:rank:search:keyword:{period}`（`period` 取 `daily`/`weekly`/`monthly`）。
+
+首版基于 MySQL 模糊查询，未接入 Elasticsearch；未实现搜索建议接口和搜索限流。详见 `docs/modules/05-search-development-process.md`。
+
 ## 7. 测试与验证
 
 | 类型 | 状态 | 说明 |
@@ -179,15 +198,9 @@
 
 ## 8. 待开发模块
 
-### 8.1 搜索模块
+> 搜索模块首版已完成，见第 6.6 节；剩余待补充为搜索接口测试、搜索建议接口、搜索限流和 Elasticsearch 扩展。
 
-待实现功能：只搜索审核通过资料、关键词/分类/课程/类型筛选、分页排序、搜索热词记录、可选接入 Elasticsearch。
-
-涉及表：`resource`、`category`。
-
-涉及 Redis Key：`crp:rank:search:keyword:{dateScope}`。
-
-### 8.2 下载模块
+### 8.1 下载模块
 
 待实现功能：下载权限校验、下载限流、写入下载记录、文件流返回、下载量 Redis 增量统计和定时同步。
 
@@ -195,7 +208,7 @@
 
 涉及 Redis Key：`crp:rate:download:user:{userId}`、`crp:rate:download:ip:{ip}`、`crp:dedup:download:{userId}:{resourceId}`、`crp:stats:resource:download:delta`。
 
-### 8.3 收藏模块
+### 8.2 收藏模块
 
 待实现功能：收藏资料、取消收藏、我的收藏列表、防重复收藏、收藏状态查询、更新收藏数和热度分。
 
@@ -203,7 +216,7 @@
 
 涉及 Redis Key：`crp:user:favorites:{userId}`、`crp:rank:resource:hot:{dateScope}`。
 
-### 8.4 排行榜与定时任务
+### 8.3 排行榜与定时任务
 
 待实现功能：热门资料排行榜、热门搜索词排行榜、下载量增量同步、热度分数计算与回写、分布式锁防重复同步。
 
@@ -215,8 +228,12 @@
 
 | 功能 | 当前状态 | 备注 |
 | --- | --- | --- |
-| 资料搜索 | 未实现 | 接口文档和 Redis 热词设计已完成 |
-| 热门搜索词 | 未实现 | Redis ZSet 设计已完成 |
+| 资料搜索 | 已完成 | `GET /api/v1/search/resources` 首版基于 MySQL，见第 6.6 节 |
+| 热门搜索词写入 | 已完成 | 搜索成功后写入 `crp:rank:search:keyword:{period}` 三周期 ZSet |
+| 热门搜索词排行榜查询 | 未实现 | 归排行榜模块，读取搜索热词 ZSet |
+| 搜索接口测试 | 未实现 | `SearchControllerTest` 与热词 Service 单测待补充 |
+| 搜索建议接口 | 未实现 | `GET /api/v1/search/suggestions` 后续任务 |
+| 搜索限流 | 未实现 | `42901` 为设计预留错误码 |
 | 下载接口 | 未实现 | 接口文档、数据库表和 Redis 统计设计已完成 |
 | 下载限流 | 未实现 | Redis Key 设计已完成 |
 | 下载量定时同步 | 未实现 | Redis Hash 设计已完成 |
@@ -239,36 +256,41 @@
 - 数据库集成测试已落地：资料模块真实执行 MyBatis XML，验证写入和读取。
 - 审核模块不是简单改状态：通过状态机、旧状态条件 SQL、事务和 `audit_record` 审计流水保证可追溯。
 - 管理员权限做了双层边界：JWT 拦截器保证登录，Service 层基于 `LoginUser.role = 2` 兜底校验。
+- 搜索公开可见性隔离：搜索 SQL 固定追加 `status = 1`，不依赖前端传入状态，防止未审核资料泄露。
+- 搜索排序防注入：排序字段走后端白名单映射为固定列名，不把前端原始参数拼进 SQL。
+- 热门搜索词统计是可降级旁路：`ObjectProvider` 可选注入 + 异常吞掉 + 空词跳过，Redis 故障不影响搜索主流程。
 - 分层结构清晰：Controller、Service、Mapper、DTO、VO、Entity、Common、Config、Exception、Interceptor 各自承担边界。
 
 ## 11. 推荐下一阶段开发模块
 
-建议下一阶段优先开发“搜索模块”。
+建议下一阶段优先开发“下载模块”。
 
 原因：
 
-1. 审核模块已经能产生稳定的 `status = 1 APPROVED` 资料集合，搜索模块有明确输入。
-2. 搜索是下载、收藏、排行榜之前的公开消费入口，可以验证“只展示已通过资料”的权限边界。
-3. 首版可以先基于 MySQL 模糊查询实现，后续再通过接口抽象切换 Elasticsearch。
-4. 搜索关键词可以自然引出 Redis 热门搜索词统计，为后续排行榜模块铺路。
+1. 搜索模块已经能让用户发现 `status = 1 APPROVED` 资料，下载是搜索之后自然的下一步公开消费入口。
+2. 下载模块可以落地 `download_record` 表，并首次引入 Redis 下载限流和下载量临时统计，技术点密度高。
+3. 下载量增量统计可以和热门资料排行榜、热度分回写联动，为排行榜模块铺路。
+4. 下载权限校验、限流、去重、文件流返回都是可讲的后端能力，契合面试导向。
 
 推荐小步开发顺序：
 
-1. 创建搜索请求 DTO 和搜索结果 VO。
-2. 为 `ResourceMapper` 补充只查询 `APPROVED` 资料的搜索 SQL。
-3. 实现搜索 Service，校验分页、排序和筛选参数。
-4. 实现 `GET /api/v1/search/resources`。
-5. 先用 MySQL 完成基础检索，再预留搜索服务接口扩展点。
-6. 补充 Controller 测试和数据库集成测试。
-7. 同步 API、Redis 设计和模块开发流程文档。
+1. 创建下载模块开发流程文档初稿。
+2. 创建 `download_record` 相关实体、Mapper 和 SQL。
+3. 实现下载权限校验和下载记录写入 Service。
+4. 接入 Redis 下载限流（用户/IP 滑动窗口 + Lua 原子性）。
+5. 接入 Redis 下载量临时统计和去重 Key。
+6. 实现下载接口和文件流返回。
+7. 补充测试并同步 API、Redis、进度和模块流程文档。
+
+搜索模块剩余小步任务（可穿插补齐）：补充 `SearchControllerTest` 和热词 Service 单测、实现搜索建议接口、增加搜索限流。
 
 ## 12. 当前可提交总结
 
 ```text
-docs(audit): sync audit module documentation
+docs(search): sync search module documentation
 
-- align audit API docs with real controller and VO fields
-- record audit module database table usage
-- mark audit module as completed in project progress
-- update audit module development process document
+- align search API docs with real controller, service, DTO and VO
+- record search keyword ranking redis implementation status
+- add search module as completed in project progress
+- recommend download module as next stage
 ```

@@ -87,7 +87,7 @@ cd campus-resource-platform
 .\mvnw.cmd test
 ```
 
-当前测试覆盖资料模块 Controller 层、资料数据库读写集成链路和 Spring Boot 上下文加载。
+当前测试覆盖资料模块 Controller 层、资料数据库读写集成链路、审核模块、搜索模块 Service 数据库集成链路和 Spring Boot 上下文加载。
 审核模块数据库集成测试使用本机 MySQL 独立测试库，运行前需要保证 `MYSQL_PASSWORD` 或 `MYSQL_TEST_PASSWORD` 环境变量可用。
 
 ## 当前完成内容
@@ -108,6 +108,7 @@ cd campus-resource-platform
 - 审核模块首版：`GET /api/v1/admin/resources/pending-reviews` 查询待审核资料，`POST /api/v1/admin/resources/{resourceId}/audit-approvals` 审核通过，`POST /api/v1/admin/resources/{resourceId}/audit-rejections` 审核拒绝，`POST /api/v1/admin/resources/{resourceId}/offline-records` 下架资料，`GET /api/v1/admin/resources/{resourceId}/audit-records` 查询审核记录。
 - 审核状态机：支持 `PENDING_REVIEW -> APPROVED`、`PENDING_REVIEW -> REJECTED`、`APPROVED -> OFFLINE`，使用事务保证 `resource` 状态更新和 `audit_record` 审核记录一致。
 - 审核权限：所有审核接口需要登录，Service 层统一校验管理员角色 `role = 2`，普通用户返回 `40301`。
-- 自动化测试：已补充 `ResourceControllerTest`、`ResourceDatabaseIntegrationTest`、`AuditControllerTest`、`AuditServiceDatabaseIntegrationTest`，验证接口层、鉴权路径、真实 MyBatis SQL、数据库状态流转和事务回滚。
+- 搜索模块首版：`GET /api/v1/search/resources` 公开资料搜索，强制只返回 `status = 1 APPROVED` 资料，支持关键词、分类、课程名、资料类型、标签筛选，排序字段走白名单（`createdAt`/`downloadCount`/`favoriteCount`/`hotScore`）防注入，返回 `PageResult<SearchResourceVO>`；搜索成功后把非空关键词写入 Redis 热门搜索词 ZSet（`crp:rank:search:keyword:{daily|weekly|monthly}`，TTL 2/14/60 天），Redis 缺失或异常时降级跳过、不阻断搜索。
+- 自动化测试：已补充 `ResourceControllerTest`、`ResourceDatabaseIntegrationTest`、`AuditControllerTest`、`AuditServiceDatabaseIntegrationTest`、`SearchServiceDatabaseIntegrationTest`，验证接口层、鉴权路径、真实 MyBatis SQL、数据库状态流转、事务回滚和搜索链路。
 
-当前下一阶段建议开发“搜索模块”：消费审核通过的 `resource.status = 1` 资料，实现公开资料检索、筛选、分页排序和搜索热词统计。审核模块记录见 `docs/modules/04-audit-development-process.md`，资料模块记录见 `docs/modules/03-resource-development-process.md`，总体进度见 `docs/06-project-progress.md`。
+当前下一阶段建议开发“下载模块”：在搜索之后落地下载权限校验、`download_record` 写入、Redis 下载限流与下载量临时统计。搜索模块记录见 `docs/modules/05-search-development-process.md`，审核模块记录见 `docs/modules/04-audit-development-process.md`，总体进度见 `docs/06-project-progress.md`。
