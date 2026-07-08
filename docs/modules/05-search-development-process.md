@@ -1,7 +1,7 @@
 # 搜索模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**步骤 4 已完成，搜索 Service 已创建并通过集成测试**。搜索模块将基于审核模块产生的 `resource.status = 1 APPROVED` 资料集合，提供公开资料检索能力，并通过 Redis ZSet 记录热门搜索词。
+> 当前状态：**步骤 5 已完成，搜索 Service 已接入 Redis 热门搜索词统计并通过全量集成测试**。搜索模块将基于审核模块产生的 `resource.status = 1 APPROVED` 资料集合，提供公开资料检索能力，并通过 Redis ZSet 记录热门搜索词。
 
 ---
 
@@ -13,7 +13,7 @@
 | 英文标识 | search |
 | 文档路径 | `docs/modules/05-search-development-process.md` |
 | 当前分支 | `dev` |
-| 当前状态 | 步骤 4 已完成，搜索 Service 已创建并通过集成测试 |
+| 当前状态 | 步骤 5 已完成，搜索 Service 已接入 Redis 热门搜索词统计并通过全量集成测试 |
 | 前置依赖模块 | 用户认证模块、分类查询模块、资料模块、审核模块 |
 | 下游模块 | 下载模块、收藏模块、排行榜模块 |
 | 接口前缀 | `/api/v1/search` |
@@ -168,8 +168,9 @@ Score：搜索次数。
 
 当前真实代码状态：
 
-- `RedisKeyConstants` 已有 Token 黑名单和文件 MD5 缓存 Key。
-- `crp:rank:search:keyword:{period}` 常量和格式化方法尚未实现。
+- `RedisKeyConstants` 已有 Token 黑名单、文件 MD5 缓存以及搜索热词 Key。
+- `crp:rank:search:keyword:{period}` 常量 `SEARCH_KEYWORD_RANK` 和格式化方法 `searchKeywordRank(String period)` 已实现。
+- `SearchServiceImpl` 已接入 `StringRedisTemplate`，搜索成功后对 `daily`、`weekly`、`monthly` 三个 ZSet 执行 `ZINCRBY +1` 并设置 2/14/60 天 TTL；关键词为空或 Redis 不可用时跳过，异常时记录日志且不阻断搜索主流程。
 
 ---
 
@@ -374,6 +375,9 @@ DELETED(4)        不进入搜索结果
 - 已补充 `ResourceDatabaseIntegrationTest` 搜索 Mapper 用例，覆盖状态隔离、筛选、分页和排序回退。
 - 已创建 `SearchService` 和 `SearchServiceImpl`，完成参数兜底校验、排序白名单归一化、关键词 trim、Mapper 调用和 VO 转换。
 - 已补充 `SearchServiceDatabaseIntegrationTest`，覆盖 Service 搜索链路、默认查询和非法参数。
+- 已在 `SearchServiceImpl` 接入 Redis 热门搜索词统计：搜索成功后对 `daily`、`weekly`、`monthly` 三个 ZSet 递增关键词分数，并按 2/14/60 天设置 TTL，Key 统一走 `RedisKeyConstants.searchKeywordRank(period)`。
+- 已通过 `ObjectProvider<StringRedisTemplate>` 将热词统计声明为可选依赖：Redis 未装配（如 `@MybatisTest` 切片）时跳过统计，避免破坏现有集成测试上下文。
+- 已实现热词统计降级：空/空白关键词不写入，Redis 异常仅记录日志、不阻断搜索主流程。
 
 ---
 
@@ -381,7 +385,7 @@ DELETED(4)        不进入搜索结果
 
 - 实现 `SearchController`。
 - 补充搜索模块 Controller 测试。
-- 后续接入 Redis 热词统计后补充成功和失败降级测试。
+- 补充热词统计的 Service 层单元测试：验证非空关键词写入三周期 ZSet、空关键词不写入、Redis 异常降级不影响搜索结果。
 - 同步 API 文档、Redis 文档、项目进度文档和 README。
 - 搜索模块完成后更新本文档的测试记录、修改文件记录和已完成事项。
 
@@ -438,8 +442,11 @@ DELETED(4)        不进入搜索结果
 | --- | --- | --- |
 | `.\mvnw.cmd -Dtest=SearchServiceDatabaseIntegrationTest test` | 通过，`Tests run: 3, Failures: 0, Errors: 0, Skipped: 0` | 验证 SearchService 参数校验、默认查询、VO 转换和 Mapper 调用 |
 | `.\mvnw.cmd -Dtest=ResourceDatabaseIntegrationTest test` | 通过，`Tests run: 9, Failures: 0, Errors: 0, Skipped: 0` | 验证新增搜索 Mapper SQL、状态隔离、筛选、分页和排序白名单回退 |
-| `.\mvnw.cmd -DskipTests compile` | 通过 | 主代码编译通过 |
-| `.\mvnw.cmd test` | 通过，`Tests run: 42, Failures: 0, Errors: 0, Skipped: 0` | 全量测试通过，新增 3 个搜索 Service 集成测试 |
+| `.\mvnw.cmd -DskipTests compile` | 通过 | 步骤 5 接入 Redis 后主代码编译通过 |
+| `.\mvnw.cmd -Dtest=SearchServiceDatabaseIntegrationTest,ResourceDatabaseIntegrationTest test` | 通过，`Tests run: 12, Failures: 0, Errors: 0, Skipped: 0` | 步骤 5 改动后搜索相关集成测试全部通过，验证 ObjectProvider 可选注入不破坏切片上下文 |
+| `.\mvnw.cmd test` | 通过，`Tests run: 42, Failures: 0, Errors: 0, Skipped: 0` | 步骤 5 接入 Redis 热词统计后全量测试通过，无回归 |
+
+> 说明：热词统计的 ZSet 写入尚未有专门的 Service 层单元测试（Redis 交互验证），已列入待完成事项，随 Controller 测试一并补充。
 
 ---
 
@@ -457,7 +464,7 @@ DELETED(4)        不进入搜索结果
 | `campus-resource-platform/src/main/resources/mapper/ResourceMapper.xml` | 新增公开搜索过滤 SQL、计数 SQL 和排序白名单 |
 | `campus-resource-platform/src/test/java/com/john/campus/service/ResourceDatabaseIntegrationTest.java` | 补充搜索 Mapper 数据库集成测试 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/SearchService.java` | 新增搜索业务接口 |
-| `campus-resource-platform/src/main/java/com/john/campus/service/impl/SearchServiceImpl.java` | 新增搜索业务实现，完成校验、查询和 VO 转换 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/SearchServiceImpl.java` | 新增搜索业务实现，完成校验、查询和 VO 转换；步骤 5 接入 Redis 热门搜索词统计（ObjectProvider 可选注入 + 三周期 ZSet 递增 + TTL + 异常降级） |
 | `campus-resource-platform/src/test/java/com/john/campus/service/SearchServiceDatabaseIntegrationTest.java` | 新增搜索 Service 数据库集成测试 |
 
 后续预计修改或新增：

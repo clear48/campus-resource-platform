@@ -2,15 +2,22 @@ package com.john.campus.service.impl;
 
 import com.john.campus.common.ErrorCode;
 import com.john.campus.common.PageResult;
+import com.john.campus.common.RedisKeyConstants;
 import com.john.campus.dto.SearchResourceQueryDTO;
 import com.john.campus.entity.Resource;
 import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.service.SearchService;
 import com.john.campus.vo.SearchResourceVO;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -19,6 +26,8 @@ import org.springframework.util.StringUtils;
  */
 @Service
 public class SearchServiceImpl implements SearchService {
+
+    private static final Logger log = LoggerFactory.getLogger(SearchServiceImpl.class);
 
     /**
      * 搜索参数长度限制与 DTO、数据库字段和当前搜索设计保持一致。
@@ -39,16 +48,37 @@ public class SearchServiceImpl implements SearchService {
     private static final String SORT_BY_HOT_SCORE = "hotScore";
 
     /**
+     * 每次搜索命中一个关键词，对热词 ZSet 递增的分值。
+     */
+    private static final double KEYWORD_HIT_INCREMENT = 1.0D;
+    /**
+     * 热门搜索词周期及各自 TTL，与 docs/05-redis-design.md 第 6.4 节保持一致。
+     * 周期榜保留时间略长于统计周期，方便展示昨日、本周等数据。
+     */
+    private static final Map<String, Duration> KEYWORD_RANK_PERIODS = Map.of(
+            "daily", Duration.ofDays(2),
+            "weekly", Duration.ofDays(14),
+            "monthly", Duration.ofDays(60));
+
+    /**
      * 资料 Mapper 只负责执行安全 SQL，业务参数归一化和兜底校验放在 Service 层。
      */
     private final ResourceMapper resourceMapper;
+    /**
+     * 热门搜索词统计属于可降级旁路：Redis 缺失或异常都不能影响搜索主流程，
+     * 因此使用 ObjectProvider 声明为可选依赖，Redis 不可用时直接跳过统计。
+     */
+    private final ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider;
 
-    public SearchServiceImpl(ResourceMapper resourceMapper) {
+    public SearchServiceImpl(
+            ResourceMapper resourceMapper,
+            ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider) {
         this.resourceMapper = resourceMapper;
+        this.stringRedisTemplateProvider = stringRedisTemplateProvider;
     }
 
     /**
-     * 搜索公开资料主流程：校验参数、调用 Mapper、转换 VO，不在首版写入 Redis。
+     * 搜索公开资料主流程：校验参数、调用 Mapper、转换 VO，成功后记录热门搜索词。
      */
     @Override
     public PageResult<SearchResourceVO> searchResources(SearchResourceQueryDTO query) {
@@ -59,6 +89,8 @@ public class SearchServiceImpl implements SearchService {
                 resolvedQuery.courseName(),
                 resolvedQuery.resourceType(),
                 resolvedQuery.tag());
+        // 计数查询成功即代表本次搜索已正常执行，此时记录热门搜索词；空结果同样计入统计。
+        recordSearchKeyword(resolvedQuery.keyword());
         if (total == 0) {
             return PageResult.of(List.of(), resolvedQuery.pageNo(), resolvedQuery.pageSize(), total);
         }
@@ -77,6 +109,33 @@ public class SearchServiceImpl implements SearchService {
                 .map(this::toSearchResourceVO)
                 .toList();
         return PageResult.of(records, resolvedQuery.pageNo(), resolvedQuery.pageSize(), total);
+    }
+
+    /**
+     * 记录热门搜索词：对 daily、weekly、monthly 三个 ZSet 递增关键词分数并刷新 TTL。
+     * 该统计属于运营数据的可降级旁路，Redis 缺失或异常都不能影响搜索结果返回。
+     */
+    private void recordSearchKeyword(String keyword) {
+        // 关键词已在 resolveSearchQuery 中 trim 归一化，空关键词不参与热词统计。
+        if (!StringUtils.hasText(keyword)) {
+            return;
+        }
+        StringRedisTemplate stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
+        if (stringRedisTemplate == null) {
+            // Redis 未装配（如测试切片）时直接跳过，符合热词统计可降级的设计语义。
+            return;
+        }
+        try {
+            for (Map.Entry<String, Duration> period : KEYWORD_RANK_PERIODS.entrySet()) {
+                String key = RedisKeyConstants.searchKeywordRank(period.getKey());
+                stringRedisTemplate.opsForZSet().incrementScore(key, keyword, KEYWORD_HIT_INCREMENT);
+                // 周期榜设过期时间，避免历史热词无限堆积；周期内重复搜索会顺带续期。
+                stringRedisTemplate.expire(key, period.getValue());
+            }
+        } catch (RuntimeException ex) {
+            // 热词统计失败仅记录日志，绝不阻断搜索主流程。
+            log.warn("记录热门搜索词失败: keyword={}", keyword, ex);
+        }
     }
 
     /**
