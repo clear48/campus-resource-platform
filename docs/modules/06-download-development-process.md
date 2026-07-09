@@ -1,7 +1,7 @@
 # 下载模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**开发中（步骤 1 文档初稿、步骤 2 下载记录实体与 Mapper 已完成）**。已落地 `DownloadRecord` 实体、`DownloadRecordMapper` 接口与 XML；Controller、Service、限流器、DTO、VO 以及下载相关 Redis Key 常量仍未实现，标记为「待开发」。
+> 当前状态：**开发中（步骤 1 文档初稿、步骤 2 下载记录实体与 Mapper、步骤 3 下载 Redis Key 常量已完成）**。已落地 `DownloadRecord` 实体、`DownloadRecordMapper` 接口与 XML，并在 `RedisKeyConstants` 中补充下载限流、下载去重和下载量增量统计 Key；Controller、Service、限流器、DTO、VO 仍未实现，标记为「待开发」。
 > 已完成部分的编译与 Spring 上下文加载测试通过。
 
 ---
@@ -13,8 +13,8 @@
 | 模块名称 | 下载模块 |
 | 英文标识 | download |
 | 文档路径 | `docs/modules/06-download-development-process.md` |
-| 当前分支 | `dev`（工作区干净，最近提交为搜索模块文档同步） |
-| 当前状态 | 初稿，仅完成文档规划，尚未编写代码 |
+| 当前分支 | `dev` |
+| 当前状态 | 开发中，已完成文档初稿、下载记录实体与 Mapper、下载 Redis Key 常量 |
 | 前置依赖模块 | 用户认证模块、资料模块、文件上传模块、审核模块、搜索模块 |
 | 下游模块 | 排行榜与定时任务模块（消费下载量增量和热度分） |
 | 接口前缀 | `/api/v1/resources/{resourceId}/download-records`、`/api/v1/download-records`、`/api/v1/users/me/download-records` |
@@ -187,7 +187,7 @@
 
 ## 7. 涉及 Redis Key
 
-> 以下 Key 设计来源于 `docs/05-redis-design.md` 第 7、8 节。**当前 `RedisKeyConstants` 中尚无任何下载相关常量**，只有 `TOKEN_BLACKLIST`、`FILE_MD5_CACHE`、`SEARCH_KEYWORD_RANK`。本模块需按第 18 节规范集中补充，禁止硬编码。
+> 以下 Key 设计来源于 `docs/05-redis-design.md` 第 7、8 节。当前 `RedisKeyConstants` 已补充下载相关常量与格式化方法，后续限流器和下载 Service 必须复用这些常量，禁止在业务代码中硬编码完整 Redis Key。
 
 | Key | 数据结构 | 用途 | TTL | 更新时机 |
 | --- | --- | --- | --- | --- |
@@ -227,7 +227,7 @@
 | common | `PageResult` | 分页响应 |
 | common | `UserContextHolder` | 获取当前登录用户 ID/角色（`getRequiredUserId()`） |
 | common | `LoginUser` | 登录用户快照，`isAdmin()` 判断管理员 |
-| common | `RedisKeyConstants` | 需补充下载相关 Key（当前无） |
+| common | `RedisKeyConstants` | 已补充下载限流、下载去重、下载量增量统计 Key 常量与生成方法 |
 | dto | `PageQuery` | 通用分页请求（pageNo/pageSize/offset） |
 | entity | `Resource` | 资料实体，`STATUS_APPROVED`、`isApproved()` |
 | entity | `FileInfo` | 文件实体，`STATUS_NORMAL`、`isNormal()`、`storagePath` |
@@ -237,12 +237,12 @@
 | exception | `BusinessException`、`GlobalExceptionHandler` | 业务异常与统一异常处理 |
 | config | `WebMvcConfig` | 拦截器与放行路径配置 |
 
-### 8.2 计划新增或修改类（当前均不存在，待开发）
+### 8.2 计划新增或修改类（按当前真实代码状态）
 
 | 类型 | 类 | 职责 |
 | --- | --- | --- |
-| entity | `DownloadRecord` | 对应 `download_record` 表，含 `STATUS_SUCCESS=1`/`STATUS_FAIL=2` 常量 |
-| mapper | `DownloadRecordMapper` + `DownloadRecordMapper.xml` | 插入下载记录、按 ID 查记录、按用户分页查、计数 |
+| entity | `DownloadRecord` | 已存在，对应 `download_record` 表，含 `STATUS_SUCCESS=1`/`STATUS_FAIL=2` 常量 |
+| mapper | `DownloadRecordMapper` + `DownloadRecordMapper.xml` | 已存在，支持插入下载记录、按 ID 查记录、按用户分页查、计数 |
 | dto | `MyDownloadRecordQuery`（或复用 `PageQuery`） | 我的下载记录分页参数 |
 | vo | `DownloadTicketVO` | 创建下载记录接口响应（downloadRecordId/downloadUrl/counted 等） |
 | vo | `MyDownloadRecordVO` | 我的下载记录列表项 |
@@ -251,7 +251,7 @@
 | service | `DownloadRateLimiter`（接口） | 下载限流能力（滑动窗口 + Lua） |
 | service/impl | `DownloadRateLimiterImpl` | Redis Lua 限流实现 |
 | controller | `DownloadController` | 下载相关三个接口入口 |
-| common | `RedisKeyConstants` | 补充下载限流、去重、下载量增量 Key 常量与生成方法 |
+| common | `RedisKeyConstants` | 已补充下载限流、去重、下载量增量 Key 常量与生成方法 |
 
 > 记忆约束：本项目所有 Spring Service（含基础设施/工具类服务）必须「接口 + 实现」，不使用具体 `@Component`。因此限流器也拆成 `DownloadRateLimiter` 接口 + 实现，不要写成单一具体类。
 
@@ -408,7 +408,7 @@ DELETED(4)        不可下载 → 40901
 
 1. 创建下载模块开发流程文档初稿（**本步已完成**）。
 2. 创建 `DownloadRecord` 实体、`DownloadRecordMapper` 接口与 XML（复用已存在的 `download_record` 表，不改表结构）。
-3. 为 `RedisKeyConstants` 补充下载限流、去重、下载量增量 Key 常量与生成方法。
+3. 为 `RedisKeyConstants` 补充下载限流、去重、下载量增量 Key 常量与生成方法（**本步已完成**）。
 4. 实现 `DownloadRateLimiter` 接口 + 实现（Redis 滑动窗口 + Lua 原子限流）。
 5. 实现 `DownloadService` 接口 + `DownloadServiceImpl`：状态校验、限流、去重计数、记录写入、下载量增量。
 6. 补充 `FileStorageService` 读文件流能力（或在下载模块内实现），支撑文件流返回。
@@ -427,7 +427,7 @@ DELETED(4)        不可下载 → 40901
 | --- | --- | --- | --- |
 | T1 | 下载模块文档初稿 | `docs/modules/06-download-development-process.md` | 已完成 |
 | T2 | 实体 + Mapper | `DownloadRecord`、`DownloadRecordMapper(.java/.xml)` | 已完成 |
-| T3 | Redis Key 常量 | `RedisKeyConstants` 下载相关常量与方法 | 待开发 |
+| T3 | Redis Key 常量 | `RedisKeyConstants` 下载相关常量与方法 | 已完成 |
 | T4 | 下载限流器 | `DownloadRateLimiter` + 实现（Lua 滑动窗口） | 待开发 |
 | T5 | 下载 Service | `DownloadService` + `DownloadServiceImpl` | 待开发 |
 | T6 | 文件流读取能力 | `FileStorageService` 读流方法（或模块内实现） | 待开发 |
@@ -443,13 +443,13 @@ DELETED(4)        不可下载 → 40901
 ## 18. 已完成事项
 
 - 已阅读 `AGENTS.md` 与 `docs/AGENTS.md`，确认模块开发流程文档规范（第 14、24 节）。
-- 已阅读 `docs/06-project-progress.md`，确认下载模块是当前推荐开发模块，且当前代码尚未实现下载能力。
+- 已阅读 `docs/06-project-progress.md`，确认下载模块是当前推荐开发模块，且当前代码尚未实现下载接口与下载主流程。
 - 已阅读 `docs/04-api-doc.md` 第 8 节下载模块接口设计，确认三大接口路径与响应结构。
 - 已阅读 `docs/05-redis-design.md` 第 7、8 节，确认下载限流、去重、下载量增量的 Key、数据结构、TTL 与一致性策略。
 - 已核对 `sql/init.sql`，确认 `download_record`、`resource`、`file_info` 三表结构与索引真实存在。
-- 已核对 `RedisKeyConstants`，确认当前仅有 Token 黑名单、文件 MD5、搜索热词三个 Key，**下载相关 Key 均未实现**。
+- 已核对 `RedisKeyConstants`，确认已补充 `DOWNLOAD_RATE_USER`、`DOWNLOAD_RATE_IP`、`DOWNLOAD_DEDUP`、`DOWNLOAD_DELTA` 四个下载相关 Key。
 - 已核对 `ErrorCode`，确认下载模块所需错误码全部已存在，无需新增。
-- 已核对当前代码：**不存在** `DownloadController`、`DownloadService`、`DownloadRecord`、`DownloadRecordMapper` 等下载相关类。
+- 已核对当前代码：`DownloadRecord`、`DownloadRecordMapper` 与对应 XML 已存在；`DownloadController`、`DownloadService`、`DownloadRateLimiter`、DTO/VO 仍不存在。
 - 已核对 `FileStorageService`，确认当前**没有**读取文件流的方法，实现文件流下载前需补充。
 - 已核对 `WebMvcConfig`，确认下载路径未被放行，天然需要登录。
 - 已生成本下载模块开发流程文档初稿（仅文档，未修改任何业务代码）。
@@ -457,12 +457,13 @@ DELETED(4)        不可下载 → 40901
 - 【步骤 2】已创建 `DownloadRecordMapper` 接口，提供 `insert`、`selectById`、`selectByUser`（分页）、`countByUser`。
 - 【步骤 2】已创建 `DownloadRecordMapper.xml`，`insert` 用 `useGeneratedKeys` 回填自增 ID、`created_at` 交由数据库默认值生成，`selectByUser` 按 `user_id` 隔离并按时间倒序（匹配 `idx_download_user_created`）。
 - 【步骤 2】已通过 `.\mvnw.cmd -DskipTests compile` 编译验证，并运行 `CampusResourcePlatformApplicationTests` 确认新 Mapper 在 Spring 上下文正常绑定。
+- 【步骤 3】已在 `RedisKeyConstants` 中补充下载限流、下载去重、下载量增量统计相关常量。
+- 【步骤 3】已新增 `downloadRateUser(long userId)`、`downloadRateIp(String ip)`、`downloadDedup(long userId, long resourceId)` 三个格式化方法，后续业务代码可复用这些方法生成完整 Key。
 
 ---
 
 ## 19. 待完成事项
 
-- 为 `RedisKeyConstants` 补充下载限流、去重、下载量增量 Key。
 - 实现 `DownloadRateLimiter`（接口 + 实现，Redis Lua 滑动窗口）。
 - 实现 `DownloadService` 与 `DownloadServiceImpl`。
 - 补充 `FileStorageService` 读文件流能力（或在下载模块内实现）。
@@ -523,6 +524,8 @@ DELETED(4)        不可下载 → 40901
 | --- | --- | --- |
 | `.\mvnw.cmd -DskipTests compile` | 通过 | 步骤 2 新增 `DownloadRecord`、`DownloadRecordMapper` 后主代码编译通过 |
 | `.\mvnw.cmd -Dtest=CampusResourcePlatformApplicationTests test` | 通过，`Tests run: 1, Failures: 0, Errors: 0, Skipped: 0` | 验证新增 `DownloadRecordMapper.xml` 在 Spring 上下文正常绑定，无 MyBatis 映射错误 |
+| `.\mvnw.cmd -DskipTests compile` | 通过，`BUILD SUCCESS` | 步骤 3 补充 `RedisKeyConstants` 下载相关 Key 后主代码编译通过 |
+| `.\mvnw.cmd -Dtest=CampusResourcePlatformApplicationTests test` | 通过，`Tests run: 1, Failures: 0, Errors: 0, Skipped: 0` | 步骤 3 补充 `RedisKeyConstants` 下载相关 Key 后 Spring 上下文加载正常 |
 
 > 说明：下载记录的针对性数据库集成测试（写入/分页/计数）与限流、去重测试将在步骤 9 补充。首版每完成一个小功能后，按 `docs/AGENTS.md` 第 16、17 节补充测试并记录 `.\mvnw.cmd test` 结果。
 
@@ -538,12 +541,12 @@ DELETED(4)        不可下载 → 40901
 | `campus-resource-platform/src/main/java/com/john/campus/entity/DownloadRecord.java` | 【步骤 2】新增下载记录实体，含状态常量与 `isSuccess()` |
 | `campus-resource-platform/src/main/java/com/john/campus/mapper/DownloadRecordMapper.java` | 【步骤 2】新增下载记录 Mapper 接口 |
 | `campus-resource-platform/src/main/resources/mapper/DownloadRecordMapper.xml` | 【步骤 2】新增下载记录 SQL（insert / selectById / selectByUser / countByUser） |
+| `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java` | 【步骤 3】补充下载限流、下载去重、下载量增量统计 Key 常量与生成方法 |
 
 后续预计修改或新增（待开发）：
 
 | 文件 | 说明 |
 | --- | --- |
-| `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java` | 补充下载限流/去重/增量 Key |
 | `campus-resource-platform/src/main/java/com/john/campus/service/DownloadRateLimiter.java` | 下载限流接口 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadRateLimiterImpl.java` | 下载限流实现（Lua 滑动窗口） |
 | `campus-resource-platform/src/main/java/com/john/campus/service/DownloadService.java` | 下载业务接口 |
@@ -603,15 +606,14 @@ DELETED(4)        不可下载 → 40901
 ## 25. Git commit message 建议
 
 ```text
-docs(download): add download module development process
+feat(download): add download redis key constants
 
-- document download module scope, APIs and boundaries
-- record download_record table and file_info dependency
-- outline redis rate-limit, dedup and download-delta design
-- add step-by-step prompts for future implementation
+- add RedisKeyConstants entries for download rate limit, dedup and delta stats
+- add helper methods for user/IP rate keys and download dedup key
+- sync download module development process status
 ```
 
-> 本次任务仅新增文档、未修改代码。是否执行 `git add/commit/push` 由用户决定；若提交，建议使用上述 message。
+> 本次任务包含下载 Redis Key 常量和模块流程文档同步；提交时建议使用上述 message。
 
 ---
 
@@ -623,7 +625,7 @@ docs(download): add download module development process
 | --- | --- | --- |
 | 步骤 1 | 创建下载模块文档初稿 | 已完成（本文件） |
 | 步骤 2 | 创建下载记录实体与 Mapper | 已完成 |
-| 步骤 3 | 补充下载相关 Redis Key 常量 | 待完成（下一轮） |
+| 步骤 3 | 补充下载相关 Redis Key 常量 | 已完成 |
 | 步骤 4 | 实现下载限流器 | 待完成 |
 | 步骤 5 | 实现下载 Service | 待完成 |
 | 步骤 6 | 补充文件流读取能力 | 待完成 |
@@ -665,7 +667,7 @@ docs(download): add download module development process
 - 不实现文件流读取。
 ```
 
-### 步骤 3：补充下载相关 Redis Key 常量
+### 步骤 3：补充下载相关 Redis Key 常量（已完成）
 
 提示词：
 
