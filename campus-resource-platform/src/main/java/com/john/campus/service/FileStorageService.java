@@ -29,8 +29,23 @@ public interface FileStorageService {
     void delete(String storagePath);
 
     /**
+     * 按存储路径读取文件流，供下载模块返回文件二进制内容。
+     * 调用方负责在使用完毕后关闭 inputStream，避免文件句柄泄漏。
+     *
+     * @param storagePath file_info.storage_path，必须指向存储根目录内的文件
+     * @return 文件输入流及实际文件大小，文件不存在或路径非法时抛出业务异常
+     */
+    FileResource loadAsResource(String storagePath);
+
+    /**
      * 落盘结果：存储文件名与最终存储路径，供上层写入 file_info。
      */
     record StoredFile(String storedName, String storagePath) {
+    }
+
+    /**
+     * 读取文件结果：输入流与文件字节数，供下载模块流式返回并设置 Content-Length。
+     */
+    record FileResource(java.io.InputStream inputStream, long contentLength) {
     }
 }

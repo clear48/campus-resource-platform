@@ -86,6 +86,33 @@ public class FileStorageServiceImpl implements FileStorageService {
         return new StoredFile(storedName, target.toString());
     }
 
+    /**
+     * 按存储路径读取文件流：校验路径安全 → 确认文件存在且可读 → 打开输入流。
+     * 调用方负责在使用完毕后关闭 inputStream，避免文件句柄泄漏。
+     */
+    @Override
+    public FileResource loadAsResource(String storagePath) {
+        if (!StringUtils.hasText(storagePath)) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "文件存储路径不能为空");
+        }
+
+        Path filePath = validateStoragePath(storagePath);
+        if (!Files.exists(filePath)) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "文件不存在");
+        }
+        if (!Files.isReadable(filePath)) {
+            throw new BusinessException(ErrorCode.SERVER_ERROR, "文件不可读");
+        }
+
+        try {
+            long fileSize = Files.size(filePath);
+            InputStream inputStream = Files.newInputStream(filePath);
+            return new FileResource(inputStream, fileSize);
+        } catch (IOException ex) {
+            throw new BusinessException(ErrorCode.SERVER_ERROR, "文件读取失败");
+        }
+    }
+
     @Override
     public void delete(String storagePath) {
         if (!StringUtils.hasText(storagePath)) {
@@ -119,5 +146,17 @@ public class FileStorageServiceImpl implements FileStorageService {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "非法的文件存储路径");
         }
         return target;
+    }
+
+    /**
+     * 校验外部传入的存储路径仍在根目录内，防止路径穿越读取任意文件。
+     * 与 resolveSafeTarget 的区别：入参是已保存的完整路径，只需做规范化与边界校验。
+     */
+    private Path validateStoragePath(String storagePath) {
+        Path filePath = Paths.get(storagePath).toAbsolutePath().normalize();
+        if (!filePath.startsWith(storageRoot)) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "非法的文件读取路径");
+        }
+        return filePath;
     }
 }
