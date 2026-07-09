@@ -12,14 +12,14 @@
 | --- | --- |
 | 模块名称 | 下载模块 |
 | 英文标识 | download |
-| 文档路径 | `docs/modules/06-download-development-process.md` |
+| 文档路径 | `docs/modules/07-download-development-process.md` |
 | 当前分支 | `dev` |
 | 当前状态 | 开发中，已完成文档初稿、下载记录实体与 Mapper、下载 Redis Key 常量 |
 | 前置依赖模块 | 用户认证模块、资料模块、文件上传模块、审核模块、搜索模块 |
 | 下游模块 | 排行榜与定时任务模块（消费下载量增量和热度分） |
 | 接口前缀 | `/api/v1/resources/{resourceId}/download-records`、`/api/v1/download-records`、`/api/v1/users/me/download-records` |
 
-> 编号说明：搜索模块已占用 `05-search-development-process.md`，因此下载模块使用 `06-`。这与 `docs/AGENTS.md` 第 24 节示例中的 `05-download-development-process.md` 编号不同，以避免与已存在的搜索模块文档冲突，一切以真实文件为准。
+> 编号说明：搜索模块已占用 `06-search-development-process.md`，因此下载模块使用 `07-`。这与 `docs/AGENTS.md` 第 24 节示例中的 `05-download-development-process.md` 编号不同，以避免与已存在的搜索模块文档冲突，一切以真实文件为准。
 
 ---
 
@@ -426,7 +426,7 @@ DELETED(4)        不可下载 → 40901
 
 | 序号 | 任务 | 产出 | 状态 |
 | --- | --- | --- | --- |
-| T1 | 下载模块文档初稿 | `docs/modules/06-download-development-process.md` | 已完成 |
+| T1 | 下载模块文档初稿 | `docs/modules/07-download-development-process.md` | 已完成 |
 | T2 | 实体 + Mapper | `DownloadRecord`、`DownloadRecordMapper(.java/.xml)` | 已完成 |
 | T3 | Redis Key 常量 | `RedisKeyConstants` 下载相关常量与方法 | 已完成 |
 | T4 | 下载限流器 | `DownloadRateLimiter` + 实现（Lua 滑动窗口） | 待开发 |
@@ -537,7 +537,7 @@ DELETED(4)        不可下载 → 40901
 
 | 文件 | 说明 |
 | --- | --- |
-| `docs/modules/06-download-development-process.md` | 下载模块开发流程文档（初稿 + 持续更新） |
+| `docs/modules/07-download-development-process.md` | 下载模块开发流程文档（初稿 + 持续更新） |
 | `.../entity/DownloadRecord.java` | 【步骤 2】下载记录实体，含状态常量与 `isSuccess()` |
 | `.../mapper/DownloadRecordMapper.java` | 【步骤 2】下载记录 Mapper 接口 |
 | `.../resources/mapper/DownloadRecordMapper.xml` | 【步骤 2】下载记录 SQL（insert / selectById / selectByUser / countByUser） |
@@ -926,13 +926,13 @@ DELETED(4)        不可下载 → 40901
 请根据当前真实代码更新下载模块开发流程文档。
 
 本步目标：
-- 更新 `docs/modules/06-download-development-process.md`。
+- 更新 `docs/modules/07-download-development-process.md`。
 - 补全「当前状态」「已完成事项」「待完成事项」「测试清单」「修改文件记录」「与其他模块的关系」「面试可讲点」「后续优化方向」。
 - 如果实现过程中接口、类名、方法名、字段名与规划不一致，以当前真实代码为准修正文档。
 - 保留「分步骤开发提示词」小节，并根据实际开发顺序校准下一轮可复制提示词。
 
 涉及文件：
-- `docs/modules/06-download-development-process.md`
+- `docs/modules/07-download-development-process.md`
 
 完成标准：
 - 文档能回答：本模块解决什么问题、有哪些接口、调用链路、涉及哪些表、是否用 Redis、如何权限控制、是否需要事务、如何测试。

@@ -11,7 +11,7 @@
 | --- | --- |
 | 模块名称 | 搜索模块 |
 | 英文标识 | search |
-| 文档路径 | `docs/modules/05-search-development-process.md` |
+| 文档路径 | `docs/modules/06-search-development-process.md` |
 | 当前分支 | `dev` |
 | 当前状态 | 首版主链路已完成并已同步 API/Redis/进度/README 文档，剩余测试与增强见待完成事项 |
 | 前置依赖模块 | 用户认证模块、分类查询模块、资料模块、审核模块 |
@@ -346,7 +346,7 @@ DELETED(4)        不进入搜索结果
 
 | 序号 | 任务 | 产出 |
 | --- | --- | --- |
-| T1 | 搜索文档初稿 | `docs/modules/05-search-development-process.md` |
+| T1 | 搜索文档初稿 | `docs/modules/06-search-development-process.md` |
 | T2 | DTO/VO | `SearchResourceQueryDTO`、`SearchResourceVO` |
 | T3 | Redis Key 常量 | `RedisKeyConstants.searchKeywordRank(period)` |
 | T4 | Mapper 搜索 SQL | `searchApprovedResources`、`countApprovedResources` |
@@ -465,7 +465,7 @@ DELETED(4)        不进入搜索结果
 
 | 文件 | 说明 |
 | --- | --- |
-| `docs/modules/05-search-development-process.md` | 新增搜索模块开发流程文档初稿 |
+| `docs/modules/06-search-development-process.md` | 新增搜索模块开发流程文档初稿 |
 | `campus-resource-platform/src/main/java/com/john/campus/dto/SearchResourceQueryDTO.java` | 新增搜索请求参数 DTO，复用 `PageQuery` 分页默认值和校验 |
 | `campus-resource-platform/src/main/java/com/john/campus/vo/SearchResourceVO.java` | 新增搜索结果 VO，返回公开展示字段和统计快照 |
 | `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java` | 新增搜索热词 ZSet Key 常量和生成方法 |
@@ -819,13 +819,13 @@ docs(search): add search module development process
 请根据当前真实代码更新搜索模块开发流程文档。
 
 本步目标：
-- 更新 `docs/modules/05-search-development-process.md`。
+- 更新 `docs/modules/06-search-development-process.md`。
 - 补全“当前状态”“已完成事项”“待完成事项”“测试清单”“修改文件记录”“与其他模块的关系”“面试可讲点”“后续优化方向”。
 - 如果实现过程中接口、类名、方法名、字段名与规划不一致，以当前真实代码为准修正文档。
 - 保留“分步骤开发提示词”小节，并根据实际开发顺序校准下一轮可复制提示词。
 
 涉及文件：
-- `docs/modules/05-search-development-process.md`
+- `docs/modules/06-search-development-process.md`
 
 完成标准：
 - 文档能回答：本模块解决什么问题、有哪些接口、调用链路是什么、涉及哪些表、是否使用 Redis、如何权限控制、如何测试。

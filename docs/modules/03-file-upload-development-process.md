@@ -11,7 +11,7 @@
 | --- | --- |
 | 模块名称 | 文件上传模块 |
 | 英文标识 | file-upload |
-| 文档路径 | `docs/modules/02-file-upload-development-process.md` |
+| 文档路径 | `docs/modules/03-file-upload-development-process.md` |
 | 建议分支 | `feature/file-upload` |
 | 当前状态 | 核心功能已完成（T1–T5，编译通过），待测试（T6） |
 | 前置依赖模块 | 用户认证模块（登录态、`uploader_id`） |

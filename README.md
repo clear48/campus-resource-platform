@@ -112,4 +112,4 @@ cd campus-resource-platform
 - 下载模块首版：`POST /api/v1/resources/{resourceId}/download-records` 创建下载记录（含 Redis 滑动窗口限流 + 状态校验 + 去重计数），`GET /api/v1/download-records/{downloadRecordId}/file` 下载文件二进制流（含归属校验 + 路径穿越防护 + RFC 5987 中文文件名编码），`GET /api/v1/users/me/download-records` 查询我的下载记录；下载量增量写 Redis Hash `crp:stats:resource:download:delta`，不设 TTL，等待定时任务同步 MySQL。
 - 自动化测试：已补充 `ResourceControllerTest`、`ResourceDatabaseIntegrationTest`、`AuditControllerTest`、`AuditServiceDatabaseIntegrationTest`、`SearchServiceDatabaseIntegrationTest`，验证接口层、鉴权路径、真实 MyBatis SQL、数据库状态流转、事务回滚和搜索链路。
 
-当前下一阶段建议开发”收藏模块”：实现收藏/取消收藏、防重复收藏、收藏状态查询和我的收藏列表。下载模块记录见 `docs/modules/06-download-development-process.md`，搜索模块记录见 `docs/modules/05-search-development-process.md`，总体进度见 `docs/06-project-progress.md`。
+当前下一阶段建议开发”收藏模块”：实现收藏/取消收藏、防重复收藏、收藏状态查询和我的收藏列表。下载模块记录见 `docs/modules/07-download-development-process.md`，搜索模块记录见 `docs/modules/06-search-development-process.md`，总体进度见 `docs/06-project-progress.md`。

@@ -11,7 +11,7 @@
 | --- | --- |
 | 模块名称 | 资料模块 |
 | 英文标识 | resource |
-| 文档路径 | `docs/modules/03-resource-development-process.md` |
+| 文档路径 | `docs/modules/04-resource-development-process.md` |
 | 建议分支 | `feature/resource` |
 | 当前状态 | 首版已完成，步骤 1-10 已完成 |
 | 前置依赖模块 | 用户认证模块、分类查询模块、文件上传模块 |
@@ -484,7 +484,7 @@ FileUploadVO.fileId
 | `campus-resource-platform/src/test/java/com/john/campus/service/ResourceDatabaseIntegrationTest.java` | 新增资料数据库集成测试，覆盖真实 SQL 写入、读取、分页、重复提交和关联校验 |
 | `campus-resource-platform/src/test/resources/sql/resource-db-test-schema.sql` | 新增资料模块测试用最小表结构，供 H2 MySQL 模式初始化数据库 |
 | `postman/campus-resource-platform.postman_collection.json` | 新增资料模块 Postman 分组，覆盖创建、公开详情、我的上传列表和异常场景 |
-| `docs/modules/03-resource-development-process.md` | 记录资料模块完整开发流程、接口、表、测试、文件清单和后续方向 |
+| `docs/modules/04-resource-development-process.md` | 记录资料模块完整开发流程、接口、表、测试、文件清单和后续方向 |
 | `docs/06-project-progress.md` | 同步资料模块首版完成状态，并将审核模块列为下一阶段建议 |
 | `docs/04-api-doc.md` | 按真实 Controller、DTO、VO 和错误码校准资料模块接口说明 |
 | `README.md` | 同步资料模块首版完成状态、测试命令和下一阶段建议 |
@@ -803,7 +803,7 @@ feat(resource): complete resource module MVP
 
 涉及文件或类：
 - `postman/campus-resource-platform.postman_collection.json`
-- `docs/modules/03-resource-development-process.md`
+- `docs/modules/04-resource-development-process.md`
 - `campus-resource-platform/src/test/java/...`（如新增自动化测试）
 
 完成标准：
@@ -855,13 +855,13 @@ feat(resource): complete resource module MVP
 请根据当前真实代码更新资料模块开发流程文档。
 
 本步目标：
-- 更新 `docs/modules/03-resource-development-process.md`。
+- 更新 `docs/modules/04-resource-development-process.md`。
 - 补全“当前状态”“已完成事项”“待完成事项”“测试清单”“修改文件记录”“与其他模块的关系”“面试可讲点”“后续优化方向”。
 - 如果实现过程中接口、类名、方法名、字段名与规划不一致，以当前真实代码为准修正文档。
 - 保留“分步骤开发提示词”小节，并根据实际开发顺序校准下一轮可复制提示词。
 
 涉及文件：
-- `docs/modules/03-resource-development-process.md`
+- `docs/modules/04-resource-development-process.md`
 
 完成标准：
 - 文档能回答：本模块解决什么问题、有哪些接口、调用链路是什么、涉及哪些表、是否使用 Redis、如何权限控制、如何测试。

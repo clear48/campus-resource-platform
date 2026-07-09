@@ -11,7 +11,7 @@
 | --- | --- |
 | 模块名称 | 审核模块 |
 | 英文标识 | audit |
-| 文档路径 | `docs/modules/04-audit-development-process.md` |
+| 文档路径 | `docs/modules/05-audit-development-process.md` |
 | 当前分支 | `dev` |
 | 当前状态 | 首版已完成并通过测试 |
 | 前置依赖模块 | 用户认证模块、资料模块 |
@@ -533,7 +533,7 @@ resource.status = 1(APPROVED)
 | `docs/database/database-change-log.md` | 记录审核模块复用已有生产表结构 |
 | `docs/06-project-progress.md` | 更新审核模块完成状态和测试结果 |
 | `README.md` | 更新当前完成内容和测试说明 |
-| `docs/modules/04-audit-development-process.md` | 更新审核模块开发流程文档 |
+| `docs/modules/05-audit-development-process.md` | 更新审核模块开发流程文档 |
 
 ---
 
@@ -881,13 +881,13 @@ docs(audit): sync audit module documentation
 请根据当前真实代码更新审核模块开发流程文档。
 
 本步目标：
-- 更新 `docs/modules/04-audit-development-process.md`。
+- 更新 `docs/modules/05-audit-development-process.md`。
 - 补全“当前状态”“已完成事项”“待完成事项”“测试清单”“修改文件记录”“与其他模块的关系”“面试可讲点”“后续优化方向”。
 - 如果实现过程中接口、类名、方法名、字段名与规划不一致，以当前真实代码为准修正文档。
 - 保留“分步骤开发提示词”小节，并根据实际开发顺序校准下一轮可复制提示词。
 
 涉及文件：
-- `docs/modules/04-audit-development-process.md`
+- `docs/modules/05-audit-development-process.md`
 
 完成标准：
 - 文档能回答：本模块解决什么问题、有哪些接口、调用链路是什么、涉及哪些表、是否使用 Redis、如何权限控制、如何测试。

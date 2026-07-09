@@ -12,14 +12,14 @@
 | --- | --- |
 | 模块名称 | 收藏模块 |
 | 英文标识 | favorite |
-| 文档路径 | `docs/modules/07-favorite-development-process.md` |
+| 文档路径 | `docs/modules/08-favorite-development-process.md` |
 | 当前分支 | `dev` |
 | 当前状态 | 文档初稿已完成，代码待开发 |
 | 前置依赖模块 | 用户认证模块、资料模块、审核模块（只有审核通过资料可被收藏） |
 | 下游模块 | 排行榜与定时任务模块（消费收藏行为更新热度 ZSet） |
 | 接口前缀 | `/api/v1/resources/{resourceId}/favorites`、`/api/v1/resources/{resourceId}/favorite-status`、`/api/v1/users/me/favorites` |
 
-> 编号说明：下载模块已占用 `06-download-development-process.md`，因此收藏模块使用 `07-`。
+> 编号说明：下载模块已占用 `07-download-development-process.md`，因此收藏模块使用 `08-`。
 
 ---
 
@@ -483,7 +483,7 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 
 | 序号 | 任务 | 产出 | 状态 |
 | --- | --- | --- | --- |
-| T1 | 收藏模块文档初稿 | `docs/modules/07-favorite-development-process.md` | 已完成 |
+| T1 | 收藏模块文档初稿 | `docs/modules/08-favorite-development-process.md` | 已完成 |
 | T2 | Redis Key 常量 | `RedisKeyConstants` 补充 `USER_FAVORITES` 常量与方法 | 待开发 |
 | T3 | 实体 + Mapper | `Favorite`、`FavoriteMapper(.java/.xml)`、`ResourceMapper` 补充 `updateFavoriteCount` | 待开发 |
 | T4 | DTO / VO | `FavoriteResultVO`、`FavoriteStatusVO`、`MyFavoriteVO` | 待开发 |
@@ -582,7 +582,7 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 
 | 文件 | 说明 |
 | --- | --- |
-| `docs/modules/07-favorite-development-process.md` | 收藏模块开发流程文档（初稿） |
+| `docs/modules/08-favorite-development-process.md` | 收藏模块开发流程文档（初稿） |
 
 待新增或修改：
 
@@ -905,13 +905,13 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 请根据当前真实代码更新收藏模块开发流程文档。
 
 本步目标：
-- 更新 `docs/modules/07-favorite-development-process.md`。
+- 更新 `docs/modules/08-favorite-development-process.md`。
 - 补全「当前状态」「已完成事项」「待完成事项」「测试清单」「修改文件记录」「与其他模块的关系」「面试可讲点」「后续优化方向」。
 - 如果实现过程中接口、类名、方法名、字段名与规划不一致，以当前真实代码为准修正文档。
 - 保留「分步骤开发提示词」小节，并根据实际开发顺序校准下一轮可复制提示词。
 
 涉及文件：
-- `docs/modules/07-favorite-development-process.md`
+- `docs/modules/08-favorite-development-process.md`
 
 完成标准：
 - 文档能回答：本模块解决什么问题、有哪些接口、调用链路、涉及哪些表、是否用 Redis、如何权限控制、是否需要事务、如何测试。

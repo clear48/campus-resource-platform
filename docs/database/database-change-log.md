@@ -94,7 +94,7 @@
 
 - 当前文件上传模块复用了 `sql/init.sql` 中已设计的 `file_info` 表结构。
 - 文件上传模块只写入物理文件信息，不创建 `resource` 资料记录。
-- `resource` 表已在资料模块中使用，文件上传模块仍只负责生成可引用的 `fileId`，详见 `docs/modules/03-resource-development-process.md`。
+- `resource` 表已在资料模块中使用，文件上传模块仍只负责生成可引用的 `fileId`，详见 `docs/modules/04-resource-development-process.md`。
 
 ## 2026-07-05 分类查询模块
 

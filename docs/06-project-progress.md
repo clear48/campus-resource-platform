@@ -26,12 +26,12 @@
 | `docs/03-database-design.md` | 已完成 | MySQL 表结构、字段说明、索引、设计理由和知识点 |
 | `docs/04-api-doc.md` | 已同步 | 认证、分类、文件上传、资料模块、审核模块、搜索资料接口已按当前代码校准；搜索建议、下载、收藏、排行榜仍为设计接口 |
 | `docs/05-redis-design.md` | 已同步 | Token 黑名单、文件 MD5 缓存、搜索热门词 ZSet 已落地；排行榜/下载限流等仍为后续设计 |
-| `docs/modules/module.md` | 已完成 | 用户认证模块开发记录 |
-| `docs/modules/category-module.md` | 已完成 | 分类查询模块开发记录 |
-| `docs/modules/02-file-upload-development-process.md` | 已完成 | 文件上传模块开发流程记录 |
-| `docs/modules/03-resource-development-process.md` | 已完成 | 资料模块首版开发流程、测试记录和后续优化记录 |
-| `docs/modules/04-audit-development-process.md` | 已完成 | 审核模块开发流程、真实接口、状态机、权限、测试记录和后续优化 |
-| `docs/modules/05-search-development-process.md` | 已完成 | 搜索模块开发流程、真实接口、排序白名单、Redis 热词统计、测试记录和后续优化 |
+| `docs/modules/01-auth-development-process.md` | 已完成 | 用户认证模块开发记录 |
+| `docs/modules/02-category-development-process.md` | 已完成 | 分类查询模块开发记录 |
+| `docs/modules/03-file-upload-development-process.md` | 已完成 | 文件上传模块开发流程记录 |
+| `docs/modules/04-resource-development-process.md` | 已完成 | 资料模块首版开发流程、测试记录和后续优化记录 |
+| `docs/modules/05-audit-development-process.md` | 已完成 | 审核模块开发流程、真实接口、状态机、权限、测试记录和后续优化 |
+| `docs/modules/06-search-development-process.md` | 已完成 | 搜索模块开发流程、真实接口、排序白名单、Redis 热词统计、测试记录和后续优化 |
 | `docs/database/database-change-log.md` | 已同步 | 记录认证、分类、文件上传、资料模块、审核模块、搜索模块均复用已有生产表结构 |
 | `README.md` | 已同步 | 启动说明、当前完成模块、测试命令和下一阶段建议 |
 
@@ -156,7 +156,7 @@
 
 涉及 Redis Key：`crp:rank:search:keyword:{period}`（`period` 取 `daily`/`weekly`/`monthly`）。
 
-首版基于 MySQL 模糊查询，未接入 Elasticsearch；未实现搜索建议接口和搜索限流。详见 `docs/modules/05-search-development-process.md`。
+首版基于 MySQL 模糊查询，未接入 Elasticsearch；未实现搜索建议接口和搜索限流。详见 `docs/modules/06-search-development-process.md`。
 
 ### 6.7 下载模块
 
@@ -175,7 +175,7 @@
 
 涉及 Redis Key：`crp:rate:download:user:{userId}`、`crp:rate:download:ip:{ip}`、`crp:dedup:download:{userId}:{resourceId}`、`crp:stats:resource:download:delta`。
 
-首版未实现：下载地址过期机制、热度 ZSet `ZINCRBY` 联动、下载量 Redis→MySQL 定时同步（归排行榜与定时任务模块）。详见 `docs/modules/06-download-development-process.md`。
+首版未实现：下载地址过期机制、热度 ZSet `ZINCRBY` 联动、下载量 Redis→MySQL 定时同步（归排行榜与定时任务模块）。详见 `docs/modules/07-download-development-process.md`。
 
 ## 7. 测试与验证
 

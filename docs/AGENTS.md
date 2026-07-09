@@ -801,10 +801,13 @@ docs/modules/xx-module-name-development-process.md
 例如：
 
 * docs/modules/01-auth-development-process.md
-* docs/modules/02-file-upload-development-process.md
-* docs/modules/03-resource-development-process.md
-* docs/modules/04-audit-development-process.md
-* docs/modules/05-download-development-process.md
+* docs/modules/02-category-development-process.md
+* docs/modules/03-file-upload-development-process.md
+* docs/modules/04-resource-development-process.md
+* docs/modules/05-audit-development-process.md
+* docs/modules/06-search-development-process.md
+* docs/modules/07-download-development-process.md
+* docs/modules/08-favorite-development-process.md
 
 该文档用于记录当前模块的完整开发过程，帮助后续智能体快速接手项目，也帮助开发者复习模块设计、代码结构和面试可讲点。
 
