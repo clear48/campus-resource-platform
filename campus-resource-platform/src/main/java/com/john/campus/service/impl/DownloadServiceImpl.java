@@ -1,6 +1,7 @@
 package com.john.campus.service.impl;
 
 import com.john.campus.common.ErrorCode;
+import com.john.campus.common.LoginUser;
 import com.john.campus.common.PageResult;
 import com.john.campus.common.RedisKeyConstants;
 import com.john.campus.common.UserContextHolder;
@@ -14,6 +15,7 @@ import com.john.campus.mapper.FileInfoMapper;
 import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.service.DownloadRateLimiter;
 import com.john.campus.service.DownloadService;
+import com.john.campus.service.FileStorageService;
 import com.john.campus.vo.DownloadTicketVO;
 import com.john.campus.vo.MyDownloadRecordVO;
 import java.time.Duration;
@@ -49,6 +51,7 @@ public class DownloadServiceImpl implements DownloadService {
     private final ResourceMapper resourceMapper;
     private final FileInfoMapper fileInfoMapper;
     private final DownloadRateLimiter downloadRateLimiter;
+    private final FileStorageService fileStorageService;
     private final StringRedisTemplate stringRedisTemplate;
 
     public DownloadServiceImpl(
@@ -56,11 +59,13 @@ public class DownloadServiceImpl implements DownloadService {
             ResourceMapper resourceMapper,
             FileInfoMapper fileInfoMapper,
             DownloadRateLimiter downloadRateLimiter,
+            FileStorageService fileStorageService,
             StringRedisTemplate stringRedisTemplate) {
         this.downloadRecordMapper = downloadRecordMapper;
         this.resourceMapper = resourceMapper;
         this.fileInfoMapper = fileInfoMapper;
         this.downloadRateLimiter = downloadRateLimiter;
+        this.fileStorageService = fileStorageService;
         this.stringRedisTemplate = stringRedisTemplate;
     }
 
@@ -144,6 +149,39 @@ public class DownloadServiceImpl implements DownloadService {
                 .toList();
 
         return PageResult.of(voList, pageNo, pageSize, total);
+    }
+
+    /**
+     * 读取下载文件流：校验下载记录存在且归属合法 → 定位物理文件 → 委托 FileStorageService 读流。
+     * 不在事务中执行文件 IO，避免事务持有数据库连接等待磁盘读取。
+     */
+    @Override
+    public DownloadFileInfo loadFile(Long downloadRecordId) {
+        if (downloadRecordId == null || downloadRecordId <= 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "下载记录 ID 不合法");
+        }
+
+        DownloadRecord record = downloadRecordMapper.selectById(downloadRecordId);
+        if (record == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "下载记录不存在");
+        }
+
+        LoginUser currentUser = UserContextHolder.getRequired();
+        if (!currentUser.userId().equals(record.getUserId()) && !currentUser.isAdmin()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问该下载记录");
+        }
+
+        FileInfo fileInfo = fileInfoMapper.selectNormalById(record.getFileId());
+        if (fileInfo == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "文件不存在或已删除");
+        }
+
+        FileStorageService.FileResource fileResource = fileStorageService.loadAsResource(fileInfo.getStoragePath());
+        return new DownloadFileInfo(
+                fileResource.inputStream(),
+                fileInfo.getOriginalName(),
+                fileInfo.getMimeType(),
+                fileResource.contentLength());
     }
 
     /**
