@@ -158,6 +158,25 @@
 
 首版基于 MySQL 模糊查询，未接入 Elasticsearch；未实现搜索建议接口和搜索限流。详见 `docs/modules/05-search-development-process.md`。
 
+### 6.7 下载模块
+
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| 创建下载记录 | 已完成 | `POST /api/v1/resources/{resourceId}/download-records`，需登录，限流 → 状态校验 → 写记录 → 去重计数 |
+| 下载文件流 | 已完成 | `GET /api/v1/download-records/{downloadRecordId}/file`，需登录，归属校验后返回文件二进制流 |
+| 我的下载记录 | 已完成 | `GET /api/v1/users/me/download-records`，需登录，只查当前用户，分页返回 |
+| Redis 下载限流 | 已完成 | ZSet 滑动窗口 + Lua 原子脚本，按用户（10次/分）和 IP（30次/分）限流 |
+| 下载去重 | 已完成 | Redis `SETNX` + TTL 10分钟，同用户同资料去重期内不重复计入下载量 |
+| 下载量增量统计 | 已完成 | `HINCRBY crp:stats:resource:download:delta`，不设 TTL，等待定时任务同步 |
+| 文件流读取 | 已完成 | `FileStorageService.loadAsResource`，含路径穿越防护、文件存在和可读校验 |
+| 模块测试 | 待补充 | 下载模块针对性测试尚未编写，当前通过全量 49 个已有测试无回归 |
+
+涉及表：`download_record`、`resource`、`file_info`。
+
+涉及 Redis Key：`crp:rate:download:user:{userId}`、`crp:rate:download:ip:{ip}`、`crp:dedup:download:{userId}:{resourceId}`、`crp:stats:resource:download:delta`。
+
+首版未实现：下载地址过期机制、热度 ZSet `ZINCRBY` 联动、下载量 Redis→MySQL 定时同步（归排行榜与定时任务模块）。详见 `docs/modules/06-download-development-process.md`。
+
 ## 7. 测试与验证
 
 | 类型 | 状态 | 说明 |
@@ -202,11 +221,7 @@
 
 ### 8.1 下载模块
 
-待实现功能：下载权限校验、下载限流、写入下载记录、文件流返回、下载量 Redis 增量统计和定时同步。
-
-涉及表：`download_record`、`resource`、`file_info`。
-
-涉及 Redis Key：`crp:rate:download:user:{userId}`、`crp:rate:download:ip:{ip}`、`crp:dedup:download:{userId}:{resourceId}`、`crp:stats:resource:download:delta`。
+**已完成**，见第 6.7 节。剩余待补充为下载模块针对性测试、下载量 Redis→MySQL 定时同步、下载地址过期机制和热度 ZSet 联动（后两者归排行榜与定时任务模块）。
 
 ### 8.2 收藏模块
 
@@ -234,9 +249,9 @@
 | 搜索接口测试 | 未实现 | `SearchControllerTest` 与热词 Service 单测待补充 |
 | 搜索建议接口 | 未实现 | `GET /api/v1/search/suggestions` 后续任务 |
 | 搜索限流 | 未实现 | `42901` 为设计预留错误码 |
-| 下载接口 | 未实现 | 接口文档、数据库表和 Redis 统计设计已完成 |
-| 下载限流 | 未实现 | Redis Key 设计已完成 |
-| 下载量定时同步 | 未实现 | Redis Hash 设计已完成 |
+| 下载接口 | 已完成 | `POST` 创建下载记录、`GET` 文件流、`GET` 我的下载记录，见第 6.7 节 |
+| 下载限流 | 已完成 | Redis ZSet 滑动窗口 + Lua，用户 10次/分、IP 30次/分 |
+| 下载量定时同步 | 未实现 | Redis Hash 增量已落地，定时回写 MySQL 归排行榜与定时任务模块 |
 | 收藏资料 | 未实现 | `favorite` 表和唯一索引已设计 |
 | 热门资料排行榜 | 未实现 | Redis ZSet 设计已完成 |
 | 管理员用户管理 | 未实现 | 当前只有用户角色字段，没有管理员业务接口 |
@@ -259,30 +274,31 @@
 - 搜索公开可见性隔离：搜索 SQL 固定追加 `status = 1`，不依赖前端传入状态，防止未审核资料泄露。
 - 搜索排序防注入：排序字段走后端白名单映射为固定列名，不把前端原始参数拼进 SQL。
 - 热门搜索词统计是可降级旁路：`ObjectProvider` 可选注入 + 异常吞掉 + 空词跳过，Redis 故障不影响搜索主流程。
+- 下载限流不是固定窗口：ZSet 滑动窗口 + Lua 原子脚本，比固定窗口计数更平滑，且同时按用户和 IP 双维度拦截。
+- 下载量统计不是直接 UPDATE：先写 Redis Hash 增量，解耦高频写和 MySQL 压力，后续定时任务批量回写，Redis 异常时 fail-open 不阻断下载。
+- 文件流下载不走 JSON 包装：直接返回 `ResponseEntity<InputStreamResource>`，含路径穿越防护和 RFC 5987 中文文件名编码。
+- 下载去重区分”允许下载”和”计入统计”：`SETNX` 去重 Key（TTL 10分钟），重复下载允许但不重复计入下载量和热度。
 - 分层结构清晰：Controller、Service、Mapper、DTO、VO、Entity、Common、Config、Exception、Interceptor 各自承担边界。
 
 ## 11. 推荐下一阶段开发模块
 
-建议下一阶段优先开发“下载模块”。
+建议下一阶段优先开发”收藏模块”。
 
 原因：
 
-1. 搜索模块已经能让用户发现 `status = 1 APPROVED` 资料，下载是搜索之后自然的下一步公开消费入口。
-2. 下载模块可以落地 `download_record` 表，并首次引入 Redis 下载限流和下载量临时统计，技术点密度高。
-3. 下载量增量统计可以和热门资料排行榜、热度分回写联动，为排行榜模块铺路。
-4. 下载权限校验、限流、去重、文件流返回都是可讲的后端能力，契合面试导向。
+1. 下载模块首版已完成，搜索 → 下载的消费链路已经打通，收藏是用户消费之后的自然留存行为。
+2. 收藏模块可以落地 `favorite` 表和 `user_id + resource_id` 唯一索引，首次引入防重复收藏的幂等设计。
+3. 收藏行为可以和热门资料排行榜联动（`ZINCRBY +3`），进一步推动排行榜模块的数据积累。
+4. 收藏模块相对独立，开发周期短，可以快速完成一个完整模块。
 
 推荐小步开发顺序：
 
-1. 创建下载模块开发流程文档初稿。
-2. 创建 `download_record` 相关实体、Mapper 和 SQL。
-3. 实现下载权限校验和下载记录写入 Service。
-4. 接入 Redis 下载限流（用户/IP 滑动窗口 + Lua 原子性）。
-5. 接入 Redis 下载量临时统计和去重 Key。
-6. 实现下载接口和文件流返回。
-7. 补充测试并同步 API、Redis、进度和模块流程文档。
+1. 创建收藏模块相关实体、Mapper 和 SQL。
+2. 实现收藏和取消收藏 Service（防重复 + 收藏数更新）。
+3. 实现收藏状态查询和我的收藏列表接口。
+4. 补充测试并同步文档。
 
-搜索模块剩余小步任务（可穿插补齐）：补充 `SearchControllerTest` 和热词 Service 单测、实现搜索建议接口、增加搜索限流。
+搜索模块剩余小步任务（可穿插补齐）：补充 `SearchControllerTest` 和热词 Service 单测、实现搜索建议接口、增加搜索限流。下载模块剩余任务：补充针对性测试。
 
 ## 12. 当前可提交总结
 

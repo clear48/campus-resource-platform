@@ -109,6 +109,7 @@ cd campus-resource-platform
 - 审核状态机：支持 `PENDING_REVIEW -> APPROVED`、`PENDING_REVIEW -> REJECTED`、`APPROVED -> OFFLINE`，使用事务保证 `resource` 状态更新和 `audit_record` 审核记录一致。
 - 审核权限：所有审核接口需要登录，Service 层统一校验管理员角色 `role = 2`，普通用户返回 `40301`。
 - 搜索模块首版：`GET /api/v1/search/resources` 公开资料搜索，强制只返回 `status = 1 APPROVED` 资料，支持关键词、分类、课程名、资料类型、标签筛选，排序字段走白名单（`createdAt`/`downloadCount`/`favoriteCount`/`hotScore`）防注入，返回 `PageResult<SearchResourceVO>`；搜索成功后把非空关键词写入 Redis 热门搜索词 ZSet（`crp:rank:search:keyword:{daily|weekly|monthly}`，TTL 2/14/60 天），Redis 缺失或异常时降级跳过、不阻断搜索。
+- 下载模块首版：`POST /api/v1/resources/{resourceId}/download-records` 创建下载记录（含 Redis 滑动窗口限流 + 状态校验 + 去重计数），`GET /api/v1/download-records/{downloadRecordId}/file` 下载文件二进制流（含归属校验 + 路径穿越防护 + RFC 5987 中文文件名编码），`GET /api/v1/users/me/download-records` 查询我的下载记录；下载量增量写 Redis Hash `crp:stats:resource:download:delta`，不设 TTL，等待定时任务同步 MySQL。
 - 自动化测试：已补充 `ResourceControllerTest`、`ResourceDatabaseIntegrationTest`、`AuditControllerTest`、`AuditServiceDatabaseIntegrationTest`、`SearchServiceDatabaseIntegrationTest`，验证接口层、鉴权路径、真实 MyBatis SQL、数据库状态流转、事务回滚和搜索链路。
 
-当前下一阶段建议开发“下载模块”：在搜索之后落地下载权限校验、`download_record` 写入、Redis 下载限流与下载量临时统计。搜索模块记录见 `docs/modules/05-search-development-process.md`，审核模块记录见 `docs/modules/04-audit-development-process.md`，总体进度见 `docs/06-project-progress.md`。
+当前下一阶段建议开发”收藏模块”：实现收藏/取消收藏、防重复收藏、收藏状态查询和我的收藏列表。下载模块记录见 `docs/modules/06-download-development-process.md`，搜索模块记录见 `docs/modules/05-search-development-process.md`，总体进度见 `docs/06-project-progress.md`。

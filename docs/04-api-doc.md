@@ -1185,6 +1185,8 @@ GET /api/v1/admin/resources/20001/audit-records
 
 ## 8. 下载模块
 
+> 本节已按当前 `DownloadController`、`DownloadServiceImpl`、VO 和真实代码同步。下载模块首版实现创建下载记录、文件流返回和我的下载记录查询；已接入 Redis 滑动窗口限流、下载去重和下载量增量统计。文件流接口返回二进制流，不走 `ApiResponse` JSON 包装。首版未实现下载地址过期机制和热度 ZSet 联动。
+
 ### 8.1 创建下载记录并获取下载地址
 
 | 项目 | 内容 |
@@ -1195,18 +1197,19 @@ GET /api/v1/admin/resources/20001/audit-records
 | 是否需要登录 | 是 |
 | 权限要求 | 学生或管理员 |
 
-请求参数：
+路径参数：
 
 | 参数 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
-| `resourceId` | long | 是 | 路径参数，资料 ID |
+| `resourceId` | long | 是 | 资料 ID |
 
-请求示例 JSON：
+请求体为空，客户端 IP 和 User-Agent 由服务端从请求上下文提取。
 
-```json
-{
-  "resourceId": 20001
-}
+请求示例：
+
+```http
+POST /api/v1/resources/20001/download-records
+Authorization: Bearer eyJhbG...
 ```
 
 响应示例 JSON：
@@ -1220,31 +1223,41 @@ GET /api/v1/admin/resources/20001/audit-records
     "resourceId": 20001,
     "fileId": 30001,
     "downloadUrl": "/api/v1/download-records/60001/file",
-    "expireSeconds": 300,
-    "counted": true,
-    "redisDeltaKey": "stats:resource:download:delta",
-    "hotScoreDelta": 5
+    "expireSeconds": null,
+    "counted": true
   },
   "traceId": "down0001"
 }
 ```
 
-说明：
+响应字段说明：
 
-- 该接口会执行 Redis 下载限流。
-- 下载成功后写入 `download_record`。
-- 下载次数优先写入 Redis Hash，再由定时任务同步到 MySQL。
-- 短时间重复下载同一资料时，`counted` 可返回 `false`，表示允许下载但不重复增加热度和下载量。
+| 字段 | 说明 |
+| --- | --- |
+| `downloadRecordId` | 下载记录 ID，请求文件流时作为路径参数 |
+| `downloadUrl` | 文件流下载地址 |
+| `counted` | `true` 表示本次下载计入了下载量；去重期内重复下载返回 `false` |
+| `expireSeconds` | 下载地址有效期，首版暂未实现过期机制，始终为 `null` |
+
+实现说明：
+
+- 进入核心业务前执行 Redis 滑动窗口限流（用户维度和 IP 维度）。
+- 校验资料存在且为 `APPROVED`，否则拒绝。
+- 写入 `download_record`（`download_status = 1`）。
+- 通过 Redis `SETNX` 去重 Key（TTL 10 分钟）判断是否计入下载量。
+- 下载量增量写 Redis Hash `crp:stats:resource:download:delta`，不在本接口直接 `UPDATE resource.download_count`。
+- 首版不实现热度 ZSet `ZINCRBY`，该联动归排行榜模块。
 
 可能的错误码：
 
 | 错误码 | 说明 |
 | --- | --- |
 | `40101` | 未登录 |
-| `40401` | 资料不存在 |
-| `40901` | 资料未审核通过或已下架，不能下载 |
-| `42901` | 下载过于频繁 |
-| `50001` | 文件不存在或下载记录创建失败 |
+| `40001` | `resourceId` 不合法 |
+| `40401` | 资料或文件不存在 |
+| `40901` | 资料未审核通过或已下架，不可下载 |
+| `42901` | 下载过于频繁，触发限流阈值 |
+| `50001` | 文件不存在或服务端异常 |
 
 ### 8.2 下载文件流
 
@@ -1256,43 +1269,48 @@ GET /api/v1/admin/resources/20001/audit-records
 | 是否需要登录 | 是 |
 | 权限要求 | 下载记录所属用户或管理员 |
 
-请求参数：
+路径参数：
 
 | 参数 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
-| `downloadRecordId` | long | 是 | 路径参数，下载记录 ID |
+| `downloadRecordId` | long | 是 | 下载记录 ID，来自 8.1 返回的 `downloadRecordId` |
 
-请求示例 JSON：
+请求示例：
 
-```json
-{
-  "downloadRecordId": 60001
-}
+```http
+GET /api/v1/download-records/60001/file
+Authorization: Bearer eyJhbG...
 ```
 
-响应示例 JSON：
+响应说明：
 
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "contentType": "application/octet-stream",
-    "fileName": "数据结构复习.pdf",
-    "stream": "实际接口返回文件二进制流"
-  },
-  "traceId": "down0002"
-}
-```
+该接口返回**文件二进制流**，不经过 `ApiResponse` JSON 包装。成功时 HTTP 状态码为 `200`，响应头包含：
+
+| 响应头 | 说明 |
+| --- | --- |
+| `Content-Type` | 文件 MIME 类型，来自 `file_info.mime_type`，无值时 fallback 为 `application/octet-stream` |
+| `Content-Disposition` | `attachment; filename="..."`，文件名使用 RFC 5987 `filename*=UTF-8''` 编码以兼容中文 |
+| `Content-Length` | 文件字节数 |
+
+失败时由全局异常处理器返回 JSON 格式错误响应，结构与通用约定一致。
+
+实现说明：
+
+- 校验下载记录存在，不存在返回 `40401`。
+- 校验归属：记录 `user_id` 等于当前用户或当前用户为管理员（`role = 2`），否则返回 `40301`。
+- 通过 `download_record.file_id` 关联 `file_info` 定位物理文件路径。
+- 调用 `FileStorageService.loadAsResource` 读取文件流，内部含路径穿越防护。
+- 不在数据库事务中执行文件 IO。
 
 可能的错误码：
 
 | 错误码 | 说明 |
 | --- | --- |
 | `40101` | 未登录 |
-| `40301` | 无权访问该下载记录 |
+| `40001` | `downloadRecordId` 不合法 |
+| `40301` | 无权访问该下载记录（非本人且非管理员） |
 | `40401` | 下载记录或文件不存在 |
-| `40901` | 下载地址已过期 |
+| `50001` | 文件读取失败 |
 
 ### 8.3 获取我的下载记录
 
@@ -1302,22 +1320,20 @@ GET /api/v1/admin/resources/20001/audit-records
 | 请求方法 | `GET` |
 | URL | `/api/v1/users/me/download-records` |
 | 是否需要登录 | 是 |
-| 权限要求 | 学生或管理员 |
+| 权限要求 | 学生或管理员，只查自己的记录 |
 
-请求参数：
+查询参数：
 
 | 参数 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
-| `pageNo` | int | 否 | 页码 |
-| `pageSize` | int | 否 | 每页数量 |
+| `pageNo` | int | 否 | 页码，默认 1 |
+| `pageSize` | int | 否 | 每页数量，默认 10，最大 100 |
 
-请求示例 JSON：
+请求示例：
 
-```json
-{
-  "pageNo": 1,
-  "pageSize": 10
-}
+```http
+GET /api/v1/users/me/download-records?pageNo=1&pageSize=10
+Authorization: Bearer eyJhbG...
 ```
 
 响应示例 JSON：
@@ -1334,7 +1350,7 @@ GET /api/v1/admin/resources/20001/audit-records
         "title": "数据结构期末复习提纲",
         "fileId": 30001,
         "downloadStatus": 1,
-        "createdAt": "2026-07-02 14:00:00"
+        "createdAt": "2026-07-02T14:00:00"
       }
     ],
     "pageNo": 1,
@@ -1345,6 +1361,23 @@ GET /api/v1/admin/resources/20001/audit-records
   "traceId": "down0003"
 }
 ```
+
+响应字段说明：
+
+| 字段 | 说明 |
+| --- | --- |
+| `downloadRecordId` | 下载记录 ID |
+| `resourceId` | 被下载资料 ID |
+| `title` | 资料标题，来自 `resource` 表关联查询 |
+| `fileId` | 被下载文件 ID |
+| `downloadStatus` | 下载状态：1 成功，2 失败 |
+| `createdAt` | 下载时间 |
+
+实现说明：
+
+- 只按当前登录用户 ID 查询，不接受前端传入 `userId`，避免越权。
+- 列表按 `created_at DESC, id DESC` 排序，匹配数据库索引 `idx_download_user_created`。
+- 资料标题通过 `resource` 表批量关联获取，不暴露 `user_ip`、`user_agent` 等审计字段。
 
 可能的错误码：
 

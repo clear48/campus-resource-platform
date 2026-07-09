@@ -457,6 +457,28 @@ ZSet 的设计：
 - `ZCARD` 可以统计当前窗口请求数。
 - 比固定窗口计数更平滑，限流效果更准确。
 
+### 7.8 当前实现状态
+
+下载限流和去重已由下载模块完整实现，对应代码：
+
+```java
+RedisKeyConstants.DOWNLOAD_RATE_USER       // "crp:rate:download:user:%d"
+RedisKeyConstants.DOWNLOAD_RATE_IP         // "crp:rate:download:ip:%s"
+RedisKeyConstants.DOWNLOAD_DEDUP           // "crp:dedup:download:%d:%d"
+RedisKeyConstants.downloadRateUser(userId)
+RedisKeyConstants.downloadRateIp(ip)
+RedisKeyConstants.downloadDedup(userId, resourceId)
+```
+
+已落地内容：
+
+- `DownloadRateLimiter` 接口 + `DownloadRateLimiterImpl`：ZSet 滑动窗口 + Lua 原子脚本，用户维度每分钟 10 次、IP 维度每分钟 30 次，限流窗口 60 秒，Key TTL = 窗口 + 60 秒。
+- `DownloadServiceImpl.tryCountDownload`：`SETNX` 去重 Key（TTL 10 分钟），首次下载 `HINCRBY delta +1`，命中期内允许下载但不重复计入下载量。
+- 限流失败关闭策略：Redis 异常时抛 `RATE_LIMITED` 拒绝请求，防止限流绕过。
+- 去重 Redis 异常：fail-open，只记日志跳过计数，不阻断下载主流程。
+
+与本节设计一致：ZSet 滑动窗口、Lua 原子性、去重 String + TTL、限流阈值均按设计落地。
+
 ## 8. 下载量临时统计
 
 ### 8.1 Key 设计
@@ -558,6 +580,27 @@ MySQL 成功后删除 `syncing` Key；失败则合并回 delta Key 或保留重�
 - `HINCRBY` 可以原子增加某个资料的下载量。
 - 定时任务可以一次性读取全部待同步数据。
 - 比每个资料一个 String Key 更容易批量处理。
+
+### 8.8 当前实现状态
+
+下载量临时增量统计已由下载模块完成，对应代码：
+
+```java
+RedisKeyConstants.DOWNLOAD_DELTA           // "crp:stats:resource:download:delta"
+```
+
+已落地内容：
+
+- `DownloadServiceImpl.tryCountDownload`：首次下载（去重 Key 命中前）执行 `HINCRBY crp:stats:resource:download:delta {resourceId} 1`。
+- Hash **不设 TTL**，与本节设计一致，防止定时任务异常时统计丢失。
+- 下载失败不写增量。
+
+尚未实现（归排行榜与定时任务模块）：
+
+- 下载量 Redis→MySQL 定时同步任务（`HDEL` 清理已同步字段）。
+- 分布式锁 `crp:lock:sync:download-delta`。
+- 下载成功时对 `crp:rank:resource:hot:{period}` 的 `ZINCRBY +5` 联动。
+- 热度分 `hot_score` 计算与回写。
 
 ## 9. 登录 Token
 
