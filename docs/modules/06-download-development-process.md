@@ -1,8 +1,8 @@
 # 下载模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**初稿（仅文档，尚未开始编码）**。除本文件外，下载模块相关的 Controller、Service、Mapper、DTO、VO、Entity 以及下载相关 Redis Key 常量在当前真实代码中**均不存在**，本文档所有实现项均为规划，标记为「待开发」。
-> 生成本文档时未修改任何一行业务代码。
+> 当前状态：**开发中（步骤 1 文档初稿、步骤 2 下载记录实体与 Mapper 已完成）**。已落地 `DownloadRecord` 实体、`DownloadRecordMapper` 接口与 XML；Controller、Service、限流器、DTO、VO 以及下载相关 Redis Key 常量仍未实现，标记为「待开发」。
+> 已完成部分的编译与 Spring 上下文加载测试通过。
 
 ---
 
@@ -426,7 +426,7 @@ DELETED(4)        不可下载 → 40901
 | 序号 | 任务 | 产出 | 状态 |
 | --- | --- | --- | --- |
 | T1 | 下载模块文档初稿 | `docs/modules/06-download-development-process.md` | 已完成 |
-| T2 | 实体 + Mapper | `DownloadRecord`、`DownloadRecordMapper(.java/.xml)` | 待开发 |
+| T2 | 实体 + Mapper | `DownloadRecord`、`DownloadRecordMapper(.java/.xml)` | 已完成 |
 | T3 | Redis Key 常量 | `RedisKeyConstants` 下载相关常量与方法 | 待开发 |
 | T4 | 下载限流器 | `DownloadRateLimiter` + 实现（Lua 滑动窗口） | 待开发 |
 | T5 | 下载 Service | `DownloadService` + `DownloadServiceImpl` | 待开发 |
@@ -453,12 +453,15 @@ DELETED(4)        不可下载 → 40901
 - 已核对 `FileStorageService`，确认当前**没有**读取文件流的方法，实现文件流下载前需补充。
 - 已核对 `WebMvcConfig`，确认下载路径未被放行，天然需要登录。
 - 已生成本下载模块开发流程文档初稿（仅文档，未修改任何业务代码）。
+- 【步骤 2】已创建 `DownloadRecord` 实体，字段与 `download_record` 表一一对应，定义 `STATUS_SUCCESS=1`/`STATUS_FAIL=2` 常量及 `isSuccess()` 判断；该表无 `updated_at`，参照 `AuditRecord` 处理。
+- 【步骤 2】已创建 `DownloadRecordMapper` 接口，提供 `insert`、`selectById`、`selectByUser`（分页）、`countByUser`。
+- 【步骤 2】已创建 `DownloadRecordMapper.xml`，`insert` 用 `useGeneratedKeys` 回填自增 ID、`created_at` 交由数据库默认值生成，`selectByUser` 按 `user_id` 隔离并按时间倒序（匹配 `idx_download_user_created`）。
+- 【步骤 2】已通过 `.\mvnw.cmd -DskipTests compile` 编译验证，并运行 `CampusResourcePlatformApplicationTests` 确认新 Mapper 在 Spring 上下文正常绑定。
 
 ---
 
 ## 19. 待完成事项
 
-- 创建 `DownloadRecord` 实体和 `DownloadRecordMapper`（接口 + XML）。
 - 为 `RedisKeyConstants` 补充下载限流、去重、下载量增量 Key。
 - 实现 `DownloadRateLimiter`（接口 + 实现，Redis Lua 滑动窗口）。
 - 实现 `DownloadService` 与 `DownloadServiceImpl`。
@@ -516,7 +519,12 @@ DELETED(4)        不可下载 → 40901
 
 ### 20.5 已执行测试记录
 
-本模块尚未开始编码，暂无测试执行记录。首版每完成一个小功能后，按 `docs/AGENTS.md` 第 16、17 节补充测试并记录 `.\mvnw.cmd test` 结果。
+| 测试命令 | 结果 | 说明 |
+| --- | --- | --- |
+| `.\mvnw.cmd -DskipTests compile` | 通过 | 步骤 2 新增 `DownloadRecord`、`DownloadRecordMapper` 后主代码编译通过 |
+| `.\mvnw.cmd -Dtest=CampusResourcePlatformApplicationTests test` | 通过，`Tests run: 1, Failures: 0, Errors: 0, Skipped: 0` | 验证新增 `DownloadRecordMapper.xml` 在 Spring 上下文正常绑定，无 MyBatis 映射错误 |
+
+> 说明：下载记录的针对性数据库集成测试（写入/分页/计数）与限流、去重测试将在步骤 9 补充。首版每完成一个小功能后，按 `docs/AGENTS.md` 第 16、17 节补充测试并记录 `.\mvnw.cmd test` 结果。
 
 ---
 
@@ -526,15 +534,15 @@ DELETED(4)        不可下载 → 40901
 
 | 文件 | 说明 |
 | --- | --- |
-| `docs/modules/06-download-development-process.md` | 新增下载模块开发流程文档初稿（本文件） |
+| `docs/modules/06-download-development-process.md` | 新增下载模块开发流程文档初稿，并随步骤 2 更新进度 |
+| `campus-resource-platform/src/main/java/com/john/campus/entity/DownloadRecord.java` | 【步骤 2】新增下载记录实体，含状态常量与 `isSuccess()` |
+| `campus-resource-platform/src/main/java/com/john/campus/mapper/DownloadRecordMapper.java` | 【步骤 2】新增下载记录 Mapper 接口 |
+| `campus-resource-platform/src/main/resources/mapper/DownloadRecordMapper.xml` | 【步骤 2】新增下载记录 SQL（insert / selectById / selectByUser / countByUser） |
 
 后续预计修改或新增（待开发）：
 
 | 文件 | 说明 |
 | --- | --- |
-| `campus-resource-platform/src/main/java/com/john/campus/entity/DownloadRecord.java` | 下载记录实体 |
-| `campus-resource-platform/src/main/java/com/john/campus/mapper/DownloadRecordMapper.java` | 下载记录 Mapper 接口 |
-| `campus-resource-platform/src/main/resources/mapper/DownloadRecordMapper.xml` | 下载记录 SQL |
 | `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java` | 补充下载限流/去重/增量 Key |
 | `campus-resource-platform/src/main/java/com/john/campus/service/DownloadRateLimiter.java` | 下载限流接口 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadRateLimiterImpl.java` | 下载限流实现（Lua 滑动窗口） |
@@ -614,8 +622,8 @@ docs(download): add download module development process
 | 步骤 | 内容 | 状态 |
 | --- | --- | --- |
 | 步骤 1 | 创建下载模块文档初稿 | 已完成（本文件） |
-| 步骤 2 | 创建下载记录实体与 Mapper | 待完成（下一轮） |
-| 步骤 3 | 补充下载相关 Redis Key 常量 | 待完成 |
+| 步骤 2 | 创建下载记录实体与 Mapper | 已完成 |
+| 步骤 3 | 补充下载相关 Redis Key 常量 | 待完成（下一轮） |
 | 步骤 4 | 实现下载限流器 | 待完成 |
 | 步骤 5 | 实现下载 Service | 待完成 |
 | 步骤 6 | 补充文件流读取能力 | 待完成 |

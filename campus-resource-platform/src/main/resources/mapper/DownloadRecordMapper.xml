@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.john.campus.mapper.DownloadRecordMapper">
+
+    <!-- 下载记录字段映射，download_record 表没有 updated_at，因此只映射实际存在的列。 -->
+    <resultMap id="DownloadRecordResultMap" type="com.john.campus.entity.DownloadRecord">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="resource_id" property="resourceId"/>
+        <result column="file_id" property="fileId"/>
+        <result column="user_ip" property="userIp"/>
+        <result column="user_agent" property="userAgent"/>
+        <result column="download_status" property="downloadStatus"/>
+        <result column="fail_reason" property="failReason"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <!-- 公共列清单集中维护，避免列表和详情查询返回字段不一致。 -->
+    <sql id="BaseColumnList">
+        id,
+        user_id,
+        resource_id,
+        file_id,
+        user_ip,
+        user_agent,
+        download_status,
+        fail_reason,
+        created_at
+    </sql>
+
+    <!-- 写入下载流水；created_at 交由数据库默认值生成，保证下载时间来自服务端数据库。 -->
+    <insert id="insert" parameterType="com.john.campus.entity.DownloadRecord" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `download_record`
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            user_id,
+            resource_id,
+            file_id,
+            download_status,
+            <if test="userIp != null and userIp != ''">
+                user_ip,
+            </if>
+            <if test="userAgent != null and userAgent != ''">
+                user_agent,
+            </if>
+            <if test="failReason != null and failReason != ''">
+                fail_reason,
+            </if>
+        </trim>
+        <trim prefix="VALUES (" suffix=")" suffixOverrides=",">
+            #{userId},
+            #{resourceId},
+            #{fileId},
+            #{downloadStatus},
+            <if test="userIp != null and userIp != ''">
+                #{userIp},
+            </if>
+            <if test="userAgent != null and userAgent != ''">
+                #{userAgent},
+            </if>
+            <if test="failReason != null and failReason != ''">
+                #{failReason},
+            </if>
+        </trim>
+    </insert>
+
+    <!-- 按主键查询完整下载记录，归属校验统一放到 Service 层处理。 -->
+    <select id="selectById" resultMap="DownloadRecordResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `download_record`
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <!-- 我的下载记录按当前用户隔离，按时间倒序返回，匹配 idx_download_user_created 的查询方向。 -->
+    <select id="selectByUser" resultMap="DownloadRecordResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `download_record`
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <!-- 与列表查询保持同一过滤条件，用于 PageResult.total。 -->
+    <select id="countByUser" resultType="long">
+        SELECT COUNT(1)
+        FROM `download_record`
+        WHERE user_id = #{userId}
+    </select>
+
+</mapper>
