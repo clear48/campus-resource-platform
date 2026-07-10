@@ -339,6 +339,7 @@
     </update>
 
     <!-- 收藏数直接在数据库中原子增减；负增量额外限制当前值大于 0，避免并发取消导致负数。 -->
+    <!--获得锁 → 读取最新值 → 判断条件 → 修改-->
     <update id="updateFavoriteCount">
         UPDATE `resource`
         SET favorite_count = favorite_count + #{delta}
