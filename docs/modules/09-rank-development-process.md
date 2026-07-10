@@ -1,8 +1,8 @@
 # 排行榜与定时任务模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**步骤 1（开发流程文档初稿）已完成，排行榜与定时任务代码尚未开始开发**。
-> 本次仅新增本文档，没有修改任何 Java、XML、SQL、配置或测试代码。
+> 当前状态：**步骤 1、步骤 2 已完成；排行榜 Redis Key 常量与周期模型已落地，步骤 3 待开发**。
+> 步骤 2 未实现 Service、Controller、Mapper、定时任务，也未修改数据库结构或引入依赖。
 
 ---
 
@@ -14,7 +14,7 @@
 | 英文标识 | rank |
 | 文档路径 | `docs/modules/09-rank-development-process.md` |
 | 当前分支 | `dev` |
-| 当前状态 | 文档初稿已完成，业务代码待开发 |
+| 当前状态 | 步骤 1、2 已完成；下一步创建排行榜 DTO 与 VO |
 | 前置依赖模块 | 资料、审核、搜索、下载、收藏模块 |
 | 下游模块 | 首页热门资料展示、搜索框热门词展示、后台运营统计 |
 | 接口前缀 | `/api/v1/rankings` |
@@ -203,7 +203,7 @@ idx_resource_hot (status, hot_score, download_count)
 | `crp:rank:search:keyword:{period}` | ZSet | 搜索模块已写入 | 查询热门搜索词 Top N |
 | `crp:stats:resource:download:delta` | Hash | 下载模块已写入 | 定时同步下载量到 MySQL |
 
-### 7.2 设计存在但代码尚未定义/使用的 Key
+### 7.2 常量已定义但业务尚未使用的 Key
 
 | Key | 结构 | TTL | 用途 |
 | --- | --- | --- | --- |
@@ -214,7 +214,7 @@ idx_resource_hot (status, hot_score, download_count)
 | `crp:lock:sync:download-delta` | String | 短 TTL | 下载增量同步任务互斥锁 |
 | `crp:stats:resource:download:syncing:{batchId}` | Hash | 处理完成后主动删除 | 与实时 delta 隔离的待同步批次 |
 
-> `RedisKeyConstants` 当前真实存在 `SEARCH_KEYWORD_RANK` 和 `DOWNLOAD_DELTA`，尚不存在热门资料榜、同步锁和 syncing 批次常量。开发时必须先补充常量，禁止业务代码硬编码完整 Key。
+> 步骤 2 已在 `RedisKeyConstants` 中补充热门资料榜、同步锁和 syncing 批次常量及格式化方法。当前仅完成统一定义，具体 Redis 读写仍归后续 Service 与定时任务步骤。
 
 ### 7.3 热度权重与更新时机
 
@@ -248,7 +248,7 @@ idx_resource_hot (status, hot_score, download_count)
 | --- | --- | --- |
 | common | `ApiResponse` | 统一接口响应 |
 | common | `ErrorCode` | 使用 `PARAM_ERROR(40001)`、`SERVER_ERROR(50001)` |
-| common | `RedisKeyConstants` | 已有热门搜索词和下载增量 Key，后续补充排行榜相关 Key |
+| common | `RedisKeyConstants` | 已有热门搜索词、下载增量、热门资料榜、同步锁和 syncing 批次 Key |
 | entity | `Resource` | 已含状态、下载数、收藏数、浏览数、热度分字段 |
 | mapper | `ResourceMapper` + XML | 复用 `selectByIds`，后续新增榜单和同步 SQL |
 | service/impl | `SearchServiceImpl` | 已写入三周期热门搜索词 ZSet |
@@ -258,26 +258,27 @@ idx_resource_hot (status, hot_score, download_count)
 | config | `WebMvcConfig` | 已放行 `/api/v1/rankings/**`，接口可匿名访问 |
 | application | `CampusResourcePlatformApplication` | 当前未启用 `@EnableScheduling` |
 
-### 8.2 计划新增或修改类（当前均未实现）
+### 8.2 本模块新增或计划新增类
 
-以下名称是开发计划，不代表当前代码已存在；实现时如有调整，必须以真实代码回写本文档。
+以下表格通过“状态”区分真实实现与开发计划；实现时如有调整，必须以真实代码回写本文档。
 
-| 类型 | 计划类/文件 | 职责 |
-| --- | --- | --- |
-| enums | `RankingPeriod` | 集中定义周期白名单、Key 后缀与 TTL，避免散落字符串 |
-| dto | `HotResourceRankingQueryDTO` | 接收 `limit`、`categoryId`、`period` |
-| dto | `HotSearchKeywordRankingQueryDTO` | 接收 `limit`、`period` |
-| vo | `HotResourceRankingVO` | 热门资料榜单项 |
-| vo | `HotSearchKeywordRankingVO` | 热门搜索词榜单项 |
-| service | `RankingService` | 排行榜查询和资料热度行为入口 |
-| service/impl | `RankingServiceImpl` | ZSet 查询、MySQL 补齐、状态过滤、降级和热度增减 |
-| controller | `RankingController` | 两个公开只读接口入口 |
-| mapper | `ResourceMapper` + XML | 新增热门榜批量补齐、MySQL 兜底、下载增量和热度快照更新 SQL |
-| service | `DownloadDeltaSyncService` | 定义一次下载增量同步业务 |
-| service/impl | `DownloadDeltaSyncServiceImpl` | 批次隔离、MySQL 事务更新、成功清理和失败补偿 |
-| task | `RankingSyncTask` | 按计划触发下载增量同步与热度快照任务，不承载事务细节 |
-| config/application | 调度配置或启动类 | 启用 Spring Scheduling；不新增第三方依赖 |
-| test | `RankingControllerTest` 等 | 覆盖接口、Service、Mapper、Redis 降级与定时任务 |
+| 类型 | 类/文件 | 职责 | 状态 |
+| --- | --- | --- | --- |
+| enums | `RankingPeriod` | 集中定义周期白名单、Key 后缀、TTL 和热词周期边界 | 已实现 |
+| dto | `HotResourceRankingQueryDTO` | 接收 `limit`、`categoryId`、`period` | 待开发 |
+| dto | `HotSearchKeywordRankingQueryDTO` | 接收 `limit`、`period` | 待开发 |
+| vo | `HotResourceRankingVO` | 热门资料榜单项 | 待开发 |
+| vo | `HotSearchKeywordRankingVO` | 热门搜索词榜单项 | 待开发 |
+| service | `RankingService` | 排行榜查询和资料热度行为入口 | 待开发 |
+| service/impl | `RankingServiceImpl` | ZSet 查询、MySQL 补齐、状态过滤、降级和热度增减 | 待开发 |
+| controller | `RankingController` | 两个公开只读接口入口 | 待开发 |
+| mapper | `ResourceMapper` + XML | 新增热门榜批量补齐、MySQL 兜底、下载增量和热度快照更新 SQL | 待开发 |
+| service | `DownloadDeltaSyncService` | 定义一次下载增量同步业务 | 待开发 |
+| service/impl | `DownloadDeltaSyncServiceImpl` | 批次隔离、MySQL 事务更新、成功清理和失败补偿 | 待开发 |
+| task | `RankingSyncTask` | 按计划触发下载增量同步与热度快照任务，不承载事务细节 | 待开发 |
+| config/application | 调度配置或启动类 | 启用 Spring Scheduling；不新增第三方依赖 | 待开发 |
+| test | `RankingPeriodTest` | 校验周期 TTL、热词边界与排行榜 Key 格式 | 已实现 |
+| test | `RankingControllerTest` 等 | 覆盖接口、Service、Mapper、Redis 降级与定时任务 | 待开发 |
 
 > 项目现有约定要求 Spring Service 使用“接口 + 实现”。定时任务只负责触发，带事务的同步逻辑必须放入独立 Service，由 Spring 代理调用，避免同类自调用导致事务失效。
 
@@ -477,7 +478,7 @@ MySQL 查询 APPROVED 资料
 | 序号 | 任务 | 主要产出 | 状态 |
 | --- | --- | --- | --- |
 | T1 | 模块文档初稿 | `09-rank-development-process.md` | 已完成 |
-| T2 | Redis 常量与周期模型 | `RedisKeyConstants`、`RankingPeriod` | 待开发 |
+| T2 | Redis 常量与周期模型 | `RedisKeyConstants`、`RankingPeriod`、`RankingPeriodTest` | 已完成（`090c58f`） |
 | T3 | DTO / VO | 两个查询 DTO、两个榜单 VO | 待开发 |
 | T4 | Mapper 能力 | 榜单补齐/兜底、下载增量、热度快照 SQL | 待开发 |
 | T5 | 排行榜 Service | 两榜查询、状态过滤、降级 | 待开发 |
@@ -505,12 +506,17 @@ MySQL 查询 APPROVED 资料
 - 已核对真实代码：搜索热词写入和下载增量写入已实现；热门资料榜、查询接口、定时同步和分布式锁尚未实现。
 - 已核对 `WebMvcConfig` 已放行 `/api/v1/rankings/**`，启动类尚未启用调度。
 - 【步骤 1】已生成本开发流程文档初稿；未修改任何代码。
+- 【步骤 2】已在 `RedisKeyConstants` 新增 `RESOURCE_HOT_RANK`、`DOWNLOAD_DELTA_SYNCING`、`DOWNLOAD_DELTA_SYNC_LOCK` 及对应格式化方法。
+- 【步骤 2】已新增 `RankingPeriod`，统一维护 `daily`、`weekly`、`monthly`、`all` 编码、2/14/60 天 TTL 和热门搜索词不支持 `all` 的边界。
+- 【步骤 2】已新增 `RankingPeriodTest`，4 个针对性用例全部通过；全量 53 个测试通过。
+- 【步骤 2】功能提交为 `090c58f feat(rank): add ranking redis keys and period model`，已推送到 `origin/dev`。
+- 按用户要求，工作区原有的 `FavoriteServiceImpl` 事务注释已原样单独提交为 `9d93fbb chore(favorite): clarify duplicate key rollback flow` 并推送。
 
 ---
 
 ## 19. 待完成事项
 
-- T2～T12 全部代码、测试和同步文档任务。
+- T3～T12 的 DTO/VO、Mapper、Service、Controller、定时任务、专项测试和同步文档任务。
 - 在实现前统一 `docs/04-api-doc.md` 中 Redis Key 示例的旧前缀写法，最终以 `crp:` 规范和 `RedisKeyConstants` 为准。
 - 确定定时任务执行频率、锁 TTL、单批最大资料数等运行参数，并通过配置项集中管理。
 - 确定热门搜索词 Redis 故障时“返回空列表”与 API 文档 `50001` 描述的最终口径。
@@ -592,7 +598,13 @@ cd campus-resource-platform
 .\mvnw.cmd test
 ```
 
-当前测试记录：本次只新增 Markdown 文档，未修改可执行代码；已通过文档结构、路径和 Git diff 校验，未运行 Maven 测试。
+步骤 2 已执行测试记录：
+
+| 命令 | 结果 |
+| --- | --- |
+| `.\mvnw.cmd -DskipTests compile` | 通过，94 个主源码文件编译成功 |
+| `.\mvnw.cmd -Dtest=RankingPeriodTest test` | 通过，4 个测试，0 失败、0 错误、0 跳过 |
+| `.\mvnw.cmd test` | 通过，53 个测试，0 失败、0 错误、0 跳过 |
 
 ---
 
@@ -603,18 +615,20 @@ cd campus-resource-platform
 | 文件 | 操作 | 说明 |
 | --- | --- | --- |
 | `docs/modules/09-rank-development-process.md` | 新增 | 排行榜与定时任务模块开发流程文档初稿 |
+| `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java` | 修改 | 新增热门资料榜、同步锁和 syncing 批次 Key |
+| `campus-resource-platform/src/main/java/com/john/campus/enums/RankingPeriod.java` | 新增 | 统一排行榜周期、TTL 和热词支持范围 |
+| `campus-resource-platform/src/test/java/com/john/campus/enums/RankingPeriodTest.java` | 新增 | 验证周期规则与 Key 格式 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/FavoriteServiceImpl.java` | 用户注释提交 | 仅增加 DuplicateKeyException 事务回滚说明；不属于排行榜逻辑 |
 
-### 21.2 本次明确未修改
+### 21.2 步骤 2 明确未修改
 
-- `campus-resource-platform/src/main/java/**`
 - `campus-resource-platform/src/main/resources/**`
-- `campus-resource-platform/src/test/**`
 - `sql/**`
-- 其他现有文档
+- Service、Controller、Mapper、调度和数据库配置
 
 ### 21.3 后续计划修改（尚未发生）
 
-- `RedisKeyConstants`、排行榜 DTO/VO/Service/Controller、`ResourceMapper` 及 XML。
+- 排行榜 DTO/VO/Service/Controller、`ResourceMapper` 及 XML。
 - 下载、收藏、审核 Service 的热度联动点。
 - 调度配置、同步 Service、`task` 包和对应测试。
 - `docs/04-api-doc.md`、`docs/05-redis-design.md`、`docs/06-project-progress.md`、`README.md` 等同步文档。
@@ -673,7 +687,7 @@ cd campus-resource-platform
 | 步骤 | 建议 Message |
 | --- | --- |
 | T1 | `docs(rank): add ranking module development process` |
-| T2 | `feat(rank): add ranking redis keys and period model` |
+| T2 | `feat(rank): add ranking redis keys and period model`（已使用，commit `090c58f`） |
 | T3 | `feat(rank): add ranking query DTOs and VOs` |
 | T4 | `feat(rank): add ranking and statistics mapper queries` |
 | T5 | `feat(rank): implement ranking service` |
@@ -693,7 +707,7 @@ cd campus-resource-platform
 | 步骤 | 内容 | 当前状态 |
 | --- | --- | --- |
 | 步骤 1 | 创建排行榜模块开发流程文档初稿 | ✅ 已完成 |
-| 步骤 2 | 补充 Redis Key 常量与周期模型 | 待执行 |
+| 步骤 2 | 补充 Redis Key 常量与周期模型 | ✅ 已完成（`090c58f`） |
 | 步骤 3 | 创建排行榜 DTO 与 VO | 待执行 |
 | 步骤 4 | 补充 ResourceMapper 排行榜与同步 SQL | 待执行 |
 | 步骤 5 | 实现排行榜 Service | 待执行 |
