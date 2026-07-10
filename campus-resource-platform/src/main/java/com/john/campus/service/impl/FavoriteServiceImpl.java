@@ -105,6 +105,9 @@ public class FavoriteServiceImpl implements FavoriteService {
             result = requireTransactionResult(transactionTemplate.execute(
                     transactionStatus -> activateFavoriteInTransaction(userId, resourceId)));
         } catch (DuplicateKeyException ex) {
+            /*DuplicateKeyException 在事务回调内部产生，
+            TransactionTemplate.execute() 完成回滚后把异常重新抛出，
+            业务代码在 execute() 外部捕获它。 */
             // 唯一索引是并发重复收藏的最终兜底；事务回滚后再读取赢家记录并按幂等成功返回。
             result = resolveDuplicateFavorite(userId, resourceId);
         }
