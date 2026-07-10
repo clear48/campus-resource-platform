@@ -1,7 +1,7 @@
 # 收藏模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**步骤 2（Redis Key 常量）、步骤 3（实体和 Mapper）与步骤 4（VO）已完成，Service、Controller 和专项测试待开发**。已明确接口设计（4 个接口）、数据库表（`favorite`）、Redis Key（`crp:user:favorites:{userId}`）、错误码（复用现有 + 可选新增）、涉及核心类和分步骤开发提示词。所有设计均基于 `docs/04-api-doc.md` 第 7 节和 `docs/05-redis-design.md` 第 11 节，与已有代码和数据库表结构一致。
+> 当前状态：**步骤 2（Redis Key 常量）、步骤 3（实体和 Mapper）、步骤 4（VO）与步骤 5（Service）已完成，Controller 和专项测试待开发**。已明确接口设计（4 个接口）、数据库表（`favorite`）、Redis Key（`crp:user:favorites:{userId}`）、错误码（复用现有 + 可选新增）、涉及核心类和分步骤开发提示词。所有设计均基于 `docs/04-api-doc.md` 第 7 节和 `docs/05-redis-design.md` 第 11 节，与已有代码和数据库表结构一致。
 > 已执行 `.\mvnw.cmd test`，全量 49 个已有测试通过；收藏模块专项测试仍待步骤 7 补充。
 
 ---
@@ -14,7 +14,7 @@
 | 英文标识 | favorite |
 | 文档路径 | `docs/modules/08-favorite-development-process.md` |
 | 当前分支 | `dev` |
-| 当前状态 | 步骤 2、3、4 已完成；Service、Controller 和专项测试待开发 |
+| 当前状态 | 步骤 2、3、4、5 已完成；Controller 和专项测试待开发 |
 | 前置依赖模块 | 用户认证模块、资料模块、审核模块（只有审核通过资料可被收藏） |
 | 下游模块 | 排行榜与定时任务模块（消费收藏行为更新热度 ZSet） |
 | 接口前缀 | `/api/v1/resources/{resourceId}/favorites`、`/api/v1/resources/{resourceId}/favorite-status`、`/api/v1/users/me/favorites` |
@@ -269,10 +269,10 @@
 | common | `PageResult` | 分页响应 |
 | common | `UserContextHolder` | 获取当前登录用户 ID/角色（`getRequiredUserId()`） |
 | common | `LoginUser` | 登录用户快照，`isAdmin()` 判断管理员 |
-| common | `RedisKeyConstants` | 需要在本模块补充收藏相关 Key 常量（`USER_FAVORITES`） |
+| common | `RedisKeyConstants` | 已新增 `USER_FAVORITES` 常量和 `userFavorites(long userId)` 格式化方法 |
 | dto | `PageQuery` | 通用分页请求（pageNo/pageSize/offset） |
 | entity | `Resource` | 资料实体，`STATUS_APPROVED`、`isApproved()` |
-| mapper | `ResourceMapper` | 已有 `selectById`，可复用做状态校验和收藏数更新 |
+| mapper | `ResourceMapper` | 已实现 `selectById`、`selectByIds`、`updateFavoriteCount`，供状态校验、列表展示和计数更新复用 |
 | exception | `BusinessException`、`GlobalExceptionHandler` | 业务异常与统一异常处理 |
 | config | `WebMvcConfig` | 拦截器与放行路径配置（收藏路径不需放行，天然要求登录） |
 
@@ -280,15 +280,15 @@
 
 | 类型 | 类 | 职责 |
 | --- | --- | --- |
-| entity | `Favorite` | 待新增，对应 `favorite` 表，含 `STATUS_FAVORITED=1`/`STATUS_CANCELED=0` 常量 |
-| mapper | `FavoriteMapper` + `FavoriteMapper.xml` | 待新增，insert/selectByUserAndResource/updateStatus/selectByUser/countByUser |
-| vo | `FavoriteResultVO` | 待新增，收藏/取消收藏操作结果（resourceId, favorited, duplicateIgnored, favoriteCount, hotScoreDelta） |
-| vo | `FavoriteStatusVO` | 待新增，收藏状态查询结果（resourceId, favorited） |
-| vo | `MyFavoriteVO` | 待新增，我的收藏列表条目（resourceId, title, courseName, downloadCount, favoriteCount, createdAt, favoriteAt） |
-| service | `FavoriteService`（接口） | 待新增，favorite / unfavorite / getFavoriteStatus / listMyFavorites |
-| service/impl | `FavoriteServiceImpl` | 待新增，编排校验→唯一索引兜底→收藏数更新→Redis Set 同步 |
+| entity | `Favorite` | 已新增，对应 `favorite` 表，含 `STATUS_FAVORITED=1`/`STATUS_CANCELED=0` 常量 |
+| mapper | `FavoriteMapper` + `FavoriteMapper.xml` | 已实现 insert/selectByUserAndResource/条件 updateStatus/selectActiveResourceIdsByUser/selectByUser/countByUser |
+| vo | `FavoriteResultVO` | 已实现收藏/取消收藏操作结果（resourceId, favorited, duplicateIgnored, favoriteCount, hotScoreDelta） |
+| vo | `FavoriteStatusVO` | 已实现收藏状态查询结果（resourceId, favorited） |
+| vo | `MyFavoriteVO` | 已实现我的收藏列表条目（resourceId, title, courseName, downloadCount, favoriteCount, createdAt, favoriteAt） |
+| service | `FavoriteService`（接口） | 已实现 favorite / unfavorite / getFavoriteStatus / listMyFavorites |
+| service/impl | `FavoriteServiceImpl` | 已实现校验→唯一索引幂等→收藏数更新→Redis Set 同步 |
 | controller | `FavoriteController` | 待新增，四接口入口 |
-| common | `RedisKeyConstants` | 待修改，新增 `USER_FAVORITES = "crp:user:favorites:%d"` 常量及格式化方法 |
+| common | `RedisKeyConstants` | 已新增 `USER_FAVORITES = "crp:user:favorites:%d"` 常量及格式化方法 |
 
 > 记忆约束：本项目所有 Spring Service（含基础设施/工具类服务）必须「接口 + 实现」。收藏 Service 遵守此约束。
 
@@ -455,9 +455,9 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 
 ## 15. 事务处理（规划）
 
-- 收藏操作涉及两张表（`favorite` 写入 + `resource.favorite_count` 更新），需使用 `@Transactional(rollbackFor = Exception.class)` 保证一致性。
-- 重复收藏幂等返回的场景：如果捕获 `DuplicateKeyException`，注意事务可能已标记为 rollback-only，需在事务外或新事务中处理幂等返回。
-- Redis 操作（Set SADD/SREM）**不纳入 MySQL 事务**：先提交 MySQL 事务，再更新 Redis；Redis 失败不影响主流程，等待 TTL 过期后从 MySQL 重建。
+- 收藏操作涉及两张表（`favorite` 写入 + `resource.favorite_count` 更新），当前通过 `TransactionTemplate` 把两项 MySQL 写操作包裹在同一事务中。
+- 重复收藏幂等返回：`DuplicateKeyException` 在 `TransactionTemplate` 事务结束后由外层捕获，再查询赢家记录并返回幂等成功，避免当前事务被标记为 rollback-only。
+- Redis 操作（Set SADD/SREM）**不纳入 MySQL 事务**：`TransactionTemplate.execute` 正常返回后再更新 Redis；Redis 失败不影响主流程，等待 TTL 过期后从 MySQL 重建。
 - 关键约束（`docs/AGENTS.md` 第 11 节）：不要在事务中执行耗时操作。收藏模块无文件 IO，主要关注 Redis 操作不应阻塞事务提交。
 - `favorite_count` 更新使用原子 SQL（`UPDATE resource SET favorite_count = favorite_count + 1 WHERE id = ?`），避免 SELECT → UPDATE 的读-改-写竞态条件。
 
@@ -487,7 +487,7 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 | T2 | Redis Key 常量 | `RedisKeyConstants` 补充 `USER_FAVORITES` 常量与方法 | 已完成 |
 | T3 | 实体 + Mapper | `Favorite`、`FavoriteMapper(.java/.xml)`、`ResourceMapper` 补充 `updateFavoriteCount` | 已完成 |
 | T4 | DTO / VO | `FavoriteResultVO`、`FavoriteStatusVO`、`MyFavoriteVO` | 已完成 |
-| T5 | Service | `FavoriteService` + `FavoriteServiceImpl`（含收藏、取消、状态查询、列表） | 待开发 |
+| T5 | Service | `FavoriteService` + `FavoriteServiceImpl`（含收藏、取消、状态查询、列表） | 已完成 |
 | T6 | Controller | `FavoriteController` 四接口 | 待开发 |
 | T7 | 测试 | Controller 测试 + 数据库集成测试 + 幂等/并发测试 | 待开发 |
 | T8 | 文档同步 | API、Redis、进度、README、模块流程文档 | 待开发 |
@@ -509,12 +509,12 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 - 【步骤 2】已在 `RedisKeyConstants` 新增 `USER_FAVORITES` 常量和 `userFavorites(long userId)` 格式化方法。
 - 【步骤 3】已新增 `Favorite` 实体、`FavoriteMapper` 接口与 XML，并为 `ResourceMapper` 补充 `updateFavoriteCount` 原子更新方法。
 - 【步骤 4】已新增 `FavoriteResultVO`、`FavoriteStatusVO`、`MyFavoriteVO` 三个响应 record，未暴露收藏内部状态和用户 ID。
+- 【步骤 5】已实现 `FavoriteService` 与 `FavoriteServiceImpl`，覆盖收藏、取消、状态查询、分页列表、MySQL 幂等与 Redis Set 缓存同步。
 
 ---
 
 ## 19. 待完成事项
 
-- 实现 `FavoriteService` 接口 + `FavoriteServiceImpl`。
 - 实现 `FavoriteController` 四接口。
 - 补充收藏模块针对性测试（Controller 测试、Service/Mapper 数据库集成测试、幂等与并发测试）。
 - 同步所有相关文档（API、Redis、项目进度、README、本流程文档）。
@@ -579,23 +579,23 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 
 | 文件 | 说明 |
 | --- | --- |
-| `docs/modules/08-favorite-development-process.md` | 收藏模块开发流程文档，已同步步骤 2、3 完成状态和测试结果 |
+| `docs/modules/08-favorite-development-process.md` | 收藏模块开发流程文档，已同步步骤 2 至 5 完成状态和测试结果 |
 | `.../common/RedisKeyConstants.java` | 已新增 `USER_FAVORITES` 常量和格式化方法 |
 | `.../entity/Favorite.java` | 已新增收藏实体，含 `STATUS_FAVORITED`/`STATUS_CANCELED` 常量 |
-| `.../mapper/FavoriteMapper.java` | 已新增收藏 Mapper 接口 |
-| `.../resources/mapper/FavoriteMapper.xml` | 已新增收藏 SQL（insert / selectByUserAndResource / updateStatus / selectByUser / countByUser） |
-| `.../mapper/ResourceMapper.java` | 已新增 `updateFavoriteCount` 方法 |
-| `.../resources/mapper/ResourceMapper.xml` | 已新增 `updateFavoriteCount` 原子更新 SQL |
+| `.../mapper/FavoriteMapper.java` | 已新增收藏 Mapper，并补充缓存重建所需的有效收藏 ID 查询 |
+| `.../resources/mapper/FavoriteMapper.xml` | 已新增收藏 SQL，状态更新带旧状态条件避免并发重复计数 |
+| `.../mapper/ResourceMapper.java` | 已新增 `selectByIds` 与 `updateFavoriteCount` 方法 |
+| `.../resources/mapper/ResourceMapper.xml` | 已新增资料批量查询和收藏数原子更新 SQL |
 | `.../vo/FavoriteResultVO.java` | 已新增收藏/取消收藏操作结果 record |
 | `.../vo/FavoriteStatusVO.java` | 已新增收藏状态查询结果 record |
 | `.../vo/MyFavoriteVO.java` | 已新增我的收藏列表项 record |
+| `.../service/FavoriteService.java` | 已新增收藏业务接口 |
+| `.../service/impl/FavoriteServiceImpl.java` | 已新增收藏业务实现，负责事务、幂等、缓存和分页编排 |
 
 待新增或修改：
 
 | 文件 | 说明 |
 | --- | --- |
-| `.../service/FavoriteService.java` | 收藏业务接口 |
-| `.../service/impl/FavoriteServiceImpl.java` | 收藏业务实现 |
 | `.../controller/FavoriteController.java` | 收藏四接口入口 |
 | `.../test/.../controller/FavoriteControllerTest.java` | 收藏接口测试 |
 | `.../test/.../service/FavoriteServiceDatabaseIntegrationTest.java` | 收藏 Service 数据库集成测试 |
@@ -665,7 +665,7 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 | 步骤 2 | 补充收藏相关 Redis Key 常量 | ✅ 已完成 |
 | 步骤 3 | 创建收藏实体与 Mapper | ✅ 已完成 |
 | 步骤 4 | 创建收藏 VO | ✅ 已完成 |
-| 步骤 5 | 实现收藏 Service | ⬜ 待开发 |
+| 步骤 5 | 实现收藏 Service | ✅ 已完成 |
 | 步骤 6 | 实现收藏 Controller | ⬜ 待开发 |
 | 步骤 7 | 补充收藏模块测试 | ⬜ 待开发 |
 | 步骤 8 | 同步收藏模块文档 | ⬜ 待开发 |

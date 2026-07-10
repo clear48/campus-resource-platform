@@ -21,6 +21,11 @@ public interface ResourceMapper {
     Resource selectById(@Param("id") Long id);
 
     /**
+     * 按资料 ID 批量查询记录，供收藏等列表接口补齐展示字段，调用方负责处理空集合。
+     */
+    List<Resource> selectByIds(@Param("ids") List<Long> ids);
+
+    /**
      * 查询公开资料详情，只返回审核通过的资料，避免未审核资料被匿名访问。
      */
     Resource selectPublicDetailById(@Param("id") Long id);

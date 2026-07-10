@@ -41,12 +41,21 @@
         LIMIT 1
     </select>
 
-    <!-- 软状态更新保留取消收藏历史，updated_at 由数据库 ON UPDATE 机制维护。 -->
+    <!-- 带旧状态条件的软状态更新，更新行数为 0 时由 Service 处理并发状态变化。 -->
     <update id="updateStatus">
         UPDATE `favorite`
         SET status = #{status}
         WHERE id = #{id}
+          AND status = #{expectedStatus}
     </update>
+
+    <!-- 缓存重建只读取当前有效收藏，避免已取消记录重新进入 Redis Set。 -->
+    <select id="selectActiveResourceIdsByUser" resultType="long">
+        SELECT resource_id
+        FROM `favorite`
+        WHERE user_id = #{userId}
+          AND status = 1
+    </select>
 
     <!-- 我的收藏列表固定筛选已收藏状态，并按首次收藏时间倒序展示。 -->
     <select id="selectByUser" resultMap="FavoriteResultMap">

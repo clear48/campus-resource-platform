@@ -198,6 +198,17 @@
         LIMIT 1
     </select>
 
+    <!-- 列表场景批量补齐资料展示字段，空集合由 Service 层短路以避免无效 IN SQL。 -->
+    <select id="selectByIds" resultMap="ResourceResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `resource`
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
     <!-- 公开详情只允许返回已审核通过资料，命中 idx_resource_status_created 的状态前缀。 -->
     <select id="selectPublicDetailById" resultMap="ResourceResultMap">
         SELECT
