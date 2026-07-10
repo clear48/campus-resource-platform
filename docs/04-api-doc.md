@@ -980,6 +980,8 @@ GET /api/v1/admin/resources/20001/audit-records
 
 ## 7. 收藏模块
 
+本节已按当前 `FavoriteController`、`FavoriteServiceImpl`、Mapper 和 VO 同步。四个接口均需要登录；收藏关系以 MySQL `favorite` 表为准，Redis Set 仅用于收藏状态缓存。
+
 ### 7.1 收藏资料
 
 | 项目 | 内容 |
@@ -996,13 +998,7 @@ GET /api/v1/admin/resources/20001/audit-records
 | --- | --- | --- | --- |
 | `resourceId` | long | 是 | 路径参数，资料 ID |
 
-请求示例 JSON：
-
-```json
-{
-  "resourceId": 20001
-}
-```
+请求体：无，`resourceId` 通过路径参数传入。
 
 响应示例 JSON：
 
@@ -1013,7 +1009,7 @@ GET /api/v1/admin/resources/20001/audit-records
   "data": {
     "resourceId": 20001,
     "favorited": true,
-    "duplicateIgnored": true,
+    "duplicateIgnored": false,
     "favoriteCount": 36,
     "hotScoreDelta": 0
   },
@@ -1021,13 +1017,14 @@ GET /api/v1/admin/resources/20001/audit-records
 }
 ```
 
-说明：如果用户已经收藏过该资料，接口按幂等成功处理，不重复增加收藏数和热度分。
+说明：首次收藏返回 `duplicateIgnored=false`；如果用户已经收藏过该资料，接口按幂等成功处理并返回 `duplicateIgnored=true`，不重复增加收藏数。首版未接入排行榜热度 ZSet，`hotScoreDelta` 固定为 `0`。
 
 可能的错误码：
 
 | 错误码 | 说明 |
 | --- | --- |
 | `40101` | 未登录 |
+| `40001` | 资料 ID 不合法 |
 | `40401` | 资料不存在 |
 | `40901` | 资料未审核通过，不能收藏 |
 
@@ -1047,13 +1044,7 @@ GET /api/v1/admin/resources/20001/audit-records
 | --- | --- | --- | --- |
 | `resourceId` | long | 是 | 路径参数，资料 ID |
 
-请求示例 JSON：
-
-```json
-{
-  "resourceId": 20001
-}
-```
+请求体：无，`resourceId` 通过路径参数传入。
 
 响应示例 JSON：
 
@@ -1064,19 +1055,23 @@ GET /api/v1/admin/resources/20001/audit-records
   "data": {
     "resourceId": 20001,
     "favorited": false,
+    "duplicateIgnored": false,
     "favoriteCount": 35,
-    "hotScoreDelta": -3
+    "hotScoreDelta": 0
   },
   "traceId": "fav00002"
 }
 ```
+
+说明：取消不存在或已取消的收藏记录返回 `40401`。首版未接入排行榜热度 ZSet，`hotScoreDelta` 固定为 `0`。
 
 可能的错误码：
 
 | 错误码 | 说明 |
 | --- | --- |
 | `40101` | 未登录 |
-| `40401` | 资料不存在 |
+| `40001` | 资料 ID 不合法 |
+| `40401` | 收藏记录不存在或已取消 |
 
 ### 7.3 获取我的收藏列表
 
@@ -1092,17 +1087,10 @@ GET /api/v1/admin/resources/20001/audit-records
 
 | 参数 | 类型 | 是否必填 | 说明 |
 | --- | --- | --- | --- |
-| `pageNo` | int | 否 | 页码 |
-| `pageSize` | int | 否 | 每页数量 |
+| `pageNo` | int | 否 | 页码，默认 `1`，最小 `1` |
+| `pageSize` | int | 否 | 每页数量，默认 `10`，范围 `1-100` |
 
-请求示例 JSON：
-
-```json
-{
-  "pageNo": 1,
-  "pageSize": 10
-}
-```
+请求示例：`GET /api/v1/users/me/favorites?pageNo=1&pageSize=10`
 
 响应示例 JSON：
 
@@ -1154,13 +1142,7 @@ GET /api/v1/admin/resources/20001/audit-records
 | --- | --- | --- | --- |
 | `resourceId` | long | 是 | 路径参数，资料 ID |
 
-请求示例 JSON：
-
-```json
-{
-  "resourceId": 20001
-}
-```
+请求体：无，`resourceId` 通过路径参数传入。
 
 响应示例 JSON：
 
@@ -1181,7 +1163,9 @@ GET /api/v1/admin/resources/20001/audit-records
 | 错误码 | 说明 |
 | --- | --- |
 | `40101` | 未登录 |
-| `40401` | 资料不存在 |
+| `40001` | 资料 ID 不合法 |
+
+说明：该接口只判断当前用户是否存在有效收藏关系；资料已下架或删除时，已有收藏关系仍按 `favorite.status` 返回。
 
 ## 8. 下载模块
 

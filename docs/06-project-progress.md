@@ -2,11 +2,11 @@
 
 ## 1. 当前阶段结论
 
-项目当前处于“基础工程 + 用户认证模块 + 分类查询模块 + 文件上传模块 + 资料模块首版 + 审核模块首版 + 搜索模块首版完成”阶段。
+项目当前处于“基础工程 + 用户认证模块 + 分类查询模块 + 文件上传模块 + 资料模块首版 + 审核模块首版 + 搜索模块首版 + 下载模块首版 + 收藏模块首版完成”阶段。
 
-已经完成的核心能力包括：Spring Boot 后端基础骨架、统一响应与异常处理、JWT 鉴权、Redis Token 黑名单、用户注册/登录/退出登录/当前用户查询、公开分类查询、文件上传与 MD5 秒传、基于 `fileId` 创建资料、公开资料详情、我的上传资料分页查询、管理员待审核列表、审核通过、审核拒绝、下架资料、审核记录查询，以及公开资料搜索与热门搜索词写入。
+已经完成的核心能力包括：Spring Boot 后端基础骨架、统一响应与异常处理、JWT 鉴权、Redis Token 黑名单、用户注册/登录/退出登录/当前用户查询、公开分类查询、文件上传与 MD5 秒传、基于 `fileId` 创建资料、公开资料详情、我的上传资料分页查询、管理员待审核列表、审核通过、审核拒绝、下架资料、审核记录查询、公开资料搜索与热门搜索词写入、登录后下载，以及收藏/取消收藏/收藏状态查询/我的收藏列表。
 
-资料模块首版已经把 `file_info` 物理文件转换为 `resource` 业务资料主体，审核模块进一步把待审核资料推进到 `APPROVED`、`REJECTED`、`OFFLINE` 状态，并通过 `audit_record` 保留审计流水。搜索模块首版消费 `status = 1 APPROVED` 的公开资料，提供关键词/分类/课程/类型/标签筛选、分页排序，并把非空关键词写入 Redis 热门搜索词 ZSet。下一阶段建议优先开发“下载模块”。
+资料模块首版已经把 `file_info` 物理文件转换为 `resource` 业务资料主体，审核模块进一步把待审核资料推进到 `APPROVED`、`REJECTED`、`OFFLINE` 状态，并通过 `audit_record` 保留审计流水。搜索模块首版消费 `status = 1 APPROVED` 的公开资料，提供关键词/分类/课程/类型/标签筛选、分页排序，并把非空关键词写入 Redis 热门搜索词 ZSet。收藏模块首版以 MySQL `favorite` 表和唯一索引保证幂等，维护 `resource.favorite_count`，并以 Redis Set 加速状态查询。下一阶段建议优先开发“排行榜与定时任务模块”。
 
 ## 2. 进度状态说明
 
@@ -24,15 +24,16 @@
 | `docs/01-requirements.md` | 已完成 | 项目背景、用户角色、功能需求、非功能需求、项目亮点 |
 | `docs/02-business-flow.md` | 已完成 | 上传、审核、搜索、下载、收藏等核心业务流程和状态流转 |
 | `docs/03-database-design.md` | 已完成 | MySQL 表结构、字段说明、索引、设计理由和知识点 |
-| `docs/04-api-doc.md` | 已同步 | 认证、分类、文件上传、资料模块、审核模块、搜索资料接口已按当前代码校准；搜索建议、下载、收藏、排行榜仍为设计接口 |
-| `docs/05-redis-design.md` | 已同步 | Token 黑名单、文件 MD5 缓存、搜索热门词 ZSet 已落地；排行榜/下载限流等仍为后续设计 |
+| `docs/04-api-doc.md` | 已同步 | 认证、分类、文件上传、资料、审核、搜索、下载、收藏接口已按当前代码校准；搜索建议和排行榜仍为设计接口 |
+| `docs/05-redis-design.md` | 已同步 | Token 黑名单、文件 MD5 缓存、搜索热门词、下载限流/去重/增量统计和用户收藏 Set 已落地；排行榜仍为后续设计 |
 | `docs/modules/01-auth-development-process.md` | 已完成 | 用户认证模块开发记录 |
 | `docs/modules/02-category-development-process.md` | 已完成 | 分类查询模块开发记录 |
 | `docs/modules/03-file-upload-development-process.md` | 已完成 | 文件上传模块开发流程记录 |
 | `docs/modules/04-resource-development-process.md` | 已完成 | 资料模块首版开发流程、测试记录和后续优化记录 |
 | `docs/modules/05-audit-development-process.md` | 已完成 | 审核模块开发流程、真实接口、状态机、权限、测试记录和后续优化 |
 | `docs/modules/06-search-development-process.md` | 已完成 | 搜索模块开发流程、真实接口、排序白名单、Redis 热词统计、测试记录和后续优化 |
-| `docs/database/database-change-log.md` | 已同步 | 记录认证、分类、文件上传、资料模块、审核模块、搜索模块均复用已有生产表结构 |
+| `docs/modules/08-favorite-development-process.md` | 已完成 | 收藏模块真实接口、MySQL 幂等、Redis Set、一致性策略和跳过专项测试记录 |
+| `docs/database/database-change-log.md` | 已同步 | 记录认证、分类、文件上传、资料、审核、搜索、下载和收藏模块均复用已有生产表结构 |
 | `README.md` | 已同步 | 启动说明、当前完成模块、测试命令和下一阶段建议 |
 
 ## 4. 数据库与脚本状态
@@ -49,9 +50,9 @@
 | `user` | 已设计 | 已被认证模块使用 |
 | `category` | 已设计 | 已被分类查询模块和资料模块使用 |
 | `file_info` | 已设计 | 已被文件上传模块和资料模块使用 |
-| `resource` | 已设计 | 已被资料模块使用 |
-| `favorite` | 已设计 | 当前代码暂未使用 |
-| `download_record` | 已设计 | 当前代码暂未使用 |
+| `resource` | 已设计 | 已被资料、审核、搜索、下载和收藏模块使用 |
+| `favorite` | 已设计 | 已被收藏模块使用 |
+| `download_record` | 已设计 | 已被下载模块使用 |
 | `audit_record` | 已设计 | 已被审核模块使用 |
 
 ## 5. 后端基础能力
@@ -177,15 +178,34 @@
 
 首版未实现：下载地址过期机制、热度 ZSet `ZINCRBY` 联动、下载量 Redis→MySQL 定时同步（归排行榜与定时任务模块）。详见 `docs/modules/07-download-development-process.md`。
 
+### 6.8 收藏模块
+
+| 能力 | 状态 | 说明 |
+| --- | --- | --- |
+| 收藏资料 | 已完成 | `POST /api/v1/resources/{resourceId}/favorites`，仅允许收藏 `APPROVED` 资料，重复请求按幂等成功返回 |
+| 取消收藏 | 已完成 | `DELETE /api/v1/resources/{resourceId}/favorites`，软更新 `favorite.status` 并原子减少收藏数 |
+| 我的收藏列表 | 已完成 | `GET /api/v1/users/me/favorites`，只查询当前用户有效收藏，按收藏时间倒序分页返回 |
+| 收藏状态查询 | 已完成 | `GET /api/v1/resources/{resourceId}/favorite-status`，优先 Redis Set，缓存缺失时从 MySQL 重建 |
+| 并发与事务 | 已完成 | MySQL 唯一索引兜底重复收藏；`TransactionTemplate` 保证收藏关系和 `favorite_count` 同一事务提交 |
+| Redis 缓存 | 已完成 | `crp:user:favorites:{userId}`，Set + 30 分钟 TTL；Redis 故障仅降级，不阻断主流程 |
+| 模块专项测试 | 已跳过 | 用户明确要求跳过步骤 7；当前全量 49 个既有测试通过，但未覆盖收藏模块专项场景 |
+
+涉及表：`favorite`、`resource`。
+
+涉及 Redis Key：`crp:user:favorites:{userId}`。
+
+首版未实现：热度 ZSet `ZINCRBY` 联动、收藏夹/分组、批量取消收藏。详见 `docs/modules/08-favorite-development-process.md`。
+
 ## 7. 测试与验证
 
 | 类型 | 状态 | 说明 |
 | --- | --- | --- |
 | 编译验证 | 已完成 | `.\mvnw.cmd -DskipTests compile` 已通过 |
-| 全量测试 | 已完成 | `.\mvnw.cmd test` 已通过，共 37 个测试 |
+| 全量测试 | 已完成 | `.\mvnw.cmd test` 已通过，共 49 个测试 |
 | Controller 测试 | 已完成 | `ResourceControllerTest` 共 11 个用例，`AuditControllerTest` 共 9 个用例，覆盖接口层、鉴权路径、参数校验和异常映射 |
 | 数据库集成测试 | 已完成 | `ResourceDatabaseIntegrationTest` 共 7 个用例，`AuditServiceDatabaseIntegrationTest` 共 9 个用例；审核数据库测试使用本机 MySQL 独立测试库 |
 | Spring 上下文测试 | 已完成 | `CampusResourcePlatformApplicationTests.contextLoads` |
+| 收藏模块专项测试 | 已跳过 | 用户明确要求跳过步骤 7；尚未新增 `FavoriteControllerTest` 与收藏数据库集成测试 |
 | Postman 集合 | 已更新 | `postman/campus-resource-platform.postman_collection.json` 已新增资料模块分组 |
 
 已验证的资料模块场景：
@@ -225,11 +245,7 @@
 
 ### 8.2 收藏模块
 
-待实现功能：收藏资料、取消收藏、我的收藏列表、防重复收藏、收藏状态查询、更新收藏数和热度分。
-
-涉及表：`favorite`、`resource`。
-
-涉及 Redis Key：`crp:user:favorites:{userId}`、`crp:rank:resource:hot:{dateScope}`。
+**已完成首版**，见第 6.8 节。收藏模块专项测试按用户要求跳过；热度 ZSet 联动、收藏夹/分组和批量取消收藏仍为后续优化。
 
 ### 8.3 排行榜与定时任务
 
@@ -252,7 +268,7 @@
 | 下载接口 | 已完成 | `POST` 创建下载记录、`GET` 文件流、`GET` 我的下载记录，见第 6.7 节 |
 | 下载限流 | 已完成 | Redis ZSet 滑动窗口 + Lua，用户 10次/分、IP 30次/分 |
 | 下载量定时同步 | 未实现 | Redis Hash 增量已落地，定时回写 MySQL 归排行榜与定时任务模块 |
-| 收藏资料 | 未实现 | `favorite` 表和唯一索引已设计 |
+| 收藏资料 | 已完成 | 收藏、取消、状态查询和我的收藏列表已实现；专项测试按用户要求跳过 |
 | 热门资料排行榜 | 未实现 | Redis ZSet 设计已完成 |
 | 管理员用户管理 | 未实现 | 当前只有用户角色字段，没有管理员业务接口 |
 | 注解式权限控制 | 未实现 | 当前只通过 JWT 拦截器完成登录校验 |
@@ -278,35 +294,37 @@
 - 下载量统计不是直接 UPDATE：先写 Redis Hash 增量，解耦高频写和 MySQL 压力，后续定时任务批量回写，Redis 异常时 fail-open 不阻断下载。
 - 文件流下载不走 JSON 包装：直接返回 `ResponseEntity<InputStreamResource>`，含路径穿越防护和 RFC 5987 中文文件名编码。
 - 下载去重区分”允许下载”和”计入统计”：`SETNX` 去重 Key（TTL 10分钟），重复下载允许但不重复计入下载量和热度。
+- 收藏不是简单插入：资料状态校验、软状态复用、唯一索引幂等、收藏数原子更新和 Redis Set 缓存共同保证正确性与性能。
+- 收藏事务与缓存分层：`TransactionTemplate` 只包裹 MySQL 的 `favorite` 与 `favorite_count` 写入；提交成功后再同步 Redis，缓存异常不阻断主流程。
 - 分层结构清晰：Controller、Service、Mapper、DTO、VO、Entity、Common、Config、Exception、Interceptor 各自承担边界。
 
 ## 11. 推荐下一阶段开发模块
 
-建议下一阶段优先开发”收藏模块”。
+建议下一阶段优先开发“排行榜与定时任务模块”。
 
 原因：
 
-1. 下载模块首版已完成，搜索 → 下载的消费链路已经打通，收藏是用户消费之后的自然留存行为。
-2. 收藏模块可以落地 `favorite` 表和 `user_id + resource_id` 唯一索引，首次引入防重复收藏的幂等设计。
-3. 收藏行为可以和热门资料排行榜联动（`ZINCRBY +3`），进一步推动排行榜模块的数据积累。
-4. 收藏模块相对独立，开发周期短，可以快速完成一个完整模块。
+1. 下载和收藏模块已累计下载量、收藏数等热度输入，具备建设实时排行榜的数据基础。
+2. `crp:stats:resource:download:delta` 已有增量数据，适合通过定时任务批量回写 MySQL，降低高频 `UPDATE` 压力。
+3. 热门资料 ZSet、热门搜索词 ZSet 和 `resource.hot_score` 的设计已具备，下一步可以统一治理周期、TTL 与回写策略。
+4. 收藏模块专项测试被明确跳过，后续可在排行榜开发前或并行补齐，降低联合功能回归风险。
 
 推荐小步开发顺序：
 
-1. 创建收藏模块相关实体、Mapper 和 SQL。
-2. 实现收藏和取消收藏 Service（防重复 + 收藏数更新）。
-3. 实现收藏状态查询和我的收藏列表接口。
-4. 补充测试并同步文档。
+1. 实现热门资料排行榜读取与资料热度 ZSet 初始化。
+2. 接入下载、收藏行为的热度增量，并定义 daily/weekly/monthly/all 周期策略。
+3. 实现下载量 Redis Hash 到 MySQL 的定时批量同步与防重复执行。
+4. 补充排行榜、定时任务以及收藏模块的专项测试。
 
-搜索模块剩余小步任务（可穿插补齐）：补充 `SearchControllerTest` 和热词 Service 单测、实现搜索建议接口、增加搜索限流。下载模块剩余任务：补充针对性测试。
+搜索模块剩余小步任务（可穿插补齐）：补充 `SearchControllerTest` 和热词 Service 单测、实现搜索建议接口、增加搜索限流。下载模块剩余任务：补充针对性测试；收藏模块专项测试已按用户要求跳过。
 
 ## 12. 当前可提交总结
 
 ```text
-docs(search): sync search module documentation
+docs(favorite): sync favorite module documentation
 
-- align search API docs with real controller, service, DTO and VO
-- record search keyword ranking redis implementation status
-- add search module as completed in project progress
-- recommend download module as next stage
+- align favorite API and Redis documents with real controller, service and Mapper behavior
+- record favorite module implementation status and skipped targeted tests
+- update project progress and README with the completed favorite module
+- recommend ranking and scheduled-task module as the next stage
 ```

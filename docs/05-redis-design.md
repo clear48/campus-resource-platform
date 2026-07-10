@@ -784,6 +784,8 @@ Redis 只作为查询加速，MySQL 是最终准数据源。
 
 ## 11. 用户收藏集合
 
+实现状态：已由收藏模块首版落地。`FavoriteServiceImpl` 使用 `RedisKeyConstants.userFavorites(userId)` 统一生成 Key；MySQL `favorite` 表和唯一索引仍是最终事实来源。
+
 ### 11.1 Key 设计
 
 ```text
@@ -814,7 +816,7 @@ resourceId
 
 ### 11.4 TTL 策略
 
-建议 TTL：
+实现 TTL：
 
 ```text
 30 分钟
@@ -829,18 +831,18 @@ resourceId
 | 查询收藏状态，缓存不存在 | 从 MySQL 查询收藏列表，写入 Set |
 | 收藏资料成功 | `SADD crp:user:favorites:{userId} {resourceId}` |
 | 取消收藏成功 | `SREM crp:user:favorites:{userId} {resourceId}` |
-| 用户收藏列表变更异常 | 删除该用户收藏 Set，等待下次重建 |
+| Redis 访问异常 | 仅记录日志，不影响 MySQL 主流程；等待 TTL 过期或下次缓存缺失时重建 |
 
 ### 11.6 MySQL 一致性处理
 
 收藏接口流程：
 
 1. 先校验资料状态必须是 `APPROVED`。
-2. 插入或更新 MySQL `favorite`。
-3. MySQL 成功后更新 Redis Set。
+2. 在同一 MySQL 事务中插入或更新 `favorite`，并原子更新 `resource.favorite_count`。
+3. MySQL 事务提交成功后更新 Redis Set。
 4. 如果 Redis 更新失败，不影响主流程，记录日志并依赖 TTL 或下次查询重建。
 
-重复收藏必须由 MySQL 唯一索引兜底，而不是只依赖 Redis Set。
+重复收藏必须由 MySQL 唯一索引兜底，而不是只依赖 Redis Set；当前实现会在事务结束后捕获 `DuplicateKeyException` 并返回幂等成功。
 
 ### 11.7 为什么选择 Set
 
