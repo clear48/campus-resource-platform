@@ -327,4 +327,14 @@
           AND status = 1
     </update>
 
+    <!-- 收藏数直接在数据库中原子增减；负增量额外限制当前值大于 0，避免并发取消导致负数。 -->
+    <update id="updateFavoriteCount">
+        UPDATE `resource`
+        SET favorite_count = favorite_count + #{delta}
+        WHERE id = #{resourceId}
+        <if test="delta &lt; 0">
+          AND favorite_count &gt; 0
+        </if>
+    </update>
+
 </mapper>

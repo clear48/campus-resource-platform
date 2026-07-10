@@ -103,4 +103,9 @@ public interface ResourceMapper {
             @Param("resourceId") Long resourceId,
             @Param("offlineReason") String offlineReason,
             @Param("offlineAt") LocalDateTime offlineAt);
+
+    /**
+     * 原子调整资料收藏数，delta 仅允许收藏场景传入 +1 或 -1，避免读改写并发丢失。
+     */
+    int updateFavoriteCount(@Param("resourceId") Long resourceId, @Param("delta") int delta);
 }

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.john.campus.mapper.FavoriteMapper">
+
+    <!-- 收藏表字段映射，显式处理 user_id、resource_id 等下划线字段。 -->
+    <resultMap id="FavoriteResultMap" type="com.john.campus.entity.Favorite">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="resource_id" property="resourceId"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 公共列清单集中维护，避免详情和列表查询字段不一致。 -->
+    <sql id="BaseColumnList">
+        id,
+        user_id,
+        resource_id,
+        status,
+        created_at,
+        updated_at
+    </sql>
+
+    <!-- 收藏关系写入由唯一索引 uk_favorite_user_resource 兜底防止并发重复。 -->
+    <insert id="insert" parameterType="com.john.campus.entity.Favorite" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `favorite` (user_id, resource_id, status)
+        VALUES (#{userId}, #{resourceId}, #{status})
+    </insert>
+
+    <!-- 唯一索引保证该查询最多返回一条记录，用于收藏状态判断。 -->
+    <select id="selectByUserAndResource" resultMap="FavoriteResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `favorite`
+        WHERE user_id = #{userId}
+          AND resource_id = #{resourceId}
+        LIMIT 1
+    </select>
+
+    <!-- 软状态更新保留取消收藏历史，updated_at 由数据库 ON UPDATE 机制维护。 -->
+    <update id="updateStatus">
+        UPDATE `favorite`
+        SET status = #{status}
+        WHERE id = #{id}
+    </update>
+
+    <!-- 我的收藏列表固定筛选已收藏状态，并按首次收藏时间倒序展示。 -->
+    <select id="selectByUser" resultMap="FavoriteResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `favorite`
+        WHERE user_id = #{userId}
+          AND status = 1
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <!-- 与列表查询保持同一用户和状态条件，用于 PageResult.total。 -->
+    <select id="countByUser" resultType="long">
+        SELECT COUNT(1)
+        FROM `favorite`
+        WHERE user_id = #{userId}
+          AND status = 1
+    </select>
+
+</mapper>
