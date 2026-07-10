@@ -1,8 +1,8 @@
 # 排行榜与定时任务模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**步骤 1、步骤 2 已完成；排行榜 Redis Key 常量与周期模型已落地，步骤 3 待开发**。
-> 步骤 2 未实现 Service、Controller、Mapper、定时任务，也未修改数据库结构或引入依赖。
+> 当前状态：**步骤 1、步骤 2、步骤 3 已完成；排行榜 Redis 基础设施与查询数据契约已落地，步骤 4 待开发**。
+> 步骤 3 未实现 Service、Controller、Mapper、Redis 查询或定时任务，也未修改数据库结构或引入依赖。
 
 ---
 
@@ -14,7 +14,7 @@
 | 英文标识 | rank |
 | 文档路径 | `docs/modules/09-rank-development-process.md` |
 | 当前分支 | `dev` |
-| 当前状态 | 步骤 1、2 已完成；下一步创建排行榜 DTO 与 VO |
+| 当前状态 | 步骤 1、2、3 已完成；下一步补充 ResourceMapper 排行榜与同步 SQL |
 | 前置依赖模块 | 资料、审核、搜索、下载、收藏模块 |
 | 下游模块 | 首页热门资料展示、搜索框热门词展示、后台运营统计 |
 | 接口前缀 | `/api/v1/rankings` |
@@ -265,10 +265,10 @@ idx_resource_hot (status, hot_score, download_count)
 | 类型 | 类/文件 | 职责 | 状态 |
 | --- | --- | --- | --- |
 | enums | `RankingPeriod` | 集中定义周期白名单、Key 后缀、TTL 和热词周期边界 | 已实现 |
-| dto | `HotResourceRankingQueryDTO` | 接收 `limit`、`categoryId`、`period` | 待开发 |
-| dto | `HotSearchKeywordRankingQueryDTO` | 接收 `limit`、`period` | 待开发 |
-| vo | `HotResourceRankingVO` | 热门资料榜单项 | 待开发 |
-| vo | `HotSearchKeywordRankingVO` | 热门搜索词榜单项 | 待开发 |
+| dto | `HotResourceRankingQueryDTO` | 接收 `limit`、`categoryId`、`period` | 已实现 |
+| dto | `HotSearchKeywordRankingQueryDTO` | 接收 `limit`、`period` | 已实现 |
+| vo | `HotResourceRankingVO` | 热门资料榜单项 | 已实现 |
+| vo | `HotSearchKeywordRankingVO` | 热门搜索词榜单项 | 已实现 |
 | service | `RankingService` | 排行榜查询和资料热度行为入口 | 待开发 |
 | service/impl | `RankingServiceImpl` | ZSet 查询、MySQL 补齐、状态过滤、降级和热度增减 | 待开发 |
 | controller | `RankingController` | 两个公开只读接口入口 | 待开发 |
@@ -479,7 +479,7 @@ MySQL 查询 APPROVED 资料
 | --- | --- | --- | --- |
 | T1 | 模块文档初稿 | `09-rank-development-process.md` | 已完成 |
 | T2 | Redis 常量与周期模型 | `RedisKeyConstants`、`RankingPeriod`、`RankingPeriodTest` | 已完成（`090c58f`） |
-| T3 | DTO / VO | 两个查询 DTO、两个榜单 VO | 待开发 |
+| T3 | DTO / VO | 两个查询 DTO、两个榜单 VO、`RankingQueryDTOTest` | 已完成（`d28ecb8`） |
 | T4 | Mapper 能力 | 榜单补齐/兜底、下载增量、热度快照 SQL | 待开发 |
 | T5 | 排行榜 Service | 两榜查询、状态过滤、降级 | 待开发 |
 | T6 | 排行榜 Controller | 两个公开 GET 接口 | 待开发 |
@@ -511,12 +511,17 @@ MySQL 查询 APPROVED 资料
 - 【步骤 2】已新增 `RankingPeriodTest`，4 个针对性用例全部通过；全量 53 个测试通过。
 - 【步骤 2】功能提交为 `090c58f feat(rank): add ranking redis keys and period model`，已推送到 `origin/dev`。
 - 按用户要求，工作区原有的 `FavoriteServiceImpl` 事务注释已原样单独提交为 `9d93fbb chore(favorite): clarify duplicate key rollback flow` 并推送。
+- 【步骤 3】已新增热门资料、热门搜索词查询 DTO；`limit` 校验为 1～50，热门资料 `categoryId` 非空时必须大于 0。
+- 【步骤 3】已新增两个榜单 VO，只包含 API 文档约定的公开展示字段，不返回 `Resource` Entity。
+- 【步骤 3】默认 `limit` 和 `period` 白名单未放入 DTO，后续由 `RankingService` 与 `RankingPeriod` 统一兜底。
+- 【步骤 3】已新增 `RankingQueryDTOTest`，3 个针对性用例全部通过；全量 56 个测试通过。
+- 【步骤 3】功能提交为 `d28ecb8 feat(rank): add ranking query DTOs and VOs`，已推送到 `origin/dev`。
 
 ---
 
 ## 19. 待完成事项
 
-- T3～T12 的 DTO/VO、Mapper、Service、Controller、定时任务、专项测试和同步文档任务。
+- T4～T12 的 Mapper、Service、Controller、定时任务、专项测试和同步文档任务。
 - 在实现前统一 `docs/04-api-doc.md` 中 Redis Key 示例的旧前缀写法，最终以 `crp:` 规范和 `RedisKeyConstants` 为准。
 - 确定定时任务执行频率、锁 TTL、单批最大资料数等运行参数，并通过配置项集中管理。
 - 确定热门搜索词 Redis 故障时“返回空列表”与 API 文档 `50001` 描述的最终口径。
@@ -598,13 +603,15 @@ cd campus-resource-platform
 .\mvnw.cmd test
 ```
 
-步骤 2 已执行测试记录：
+已执行测试记录：
 
 | 命令 | 结果 |
 | --- | --- |
 | `.\mvnw.cmd -DskipTests compile` | 通过，94 个主源码文件编译成功 |
 | `.\mvnw.cmd -Dtest=RankingPeriodTest test` | 通过，4 个测试，0 失败、0 错误、0 跳过 |
 | `.\mvnw.cmd test` | 通过，53 个测试，0 失败、0 错误、0 跳过 |
+| `.\mvnw.cmd -Dtest=RankingQueryDTOTest test` | 通过，3 个测试，0 失败、0 错误、0 跳过；主源码编译 98 个文件 |
+| `.\mvnw.cmd test`（步骤 3 后） | 通过，56 个测试，0 失败、0 错误、0 跳过 |
 
 ---
 
@@ -618,17 +625,22 @@ cd campus-resource-platform
 | `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java` | 修改 | 新增热门资料榜、同步锁和 syncing 批次 Key |
 | `campus-resource-platform/src/main/java/com/john/campus/enums/RankingPeriod.java` | 新增 | 统一排行榜周期、TTL 和热词支持范围 |
 | `campus-resource-platform/src/test/java/com/john/campus/enums/RankingPeriodTest.java` | 新增 | 验证周期规则与 Key 格式 |
+| `campus-resource-platform/src/main/java/com/john/campus/dto/HotResourceRankingQueryDTO.java` | 新增 | 热门资料排行榜查询参数及基础校验 |
+| `campus-resource-platform/src/main/java/com/john/campus/dto/HotSearchKeywordRankingQueryDTO.java` | 新增 | 热门搜索词排行榜查询参数及基础校验 |
+| `campus-resource-platform/src/main/java/com/john/campus/vo/HotResourceRankingVO.java` | 新增 | 热门资料榜单公开响应项 |
+| `campus-resource-platform/src/main/java/com/john/campus/vo/HotSearchKeywordRankingVO.java` | 新增 | 热门搜索词榜单公开响应项 |
+| `campus-resource-platform/src/test/java/com/john/campus/dto/RankingQueryDTOTest.java` | 新增 | 验证 DTO 参数边界与 Service 分层职责 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/impl/FavoriteServiceImpl.java` | 用户注释提交 | 仅增加 DuplicateKeyException 事务回滚说明；不属于排行榜逻辑 |
 
-### 21.2 步骤 2 明确未修改
+### 21.2 步骤 2、3 明确未修改
 
 - `campus-resource-platform/src/main/resources/**`
 - `sql/**`
-- Service、Controller、Mapper、调度和数据库配置
+- Service、Controller、Mapper、Redis 查询、调度和数据库配置
 
 ### 21.3 后续计划修改（尚未发生）
 
-- 排行榜 DTO/VO/Service/Controller、`ResourceMapper` 及 XML。
+- 排行榜 Service/Controller、`ResourceMapper` 及 XML。
 - 下载、收藏、审核 Service 的热度联动点。
 - 调度配置、同步 Service、`task` 包和对应测试。
 - `docs/04-api-doc.md`、`docs/05-redis-design.md`、`docs/06-project-progress.md`、`README.md` 等同步文档。
@@ -688,7 +700,7 @@ cd campus-resource-platform
 | --- | --- |
 | T1 | `docs(rank): add ranking module development process` |
 | T2 | `feat(rank): add ranking redis keys and period model`（已使用，commit `090c58f`） |
-| T3 | `feat(rank): add ranking query DTOs and VOs` |
+| T3 | `feat(rank): add ranking query DTOs and VOs`（已使用，commit `d28ecb8`） |
 | T4 | `feat(rank): add ranking and statistics mapper queries` |
 | T5 | `feat(rank): implement ranking service` |
 | T6 | `feat(rank): add ranking query endpoints` |
@@ -708,7 +720,7 @@ cd campus-resource-platform
 | --- | --- | --- |
 | 步骤 1 | 创建排行榜模块开发流程文档初稿 | ✅ 已完成 |
 | 步骤 2 | 补充 Redis Key 常量与周期模型 | ✅ 已完成（`090c58f`） |
-| 步骤 3 | 创建排行榜 DTO 与 VO | 待执行 |
+| 步骤 3 | 创建排行榜 DTO 与 VO | ✅ 已完成（`d28ecb8`） |
 | 步骤 4 | 补充 ResourceMapper 排行榜与同步 SQL | 待执行 |
 | 步骤 5 | 实现排行榜 Service | 待执行 |
 | 步骤 6 | 实现排行榜 Controller | 待执行 |
