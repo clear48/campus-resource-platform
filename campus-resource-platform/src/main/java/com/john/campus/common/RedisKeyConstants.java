@@ -16,6 +16,11 @@ public final class RedisKeyConstants {
     public static final String FILE_MD5_CACHE = "crp:cache:file:md5:%s:%d";
 
     /**
+     * 用户收藏集合 Key，Set 的 member 为 resourceId，用于加速收藏状态判断。
+     */
+    public static final String USER_FAVORITES = "crp:user:favorites:%d";
+
+    /**
      * 热门搜索词排行榜 Key，使用 ZSet 记录归一化关键词和搜索次数。
      */
     public static final String SEARCH_KEYWORD_RANK = "crp:rank:search:keyword:%s";
@@ -56,6 +61,13 @@ public final class RedisKeyConstants {
      */
     public static String fileMd5Cache(String fileMd5, long fileSize) {
         return String.format(FILE_MD5_CACHE, fileMd5, fileSize);
+    }
+
+    /**
+     * 生成用户收藏集合完整 Key，后续收藏模块统一通过此方法访问缓存。
+     */
+    public static String userFavorites(long userId) {
+        return String.format(USER_FAVORITES, userId);
     }
 
     /**
