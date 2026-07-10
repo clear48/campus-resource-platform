@@ -34,18 +34,48 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class FavoriteServiceImpl implements FavoriteService {
 
+    /**
+     * Redis 缓存属于可降级依赖，发生异常时只记录日志，不能影响收藏主流程。
+     */
     private static final Logger log = LoggerFactory.getLogger(FavoriteServiceImpl.class);
+    /**
+     * 用户收藏 Set 的缓存时长。到期后通过 MySQL 有效收藏记录重建，避免长期缓存与数据库状态偏离。
+     */
     private static final Duration FAVORITE_CACHE_TTL = Duration.ofMinutes(30);
+    /**
+     * 我的收藏列表的默认分页参数，与 PageQuery 的默认值保持一致。
+     */
     private static final int DEFAULT_PAGE_NO = 1;
     private static final int DEFAULT_PAGE_SIZE = 10;
+    /**
+     * 单页上限，避免用户收藏量较大时一次查询和响应体过大。
+     */
     private static final int MAX_PAGE_SIZE = 100;
+    /**
+     * 资料收藏数的增减值必须集中定义，调用 Mapper 时只传递 +1 或 -1，避免散落魔法值。
+     */
     private static final int FAVORITE_COUNT_INCREMENT = 1;
     private static final int FAVORITE_COUNT_DECREMENT = -1;
+    /**
+     * 热度 ZSet 联动尚未进入收藏模块首版，因此接口仍保留字段但固定返回 0。
+     */
     private static final int HOT_SCORE_DELTA_NOT_IMPLEMENTED = 0;
 
+    /**
+     * 收藏关系的最终数据源。唯一索引和状态字段由该 Mapper 提供，负责幂等与软状态复用的数据库基础。
+     */
     private final FavoriteMapper favoriteMapper;
+    /**
+     * 资料状态、资料展示信息和收藏数快照均来自 resource 表。
+     */
     private final ResourceMapper resourceMapper;
+    /**
+     * 可选 Redis 依赖。测试切片或 Redis 未装配时可返回 null，使收藏主流程仍能以 MySQL 正常工作。
+     */
     private final ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider;
+    /**
+     * 显式控制 MySQL 事务边界：只包裹 favorite 和 resource 的写操作，提交后才执行 Redis 同步。
+     */
     private final TransactionTemplate transactionTemplate;
 
     public FavoriteServiceImpl(
@@ -66,10 +96,12 @@ public class FavoriteServiceImpl implements FavoriteService {
     @Override
     public FavoriteResultVO favorite(Long resourceId) {
         validateResourceId(resourceId);
+        // 用户身份只能从 JWT 上下文读取，避免客户端伪造 userId 收藏他人资料。
         Long userId = UserContextHolder.getRequiredUserId();
 
         FavoriteResultVO result;
         try {
+            // 事务内同时变更收藏关系和资料收藏数，任一数据库写入失败都会整体回滚。
             result = requireTransactionResult(transactionTemplate.execute(
                     transactionStatus -> activateFavoriteInTransaction(userId, resourceId)));
         } catch (DuplicateKeyException ex) {
@@ -89,6 +121,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     public FavoriteResultVO unfavorite(Long resourceId) {
         validateResourceId(resourceId);
         Long userId = UserContextHolder.getRequiredUserId();
+        // 条件状态更新和收藏数递减必须在同一事务内，防止并发取消导致关系与计数不一致。
         FavoriteResultVO result = requireTransactionResult(transactionTemplate.execute(
                 transactionStatus -> cancelFavoriteInTransaction(userId, resourceId)));
 
@@ -109,6 +142,7 @@ public class FavoriteServiceImpl implements FavoriteService {
         if (stringRedisTemplate != null) {
             try {
                 if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(cacheKey))) {
+                    // Key 存在说明该用户的有效收藏集合已经加载完成，SISMEMBER 可直接给出 O(1) 判断结果。
                     boolean favorited = Boolean.TRUE.equals(
                             stringRedisTemplate.opsForSet().isMember(cacheKey, String.valueOf(resourceId)));
                     return new FavoriteStatusVO(resourceId, favorited);
@@ -119,6 +153,7 @@ public class FavoriteServiceImpl implements FavoriteService {
             }
         }
 
+        // 缓存 Key 不存在时以 MySQL 为准；随后批量重建整组收藏，避免下次逐条查询数据库。
         Favorite favorite = favoriteMapper.selectByUserAndResource(userId, resourceId);
         boolean favorited = isFavorited(favorite);
         rebuildFavoriteCache(userId, stringRedisTemplate);
@@ -133,10 +168,12 @@ public class FavoriteServiceImpl implements FavoriteService {
         Long userId = UserContextHolder.getRequiredUserId();
         int pageNo = resolvePageNo(pageQuery);
         int pageSize = resolvePageSize(pageQuery);
+        // Mapper 使用 MySQL LIMIT 偏移量，分页计算集中在 Service，Controller 不参与数据库细节。
         int offset = (pageNo - 1) * pageSize;
 
         List<Favorite> favorites = favoriteMapper.selectByUser(userId, offset, pageSize);
         long total = favoriteMapper.countByUser(userId);
+        // 先批量读取资料，避免对列表中的每条收藏分别查询 resource 表形成 N+1 问题。
         Map<Long, Resource> resourceMap = loadResources(favorites);
         List<MyFavoriteVO> records = favorites.stream()
                 .map(favorite -> toMyFavoriteVO(favorite, resourceMap.get(favorite.getResourceId())))
@@ -151,19 +188,23 @@ public class FavoriteServiceImpl implements FavoriteService {
         Resource resource = requireApprovedResource(resourceId);
         Favorite existing = favoriteMapper.selectByUserAndResource(userId, resourceId);
         if (isFavorited(existing)) {
+            // 用户已收藏时不再变更计数，直接返回幂等成功。
             return toFavoriteResult(resource, true, true);
         }
 
         if (existing == null) {
+            // 首次收藏必须写入 userId + resourceId；数据库唯一索引会兜底并发插入。
             Favorite favorite = new Favorite();
             favorite.setUserId(userId);
             favorite.setResourceId(resourceId);
             favorite.setStatus(Favorite.STATUS_FAVORITED);
             favoriteMapper.insert(favorite);
         } else {
+            // 已取消的历史记录不物理删除，使用 0 -> 1 条件更新恢复收藏关系。
             int changed = favoriteMapper.updateStatus(
                     existing.getId(), Favorite.STATUS_CANCELED, Favorite.STATUS_FAVORITED);
             if (changed == 0) {
+                // 并发请求可能已先恢复收藏；重新读取后若已生效，仍按幂等成功返回。
                 Favorite latestFavorite = favoriteMapper.selectByUserAndResource(userId, resourceId);
                 if (isFavorited(latestFavorite)) {
                     return toFavoriteResult(loadResource(resourceId), true, true);
@@ -172,6 +213,7 @@ public class FavoriteServiceImpl implements FavoriteService {
             }
         }
 
+        // 只有新增或成功恢复收藏才增加计数，SQL 内部原子完成，避免读改写竞争。
         if (resourceMapper.updateFavoriteCount(resourceId, FAVORITE_COUNT_INCREMENT) != 1) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "资料不存在");
         }
@@ -184,14 +226,17 @@ public class FavoriteServiceImpl implements FavoriteService {
     private FavoriteResultVO cancelFavoriteInTransaction(Long userId, Long resourceId) {
         Favorite existing = favoriteMapper.selectByUserAndResource(userId, resourceId);
         if (!isFavorited(existing)) {
+            // 取消不存在或已取消的记录没有可递减的计数，统一视为资源不存在。
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "收藏记录不存在或已取消");
         }
 
+        // 条件更新要求旧状态仍为已收藏，保证两个并发取消请求至多一个进入计数递减分支。
         int changed = favoriteMapper.updateStatus(
                 existing.getId(), Favorite.STATUS_FAVORITED, Favorite.STATUS_CANCELED);
         if (changed == 0) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "收藏记录不存在或已取消");
         }
+        // 负增量 SQL 带 favorite_count > 0 条件，数据库层再防一次收藏数出现负值。
         if (resourceMapper.updateFavoriteCount(resourceId, FAVORITE_COUNT_DECREMENT) != 1) {
             throw new BusinessException(ErrorCode.RESOURCE_STATUS_INVALID, "资料收藏数异常");
         }
@@ -204,11 +249,14 @@ public class FavoriteServiceImpl implements FavoriteService {
     private FavoriteResultVO resolveDuplicateFavorite(Long userId, Long resourceId) {
         Favorite existing = favoriteMapper.selectByUserAndResource(userId, resourceId);
         if (isFavorited(existing)) {
+            // 另一个并发请求已完成收藏，当前请求无需再执行任何写操作。
             return toFavoriteResult(loadResource(resourceId), true, true);
         }
         if (existing == null) {
+            // 唯一索引异常后仍查不到记录，说明写入结果不可确认，不能误报成功。
             throw new BusinessException(ErrorCode.FAVORITE_DUPLICATE, "收藏记录创建失败，请重试");
         }
+        // 记录存在但已取消时，在新的事务中尝试恢复状态，避免复用已结束的失败事务。
         return requireTransactionResult(transactionTemplate.execute(
                 transactionStatus -> activateFavoriteInTransaction(userId, resourceId)));
     }
@@ -245,6 +293,7 @@ public class FavoriteServiceImpl implements FavoriteService {
                 .distinct()
                 .toList();
         if (resourceIds.isEmpty()) {
+            // 空页直接返回不可变空 Map，避免 Mapper 生成空 IN 条件。
             return Map.of();
         }
         return resourceMapper.selectByIds(resourceIds).stream()
@@ -257,6 +306,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     private void addFavoriteToCache(Long userId, Long resourceId) {
         StringRedisTemplate stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
         if (stringRedisTemplate == null) {
+            // Redis 未启用时 MySQL 结果仍已提交，缓存只是少一次加速机会。
             return;
         }
         try {
@@ -349,6 +399,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     }
 
     private int resolvePageNo(PageQuery pageQuery) {
+        // 即使 Controller 未经过 Bean Validation 直接调用 Service，也保持分页参数的业务兜底。
         Integer pageNo = pageQuery == null ? DEFAULT_PAGE_NO : pageQuery.getPageNo();
         if (pageNo == null) {
             return DEFAULT_PAGE_NO;
@@ -360,6 +411,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     }
 
     private int resolvePageSize(PageQuery pageQuery) {
+        // 与 PageQuery 的注解约束保持一致，防止其他调用方绕过 Controller 校验。
         Integer pageSize = pageQuery == null ? DEFAULT_PAGE_SIZE : pageQuery.getPageSize();
         if (pageSize == null) {
             return DEFAULT_PAGE_SIZE;
