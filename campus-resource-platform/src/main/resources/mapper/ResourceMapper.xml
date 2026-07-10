@@ -209,6 +209,35 @@
         </foreach>
     </select>
 
+    <!-- Redis 榜单只保存候选 ID，补齐展示字段时必须再次固定过滤已审核通过资料。 -->
+    <!-- IN 集合为空时由 Service 层短路，避免生成无效 SQL；返回顺序由 Service 按 Redis 分数恢复。 -->
+    <select id="selectApprovedRankingCandidatesByIds" resultMap="ResourceResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `resource`
+        WHERE status = 1
+        <if test="categoryId != null">
+          AND category_id = #{categoryId}
+        </if>
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- Redis 不可用时查询 MySQL 热度快照；排序列均为固定 SQL，禁止使用前端原始字段。 -->
+    <select id="selectHotApprovedResources" resultMap="ResourceResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `resource`
+        WHERE status = 1
+        <if test="categoryId != null">
+          AND category_id = #{categoryId}
+        </if>
+        ORDER BY hot_score DESC, download_count DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
     <!-- 公开详情只允许返回已审核通过资料，命中 idx_resource_status_created 的状态前缀。 -->
     <select id="selectPublicDetailById" resultMap="ResourceResultMap">
         SELECT
@@ -347,6 +376,21 @@
         <if test="delta &lt; 0">
           AND favorite_count &gt; 0
         </if>
+    </update>
+
+    <!-- 下载量同步直接在数据库端累加，避免先 SELECT 再 UPDATE 的并发覆盖。 -->
+    <update id="incrementDownloadCount">
+        UPDATE `resource`
+        SET download_count = download_count + #{delta}
+        WHERE id = #{resourceId}
+    </update>
+
+    <!-- 热度分快照仅写入仍可公开的资料，避免下架或删除资料被后台任务重新带回榜单。 -->
+    <update id="updateApprovedHotScore">
+        UPDATE `resource`
+        SET hot_score = #{hotScore}
+        WHERE id = #{resourceId}
+          AND status = 1
     </update>
 
 </mapper>

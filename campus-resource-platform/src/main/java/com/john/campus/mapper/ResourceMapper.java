@@ -1,12 +1,13 @@
 package com.john.campus.mapper;
 
 import com.john.campus.entity.Resource;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.apache.ibatis.annotations.Param;
 
 /**
- * 资料表数据访问接口，当前仅提供资料模块首版所需的基础写入与查询能力。
+ * 资料表数据访问接口，集中提供资料生命周期、公开查询和统计快照所需的数据访问能力。
  */
 public interface ResourceMapper {
 
@@ -24,6 +25,21 @@ public interface ResourceMapper {
      * 按资料 ID 批量查询记录，供收藏等列表接口补齐展示字段，调用方负责处理空集合。
      */
     List<Resource> selectByIds(@Param("ids") List<Long> ids);
+
+    /**
+     * 从排行榜候选资料中批量查询仍审核通过的记录，可按分类进一步过滤。
+     * 返回顺序不保证与 Redis ZSet 一致，后续 Service 负责按 Redis 分数恢复榜单顺序。
+     */
+    List<Resource> selectApprovedRankingCandidatesByIds(
+            @Param("ids") List<Long> ids,
+            @Param("categoryId") Long categoryId);
+
+    /**
+     * Redis 不可用时按 MySQL 热度快照查询热门资料，固定排除非公开资料。
+     */
+    List<Resource> selectHotApprovedResources(
+            @Param("categoryId") Long categoryId,
+            @Param("limit") Integer limit);
 
     /**
      * 查询公开资料详情，只返回审核通过的资料，避免未审核资料被匿名访问。
@@ -113,4 +129,16 @@ public interface ResourceMapper {
      * 原子调整资料收藏数，delta 仅允许收藏场景传入 +1 或 -1，避免读改写并发丢失。
      */
     int updateFavoriteCount(@Param("resourceId") Long resourceId, @Param("delta") int delta);
+
+    /**
+     * 原子累加下载次数，供后续 Redis 下载增量同步任务使用，避免读改写造成并发丢失。
+     */
+    int incrementDownloadCount(@Param("resourceId") Long resourceId, @Param("delta") long delta);
+
+    /**
+     * 更新审核通过资料的热度分快照；非公开资料不接受排行榜快照回写。
+     */
+    int updateApprovedHotScore(
+            @Param("resourceId") Long resourceId,
+            @Param("hotScore") BigDecimal hotScore);
 }
