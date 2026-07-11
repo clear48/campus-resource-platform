@@ -37,3 +37,13 @@ app:
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:7200}
   upload:
     storage-path: ${APP_UPLOAD_STORAGE_PATH:./data/uploads}
+
+rank:
+  sync:
+    download-delta:
+      # 固定延迟从上一次任务结束开始计算，避免本地调度线程重叠执行同一批同步。
+      fixed-delay-ms: ${RANK_DOWNLOAD_DELTA_FIXED_DELAY_MS:60000}
+      # 单次只持久化有限数量的资料，剩余增量保留在 syncing Hash，降低事务时长与锁持有时间。
+      max-batch-size: ${RANK_DOWNLOAD_DELTA_MAX_BATCH_SIZE:500}
+      # 锁 TTL 应覆盖单批数据库写入；异常实例未释放时依靠 TTL 自动恢复后续同步。
+      lock-ttl-seconds: ${RANK_DOWNLOAD_DELTA_LOCK_TTL_SECONDS:300}
