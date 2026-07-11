@@ -31,6 +31,9 @@ import org.springframework.util.StringUtils;
 @Service
 public class RankingServiceImpl implements RankingService {
 
+    /**
+     * 记录 Redis 降级、脏榜单成员等可恢复问题，便于排查榜单数据与资料状态不一致的原因。
+     */
     private static final Logger log = LoggerFactory.getLogger(RankingServiceImpl.class);
 
     /**
@@ -55,6 +58,9 @@ public class RankingServiceImpl implements RankingService {
      */
     private static final int MAX_CANDIDATE_SCAN_SIZE = 500;
 
+    /**
+     * MySQL 资料数据源：Redis 只负责给出候选 ID 和实时分数，公开资料字段及状态必须以此为准。
+     */
     private final ResourceMapper resourceMapper;
 
     /**
@@ -74,9 +80,11 @@ public class RankingServiceImpl implements RankingService {
      */
     @Override
     public List<HotResourceRankingVO> listHotResources(HotResourceRankingQueryDTO query) {
+        // 先把默认值、分类和周期归一化，后续 Redis Key 与 Mapper 参数只能使用校验后的值。
         ResolvedResourceRankingQuery resolvedQuery = resolveResourceRankingQuery(query);
         StringRedisTemplate stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
         if (stringRedisTemplate == null) {
+            // Redis 未装配时不把运营查询变成服务不可用，直接使用 MySQL 热度快照。
             return listHotResourcesFromMysql(resolvedQuery);
         }
 
@@ -95,6 +103,7 @@ public class RankingServiceImpl implements RankingService {
      */
     @Override
     public List<HotSearchKeywordRankingVO> listHotSearchKeywords(HotSearchKeywordRankingQueryDTO query) {
+        // 搜索词不属于交易数据，参数通过后允许 Redis 故障时降级为空结果。
         ResolvedSearchKeywordRankingQuery resolvedQuery = resolveSearchKeywordRankingQuery(query);
         StringRedisTemplate stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
         if (stringRedisTemplate == null) {
@@ -102,6 +111,7 @@ public class RankingServiceImpl implements RankingService {
         }
 
         try {
+            // 热词 ZSet 的 member 是归一化关键词，score 是累计搜索次数。
             String key = RedisKeyConstants.searchKeywordRank(resolvedQuery.period().getCode());
             Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet()
                     .reverseRangeWithScores(key, 0, resolvedQuery.limit() - 1L);
@@ -121,6 +131,7 @@ public class RankingServiceImpl implements RankingService {
                 rankings.add(new HotSearchKeywordRankingVO(
                         rankings.size() + 1,
                         keyword.trim(),
+                        // 当前写入端只执行 +1，因此 score 应为整数；longValue 用于匹配 API 的 searchCount 类型。
                         score.longValue()));
                 if (rankings.size() == resolvedQuery.limit()) {
                     break;
@@ -140,12 +151,17 @@ public class RankingServiceImpl implements RankingService {
     private List<HotResourceRankingVO> listHotResourcesFromRedis(
             StringRedisTemplate stringRedisTemplate,
             ResolvedResourceRankingQuery query) {
+        // 资料榜的 member 是 resourceId，score 是实时热度分；不同周期通过不同 Key 隔离。
         String key = RedisKeyConstants.resourceHotRank(query.period().getCode());
+        // 分类筛选或下架资料会淘汰候选，因此单批读取量要大于最终 limit，才有机会补足榜单。
         int candidateBatchSize = Math.max(MIN_CANDIDATE_BATCH_SIZE, query.limit() * 2);
+        // Redis ZSet 的 offset 从 0 开始；每轮推进一个候选批次，避免重复读取同一成员。
         int scanOffset = 0;
+        // 只保存最终可公开的记录，rank 由此列表长度生成，保证跳过脏数据后名次仍连续。
         List<HotResourceRankingVO> rankings = new ArrayList<>();
 
         while (rankings.size() < query.limit() && scanOffset < MAX_CANDIDATE_SCAN_SIZE) {
+            // 最后一页不能越过扫描上限，防止异常 Key 中的大量无效成员放大 Redis 与 MySQL 压力。
             int scanEnd = Math.min(scanOffset + candidateBatchSize - 1, MAX_CANDIDATE_SCAN_SIZE - 1);
             Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet()
                     .reverseRangeWithScores(key, scanOffset, scanEnd);
@@ -156,6 +172,7 @@ public class RankingServiceImpl implements RankingService {
             List<RankCandidate> candidates = extractResourceCandidates(tuples);
             appendVisibleResourcesInRedisOrder(rankings, candidates, query);
             if (tuples.size() < candidateBatchSize) {
+                // 本页已到 ZSet 末尾，后续不存在候选，不能再补足时直接结束。
                 break;
             }
             scanOffset += candidateBatchSize;
@@ -194,11 +211,14 @@ public class RankingServiceImpl implements RankingService {
         List<Long> candidateIds = candidates.stream()
                 .map(RankCandidate::resourceId)
                 .toList();
+        // Mapper 固定查询 APPROVED 资料；空集合在进入本方法前已短路，避免生成空 IN SQL。
         List<Resource> resources = resourceMapper.selectApprovedRankingCandidatesByIds(candidateIds, query.categoryId());
+        // SQL 的 IN 查询不保证排序，用 Map 保存资料详情后再按 Redis 候选顺序取回。
         Map<Long, Resource> resourcesById = new HashMap<>();
         if (resources != null) {
             for (Resource resource : resources) {
                 if (isVisibleForRanking(resource, query.categoryId())) {
+                    // 理论上同一资料只会出现一次；putIfAbsent 防御异常 Mapper 返回重复 ID 覆盖首条结果。
                     resourcesById.putIfAbsent(resource.getId(), resource);
                 }
             }
@@ -207,6 +227,7 @@ public class RankingServiceImpl implements RankingService {
         for (RankCandidate candidate : candidates) {
             Resource resource = resourcesById.get(candidate.resourceId());
             if (resource == null) {
+                // 资料可能已下架、删除、分类不匹配或 Redis 留有陈旧 member，继续处理下一候选。
                 continue;
             }
             rankings.add(toHotResourceRankingVO(
@@ -223,6 +244,7 @@ public class RankingServiceImpl implements RankingService {
      * MySQL 兜底只使用已审核通过资料和热度快照，周期榜在降级时会退化为总榜快照语义。
      */
     private List<HotResourceRankingVO> listHotResourcesFromMysql(ResolvedResourceRankingQuery query) {
+        // MySQL 仅保存热度快照，所以此路径可用但无法严格还原 daily/weekly/monthly 的实时周期语义。
         List<Resource> resources = resourceMapper.selectHotApprovedResources(query.categoryId(), query.limit());
         if (resources == null || resources.isEmpty()) {
             return List.of();
@@ -233,6 +255,7 @@ public class RankingServiceImpl implements RankingService {
             if (!isVisibleForRanking(resource, query.categoryId())) {
                 continue;
             }
+            // 数据库设计中 hot_score 非空；这里仍以 0 兜底，避免历史脏数据让整个公开榜单失败。
             BigDecimal hotScore = resource.getHotScore() == null ? BigDecimal.ZERO : resource.getHotScore();
             rankings.add(toHotResourceRankingVO(rankings.size() + 1, resource, hotScore));
             if (rankings.size() == query.limit()) {
@@ -252,6 +275,9 @@ public class RankingServiceImpl implements RankingService {
                 && (categoryId == null || categoryId.equals(resource.getCategoryId()));
     }
 
+    /**
+     * 将已确认可公开的资料转换为榜单 VO，确保不会直接向前端暴露 Resource 的文件、上传者和审核字段。
+     */
     private HotResourceRankingVO toHotResourceRankingVO(int rank, Resource resource, BigDecimal hotScore) {
         return new HotResourceRankingVO(
                 rank,
@@ -279,6 +305,7 @@ public class RankingServiceImpl implements RankingService {
     }
 
     private ResolvedSearchKeywordRankingQuery resolveSearchKeywordRankingQuery(HotSearchKeywordRankingQueryDTO query) {
+        // 查询对象可为空，空对象会使用日榜和默认数量，便于 Service 被非 HTTP 调用方安全复用。
         HotSearchKeywordRankingQueryDTO safeQuery = query == null
                 ? new HotSearchKeywordRankingQueryDTO()
                 : query;
@@ -291,6 +318,9 @@ public class RankingServiceImpl implements RankingService {
         return new ResolvedSearchKeywordRankingQuery(limit, period);
     }
 
+    /**
+     * 统一处理空 limit 与边界限制，避免 Controller 校验缺失时一次查询过多 Redis 成员或数据库记录。
+     */
     private int resolveLimit(Integer limit) {
         if (limit == null) {
             return DEFAULT_LIMIT;
@@ -301,6 +331,9 @@ public class RankingServiceImpl implements RankingService {
         return limit;
     }
 
+    /**
+     * 分类筛选只接受正数；null 表示不限制分类，不能把 0 当作“全部”传给 Mapper。
+     */
     private Long resolveCategoryId(Long categoryId) {
         if (categoryId != null && categoryId <= 0) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "分类 ID 必须大于 0");
@@ -308,6 +341,9 @@ public class RankingServiceImpl implements RankingService {
         return categoryId;
     }
 
+    /**
+     * 将外部字符串映射为周期白名单；搜索词榜额外排除 all，防止无限累积的总榜被误用于运营热词。
+     */
     private RankingPeriod resolvePeriod(
             String rawPeriod,
             RankingPeriod defaultPeriod,
@@ -321,6 +357,9 @@ public class RankingServiceImpl implements RankingService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.PARAM_ERROR, errorMessage));
     }
 
+    /**
+     * Redis member 来自外部缓存，不能假定格式正确；无法解析或非正数时返回 null 交由调用方跳过。
+     */
     private Long parsePositiveResourceId(String value) {
         if (!StringUtils.hasText(value)) {
             return null;

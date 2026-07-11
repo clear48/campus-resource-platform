@@ -71,9 +71,14 @@ public enum RankingPeriod {
      */
     public static Optional<RankingPeriod> fromCode(String code) {
         if (code == null) {
+            // 传入 null 时返回空 Optional，避免抛出 NullPointerException。
             return Optional.empty();
         }
         String normalizedCode = code.trim().toLowerCase(Locale.ROOT);
+        /*
+        values() 是 Java 编译器自动为每个枚举类生成的方法。
+        它会返回当前枚举的所有枚举对象组成的数组。
+         */
         return Arrays.stream(values())
                 .filter(period -> period.code.equals(normalizedCode))
                 .findFirst();
