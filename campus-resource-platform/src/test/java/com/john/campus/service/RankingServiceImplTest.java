@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import com.john.campus.common.ErrorCode;
@@ -13,6 +14,7 @@ import com.john.campus.common.RedisKeyConstants;
 import com.john.campus.dto.HotResourceRankingQueryDTO;
 import com.john.campus.dto.HotSearchKeywordRankingQueryDTO;
 import com.john.campus.entity.Resource;
+import com.john.campus.enums.RankingPeriod;
 import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.service.impl.RankingServiceImpl;
@@ -174,6 +176,51 @@ class RankingServiceImplTest {
                 .thenThrow(new RuntimeException("redis unavailable"));
 
         assertThat(rankingService.listHotSearchKeywords(new HotSearchKeywordRankingQueryDTO())).isEmpty();
+    }
+
+    @Test
+    void resourceHeatEventsShouldUpdateAllPeriodsAndKeepAllRankingWithoutTtl() {
+        mockRedisAvailable();
+
+        rankingService.recordResourceDownload(100L);
+        rankingService.recordResourceFavorite(100L);
+        rankingService.recordResourceUnfavorite(100L);
+
+        for (RankingPeriod period : RankingPeriod.values()) {
+            String key = RedisKeyConstants.resourceHotRank(period.getCode());
+            verify(zSetOperations).incrementScore(key, "100", 5D);
+            verify(zSetOperations).incrementScore(key, "100", 3D);
+            verify(zSetOperations).incrementScore(key, "100", -3D);
+            // 三个行为事件都刷新周期榜 TTL；all 总榜没有 TTL，因此不会调用 expire。
+            period.getTtl().ifPresent(ttl -> verify(stringRedisTemplate, times(3)).expire(key, ttl));
+        }
+    }
+
+    @Test
+    void approveAndOfflineShouldInitializeThenRemoveAllRankingMembers() {
+        mockRedisAvailable();
+
+        rankingService.initializeApprovedResource(100L);
+        rankingService.removeOfflineResource(100L);
+
+        for (RankingPeriod period : RankingPeriod.values()) {
+            String key = RedisKeyConstants.resourceHotRank(period.getCode());
+            // ZINCRBY 0 会保留旧分数，并在成员缺失时创建初始成员。
+            verify(zSetOperations).incrementScore(key, "100", 0D);
+            verify(zSetOperations).remove(key, "100");
+        }
+    }
+
+    @Test
+    void resourceHeatUpdateShouldNotPropagateRedisFailure() {
+        mockRedisAvailable();
+        when(zSetOperations.incrementScore(RedisKeyConstants.resourceHotRank("daily"), "100", 5D))
+                .thenThrow(new RuntimeException("redis unavailable"));
+
+        rankingService.recordResourceDownload(100L);
+
+        // Redis 是派生数据存储，异常必须被排行榜服务吞掉，调用下载/收藏/审核主流程不感知失败。
+        verify(zSetOperations).incrementScore(RedisKeyConstants.resourceHotRank("daily"), "100", 5D);
     }
 
     private void mockRedisAvailable() {

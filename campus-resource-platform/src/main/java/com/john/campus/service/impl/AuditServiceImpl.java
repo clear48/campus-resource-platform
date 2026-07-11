@@ -14,14 +14,19 @@ import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.AuditRecordMapper;
 import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.service.AuditService;
+import com.john.campus.service.RankingService;
 import com.john.campus.vo.AuditRecordVO;
 import com.john.campus.vo.AuditResultVO;
 import com.john.campus.vo.PendingReviewResourceVO;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 /**
@@ -29,6 +34,11 @@ import org.springframework.util.StringUtils;
  */
 @Service
 public class AuditServiceImpl implements AuditService {
+
+    /**
+     * 记录排行榜派生数据的失败信息，便于排查 Redis 故障，同时不干扰审核主事务。
+     */
+    private static final Logger log = LoggerFactory.getLogger(AuditServiceImpl.class);
 
     /**
      * 审核原因字段与 resource/audit_record 表的 VARCHAR(500) 保持一致。
@@ -46,10 +56,18 @@ public class AuditServiceImpl implements AuditService {
      * 审核记录访问入口，用于写入和查询审计流水。
      */
     private final AuditRecordMapper auditRecordMapper;
+    /**
+     * 审核提交后维护排行榜成员；不能在事务内直接写 Redis，否则数据库回滚会留下错误榜单状态。
+     */
+    private final RankingService rankingService;
 
-    public AuditServiceImpl(ResourceMapper resourceMapper, AuditRecordMapper auditRecordMapper) {
+    public AuditServiceImpl(
+            ResourceMapper resourceMapper,
+            AuditRecordMapper auditRecordMapper,
+            RankingService rankingService) {
         this.resourceMapper = resourceMapper;
         this.auditRecordMapper = auditRecordMapper;
+        this.rankingService = rankingService;
     }
 
     /**
@@ -108,6 +126,7 @@ public class AuditServiceImpl implements AuditService {
                 resource.getStatus(),
                 Resource.STATUS_APPROVED,
                 auditReason);
+        runAfterCommit(() -> rankingService.initializeApprovedResource(resourceId));
         return toAuditResultVO(auditRecord, approvedAt, null);
     }
 
@@ -171,7 +190,29 @@ public class AuditServiceImpl implements AuditService {
                 resource.getStatus(),
                 Resource.STATUS_OFFLINE,
                 offlineReason);
+        runAfterCommit(() -> rankingService.removeOfflineResource(resourceId));
         return toAuditResultVO(auditRecord, null, offlineAt);
+    }
+
+    /**
+     * 仅在 MySQL 事务真正提交后执行 Redis 派生数据更新；未开启事务的测试或内部调用则立即执行，便于保持调用语义一致。
+     */
+    private void runAfterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    action.run();
+                } catch (RuntimeException ex) {
+                    // Redis 派生数据异常不应影响已提交的审核状态机结果。
+                    log.warn("审核完成后同步排行榜失败", ex);
+                }
+            }
+        });
     }
 
     /**

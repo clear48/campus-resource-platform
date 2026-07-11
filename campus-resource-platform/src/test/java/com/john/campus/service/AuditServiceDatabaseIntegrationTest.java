@@ -18,6 +18,7 @@ import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.AuditRecordMapper;
 import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.service.impl.AuditServiceImpl;
+import com.john.campus.service.impl.RankingServiceImpl;
 import com.john.campus.vo.AuditRecordVO;
 import com.john.campus.vo.AuditResultVO;
 import com.john.campus.vo.PendingReviewResourceVO;
@@ -40,7 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 审核服务数据库集成测试：使用本机 MySQL 执行真实 MyBatis XML，验证状态机、事务和审核记录留痕。
  */
 @MybatisTest
-@Import({MyBatisConfig.class, AuditServiceImpl.class})
+@Import({MyBatisConfig.class, AuditServiceImpl.class, RankingServiceImpl.class})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @TestPropertySource(properties = {
         "spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver",

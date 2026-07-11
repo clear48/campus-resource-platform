@@ -59,6 +59,13 @@ public class RankingServiceImpl implements RankingService {
     private static final int MAX_CANDIDATE_SCAN_SIZE = 500;
 
     /**
+     * 热度权重集中维护在排行榜模块，调用方只表达业务事件，避免下载、收藏和审核模块散落魔法分值。
+     */
+    private static final double DOWNLOAD_HEAT_DELTA = 5D;
+    private static final double FAVORITE_HEAT_DELTA = 3D;
+    private static final double UNFAVORITE_HEAT_DELTA = -3D;
+
+    /**
      * MySQL 资料数据源：Redis 只负责给出候选 ID 和实时分数，公开资料字段及状态必须以此为准。
      */
     private final ResourceMapper resourceMapper;
@@ -143,6 +150,91 @@ public class RankingServiceImpl implements RankingService {
                     resolvedQuery.period().getCode(), ex);
             return List.of();
         }
+    }
+
+    /**
+     * 有效下载写入四个周期榜；下载去重和增量统计由 DownloadService 先完成，本方法只处理可降级的排行榜副作用。
+     */
+    @Override
+    public void recordResourceDownload(Long resourceId) {
+        adjustResourceHeat(resourceId, DOWNLOAD_HEAT_DELTA, "download");
+    }
+
+    /**
+     * 真实收藏成功后写入四个周期榜，重复收藏不会到达这里，从而保证热度与收藏状态变更一一对应。
+     */
+    @Override
+    public void recordResourceFavorite(Long resourceId) {
+        adjustResourceHeat(resourceId, FAVORITE_HEAT_DELTA, "favorite");
+    }
+
+    /**
+     * 真实取消收藏成功后扣减四个周期榜分数；允许得到负分，后续总榜重建会以持久化统计快照校准。
+     */
+    @Override
+    public void recordResourceUnfavorite(Long resourceId) {
+        adjustResourceHeat(resourceId, UNFAVORITE_HEAT_DELTA, "unfavorite");
+    }
+
+    /**
+     * 审核通过仅补齐缺失成员，不重置已有热度；使用 ZINCRBY 0 可同时覆盖首次创建和幂等重试。
+     */
+    @Override
+    public void initializeApprovedResource(Long resourceId) {
+        adjustResourceHeat(resourceId, 0D, "approve");
+    }
+
+    /**
+     * 下架后的资料必须主动从四个周期榜移除，避免仅依赖查询时过滤造成 Redis 榜单持续堆积脏成员。
+     */
+    @Override
+    public void removeOfflineResource(Long resourceId) {
+        if (!isValidResourceId(resourceId)) {
+            return;
+        }
+        StringRedisTemplate stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
+        if (stringRedisTemplate == null) {
+            return;
+        }
+        try {
+            ZSetOperations<String, String> zSetOperations = stringRedisTemplate.opsForZSet();
+            String member = String.valueOf(resourceId);
+            for (RankingPeriod period : RankingPeriod.values()) {
+                zSetOperations.remove(RedisKeyConstants.resourceHotRank(period.getCode()), member);
+            }
+        } catch (RuntimeException ex) {
+            // 排行榜属于可重建的派生数据；移除失败不能回滚已提交的下架状态。
+            log.warn("下架资料移除 Redis 热门榜失败: resourceId={}", resourceId, ex);
+        }
+    }
+
+    /**
+     * 统一执行四周期 ZSet 分值变更，并为有 TTL 的周期续期；Redis 不可用时只记录日志，主业务保持可用。
+     */
+    private void adjustResourceHeat(Long resourceId, double delta, String event) {
+        if (!isValidResourceId(resourceId)) {
+            return;
+        }
+        StringRedisTemplate stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
+        if (stringRedisTemplate == null) {
+            return;
+        }
+        try {
+            ZSetOperations<String, String> zSetOperations = stringRedisTemplate.opsForZSet();
+            String member = String.valueOf(resourceId);
+            for (RankingPeriod period : RankingPeriod.values()) {
+                String key = RedisKeyConstants.resourceHotRank(period.getCode());
+                zSetOperations.incrementScore(key, member, delta);
+                // all 总榜不设置过期时间，其余周期通过 TTL 限制 Redis 历史数据的保留窗口。
+                period.getTtl().ifPresent(ttl -> stringRedisTemplate.expire(key, ttl));
+            }
+        } catch (RuntimeException ex) {
+            log.warn("写入 Redis 资料热度失败: event={}, resourceId={}, delta={}", event, resourceId, delta, ex);
+        }
+    }
+
+    private boolean isValidResourceId(Long resourceId) {
+        return resourceId != null && resourceId > 0;
     }
 
     /**

@@ -16,6 +16,7 @@ import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.service.DownloadRateLimiter;
 import com.john.campus.service.DownloadService;
 import com.john.campus.service.FileStorageService;
+import com.john.campus.service.RankingService;
 import com.john.campus.vo.DownloadTicketVO;
 import com.john.campus.vo.MyDownloadRecordVO;
 import java.time.Duration;
@@ -53,6 +54,10 @@ public class DownloadServiceImpl implements DownloadService {
     private final DownloadRateLimiter downloadRateLimiter;
     private final FileStorageService fileStorageService;
     private final StringRedisTemplate stringRedisTemplate;
+    /**
+     * 排行榜只承接下载成功后的派生热度更新，任何 Redis 故障均不能改变下载记录的写入结果。
+     */
+    private final RankingService rankingService;
 
     public DownloadServiceImpl(
             DownloadRecordMapper downloadRecordMapper,
@@ -60,13 +65,15 @@ public class DownloadServiceImpl implements DownloadService {
             FileInfoMapper fileInfoMapper,
             DownloadRateLimiter downloadRateLimiter,
             FileStorageService fileStorageService,
-            StringRedisTemplate stringRedisTemplate) {
+            StringRedisTemplate stringRedisTemplate,
+            RankingService rankingService) {
         this.downloadRecordMapper = downloadRecordMapper;
         this.resourceMapper = resourceMapper;
         this.fileInfoMapper = fileInfoMapper;
         this.downloadRateLimiter = downloadRateLimiter;
         this.fileStorageService = fileStorageService;
         this.stringRedisTemplate = stringRedisTemplate;
+        this.rankingService = rankingService;
     }
 
     /**
@@ -111,6 +118,10 @@ public class DownloadServiceImpl implements DownloadService {
 
         // 去重判断：去重 Key 命中期内不重复计入下载量，但允许下载本身。
         boolean counted = tryCountDownload(userId, resourceId);
+        if (counted) {
+            // 只有 SETNX 去重和 Hash 增量都成功后才记热度，避免重复下载把排行分数放大。
+            recordDownloadHeatSafely(resourceId);
+        }
 
         String downloadUrl = String.format(DOWNLOAD_FILE_PATH_FORMAT, record.getId());
         return new DownloadTicketVO(
@@ -204,6 +215,17 @@ public class DownloadServiceImpl implements DownloadService {
         } catch (RuntimeException ex) {
             log.warn("下载去重或增量统计失败，跳过计数: userId={}, resourceId={}", userId, resourceId, ex);
             return false;
+        }
+    }
+
+    /**
+     * 热度属于下载主业务提交后的可降级副作用；即使排行榜服务意外抛错，也不能让已创建的下载凭证失败。
+     */
+    private void recordDownloadHeatSafely(Long resourceId) {
+        try {
+            rankingService.recordResourceDownload(resourceId);
+        } catch (RuntimeException ex) {
+            log.warn("记录下载热度失败，下载主流程已成功: resourceId={}", resourceId, ex);
         }
     }
 

@@ -11,6 +11,7 @@ import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.FavoriteMapper;
 import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.service.FavoriteService;
+import com.john.campus.service.RankingService;
 import com.john.campus.vo.FavoriteResultVO;
 import com.john.campus.vo.FavoriteStatusVO;
 import com.john.campus.vo.MyFavoriteVO;
@@ -57,7 +58,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     private static final int FAVORITE_COUNT_INCREMENT = 1;
     private static final int FAVORITE_COUNT_DECREMENT = -1;
     /**
-     * 热度 ZSet 联动尚未进入收藏模块首版，因此接口仍保留字段但固定返回 0。
+     * 返回字段兼容既有接口协议；真实热度由 RankingService 维护，首版响应仍固定返回 0。
      */
     private static final int HOT_SCORE_DELTA_NOT_IMPLEMENTED = 0;
 
@@ -77,16 +78,22 @@ public class FavoriteServiceImpl implements FavoriteService {
      * 显式控制 MySQL 事务边界：只包裹 favorite 和 resource 的写操作，提交后才执行 Redis 同步。
      */
     private final TransactionTemplate transactionTemplate;
+    /**
+     * 收藏状态提交成功后的热度副作用；其 Redis 写入失败不影响 MySQL 收藏关系和收藏数。
+     */
+    private final RankingService rankingService;
 
     public FavoriteServiceImpl(
             FavoriteMapper favoriteMapper,
             ResourceMapper resourceMapper,
             ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
-            TransactionTemplate transactionTemplate) {
+            TransactionTemplate transactionTemplate,
+            RankingService rankingService) {
         this.favoriteMapper = favoriteMapper;
         this.resourceMapper = resourceMapper;
         this.stringRedisTemplateProvider = stringRedisTemplateProvider;
         this.transactionTemplate = transactionTemplate;
+        this.rankingService = rankingService;
     }
 
     /**
@@ -114,6 +121,10 @@ public class FavoriteServiceImpl implements FavoriteService {
 
         // TransactionTemplate.execute 返回时 MySQL 已提交，Redis 失败仅影响缓存命中率。
         addFavoriteToCache(userId, resourceId);
+        if (!Boolean.TRUE.equals(result.duplicateIgnored())) {
+            // 幂等重复收藏不改变 favorite_count，因此也不能重复增加排行榜分数。
+            recordFavoriteHeatSafely(resourceId, true);
+        }
         return result;
     }
 
@@ -129,6 +140,8 @@ public class FavoriteServiceImpl implements FavoriteService {
                 transactionStatus -> cancelFavoriteInTransaction(userId, resourceId)));
 
         removeFavoriteFromCache(userId, resourceId);
+        // 能走到这里说明 1 -> 0 条件更新和收藏数递减均已提交，才允许扣减热度。
+        recordFavoriteHeatSafely(resourceId, false);
         return result;
     }
 
@@ -334,6 +347,21 @@ public class FavoriteServiceImpl implements FavoriteService {
                     .remove(RedisKeyConstants.userFavorites(userId), String.valueOf(resourceId));
         } catch (RuntimeException ex) {
             log.warn("移除收藏缓存失败: userId={}, resourceId={}", userId, resourceId, ex);
+        }
+    }
+
+    /**
+     * 热度更新位于 TransactionTemplate 返回之后；MySQL 已提交时 Redis 异常只能降级记录，不能回滚收藏主业务。
+     */
+    private void recordFavoriteHeatSafely(Long resourceId, boolean favorited) {
+        try {
+            if (favorited) {
+                rankingService.recordResourceFavorite(resourceId);
+            } else {
+                rankingService.recordResourceUnfavorite(resourceId);
+            }
+        } catch (RuntimeException ex) {
+            log.warn("记录收藏热度失败，收藏主流程已成功: resourceId={}, favorited={}", resourceId, favorited, ex);
         }
     }
 
