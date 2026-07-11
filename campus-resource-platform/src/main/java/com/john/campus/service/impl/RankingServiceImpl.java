@@ -254,6 +254,7 @@ public class RankingServiceImpl implements RankingService {
 
         while (rankings.size() < query.limit() && scanOffset < MAX_CANDIDATE_SCAN_SIZE) {
             // 最后一页不能越过扫描上限，防止异常 Key 中的大量无效成员放大 Redis 与 MySQL 压力。
+            //计算当前批次结束下标
             int scanEnd = Math.min(scanOffset + candidateBatchSize - 1, MAX_CANDIDATE_SCAN_SIZE - 1);
             Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet()
                     .reverseRangeWithScores(key, scanOffset, scanEnd);
