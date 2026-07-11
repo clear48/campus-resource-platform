@@ -1,8 +1,8 @@
 # 排行榜与定时任务模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**步骤 1 至步骤 7 已完成；排行榜已具备查询与下载、收藏、审核状态变化的热度联动能力，步骤 8 待开发**。
-> 当前尚未实现下载增量定时同步、热度快照任务或数据库结构变更。
+> 当前状态：**步骤 1 至步骤 8 已完成；排行榜已具备查询、行为热度联动及下载增量定时同步能力，步骤 9 待开发**。
+> 当前尚未实现总榜热度快照任务或数据库结构变更。
 
 ---
 
@@ -14,7 +14,7 @@
 | 英文标识 | rank |
 | 文档路径 | `docs/modules/09-rank-development-process.md` |
 | 当前分支 | `dev` |
-| 当前状态 | 步骤 1 至 7 已完成；下一步实现下载增量定时同步 |
+| 当前状态 | 步骤 1 至 8 已完成；下一步实现总榜重建与热度快照 |
 | 前置依赖模块 | 资料、审核、搜索、下载、收藏模块 |
 | 下游模块 | 首页热门资料展示、搜索框热门词展示、后台运营统计 |
 | 接口前缀 | `/api/v1/rankings` |
@@ -201,7 +201,7 @@ idx_resource_hot (status, hot_score, download_count)
 | Key | 结构 | 当前状态 | 本模块用途 |
 | --- | --- | --- | --- |
 | `crp:rank:search:keyword:{period}` | ZSet | 搜索模块已写入 | 查询热门搜索词 Top N |
-| `crp:stats:resource:download:delta` | Hash | 下载模块已写入 | 定时同步下载量到 MySQL |
+| `crp:stats:resource:download:delta` | Hash | 下载模块持续写入，步骤 8 已消费 | 原子隔离后定时同步下载量到 MySQL |
 
 ### 7.2 常量已定义但业务尚未使用的 Key
 
@@ -211,10 +211,10 @@ idx_resource_hot (status, hot_score, download_count)
 | `crp:rank:resource:hot:weekly` | ZSet | 14 天 | 周榜 |
 | `crp:rank:resource:hot:monthly` | ZSet | 60 天 | 月榜 |
 | `crp:rank:resource:hot:all` | ZSet | 不设置 | 总榜 |
-| `crp:lock:sync:download-delta` | String | 短 TTL | 下载增量同步任务互斥锁 |
-| `crp:stats:resource:download:syncing:{batchId}` | Hash | 处理完成后主动删除 | 与实时 delta 隔离的待同步批次 |
+| `crp:lock:sync:download-delta` | String | 默认 300 秒 TTL | 下载增量同步任务互斥锁，value 为随机 owner token |
+| `crp:stats:resource:download:syncing:{batchId}` | Hash | `active` 批次成功后按字段删除，失败时保留 | 与实时 delta 隔离的待同步批次 |
 
-> 步骤 2 已在 `RedisKeyConstants` 中补充热门资料榜、同步锁和 syncing 批次常量及格式化方法。当前仅完成统一定义，具体 Redis 读写仍归后续 Service 与定时任务步骤。
+> 步骤 2 已在 `RedisKeyConstants` 中补充热门资料榜、同步锁和 syncing 批次常量及格式化方法；步骤 8 已实际使用下载 delta、同步锁与固定的 `syncing:active` 批次。
 
 ### 7.3 热度权重与更新时机
 
@@ -273,12 +273,14 @@ idx_resource_hot (status, hot_score, download_count)
 | service/impl | `RankingServiceImpl` | ZSet 查询、MySQL 补齐、公开状态过滤、降级和四周期热度增减 | 已实现 |
 | controller | `RankingController` | 两个公开只读接口入口 | 已实现 |
 | mapper | `ResourceMapper` + XML | 已新增热门榜候选补齐、MySQL 兜底、下载增量和热度快照更新 SQL | 已实现 |
-| service | `DownloadDeltaSyncService` | 定义一次下载增量同步业务 | 待开发 |
-| service/impl | `DownloadDeltaSyncServiceImpl` | 批次隔离、MySQL 事务更新、成功清理和失败补偿 | 待开发 |
-| task | `RankingSyncTask` | 按计划触发下载增量同步与热度快照任务，不承载事务细节 | 待开发 |
-| config/application | 调度配置或启动类 | 启用 Spring Scheduling；不新增第三方依赖 | 待开发 |
+| service | `DownloadDeltaSyncService` | 定义一次下载增量同步业务 | 已实现 |
+| service | `DownloadDeltaPersistenceService` | 定义独立的事务性 MySQL 下载计数持久化业务 | 已实现 |
+| service/impl | `DownloadDeltaSyncServiceImpl` | 锁、批次隔离、限批、成功确认和失败保留 | 已实现 |
+| service/impl | `DownloadDeltaPersistenceServiceImpl` | 通过 Spring 代理执行 MySQL 原子累加事务 | 已实现 |
+| task | `RankingSyncTask` | 按计划触发下载增量同步，不承载锁或事务细节 | 已实现 |
+| config/application | 启动类与 `application.yaml` | 启用 Spring Scheduling，集中配置频率、单批上限与锁 TTL | 已实现 |
 | test | `RankingPeriodTest` | 校验周期 TTL、热词边界与排行榜 Key 格式 | 已实现 |
-| test | `RankingControllerTest`、`RankingServiceImplTest`、`DownloadServiceImplTest`、`FavoriteServiceImplTest`、`AuditServiceImplTest` | 已覆盖接口、热度行为、重复请求和 Redis 降级；Mapper 与定时任务专项测试待步骤 8～10 补齐 | 部分已实现 |
+| test | `RankingControllerTest`、`RankingServiceImplTest`、`DownloadServiceImplTest`、`FavoriteServiceImplTest`、`AuditServiceImplTest`、`DownloadDeltaSyncServiceImplTest`、`DownloadDeltaPersistenceServiceImplTest`、`RankingSyncTaskTest` | 已覆盖接口、热度行为、重复请求、Redis 降级、下载同步成功/失败/锁竞争/限批及任务触发；Mapper 与热度快照专项测试待后续补齐 | 部分已实现 |
 
 > 项目现有约定要求 Spring Service 使用“接口 + 实现”。定时任务只负责触发，带事务的同步逻辑必须放入独立 Service，由 Spring 代理调用，避免同类自调用导致事务失效。
 
@@ -311,12 +313,12 @@ AuditServiceImpl（MySQL 状态事务提交后）
   └── 下架 → RankingService.removeResource(resourceId)
 
 RankingSyncTask
-  └── DownloadDeltaSyncService.syncOnce()
-        ├── 获取 crp:lock:sync:download-delta 分布式锁
-        ├── 原子隔离 delta → syncing:{batchId}
-        ├── ResourceMapper 原子累加 download_count（MySQL 事务）
-        ├── 同步 all 榜热度分快照到 resource.hot_score
-        └── 成功删除 syncing；失败保留/合并并重试
+  └── DownloadDeltaSyncService.syncDownloadDeltas()
+        ├── SET NX 获取 crp:lock:sync:download-delta（随机 owner token）
+        ├── 优先续处理 syncing:active；否则原子 RENAME delta → syncing:active
+        ├── DownloadDeltaPersistenceService.persistDownloadDeltas()（MySQL 事务）
+        ├── 成功后仅 HDEL 本批已持久化字段，剩余字段留待下一轮
+        └── 失败保留 syncing:active；Lua 比较 owner token 后释放锁
 ```
 
 ---
@@ -484,7 +486,7 @@ MySQL 查询 APPROVED 资料
 | T5 | 排行榜 Service | 两榜查询、状态过滤、降级、`RankingServiceImplTest` | 已完成（`fc62f5e`） |
 | T6 | 排行榜 Controller | 两个公开 GET 接口 | 已完成（`c2ab537`） |
 | T7 | 行为热度联动 | 下载 +5、收藏 ±3、审核初始化/下架移除 | 已完成（`295b0db`） |
-| T8 | 下载增量定时同步 | syncing 批次、锁、事务、补偿 | 待开发 |
+| T8 | 下载增量定时同步 | syncing 批次、锁、事务、补偿 | 已完成（`1dd8e10`） |
 | T9 | 总榜初始化与热度快照 | all 榜重建、`hot_score` 回写 | 待开发 |
 | T10 | 专项测试 | Controller/Service/Mapper/Task 测试 | 待开发 |
 | T11 | 文档同步 | API、Redis、进度、README 等 | 待开发 |
@@ -535,16 +537,19 @@ MySQL 查询 APPROVED 资料
 - 【步骤 7】审核通过和下架通过 `TransactionSynchronization.afterCommit` 更新排行榜成员，避免 MySQL 回滚时出现错误的 Redis 榜单状态；所有 Redis 热度异常只记录日志，不影响已成功的下载、收藏或审核主流程。
 - 【步骤 7】已新增下载、收藏、审核热度联动测试，并扩展排行榜 Service 测试；19 个针对性测试和全量 79 个测试均通过。
 - 【步骤 7】功能提交为 `295b0db feat(rank): connect resource behavior heat updates`，已推送到 `origin/dev`。
+- 【步骤 8】已新增 `DownloadDeltaSyncService`、`DownloadDeltaPersistenceService` 及其实现；同步任务先处理遗留的 `syncing:active`，否则通过 Redis `RENAME` 将实时 delta 原子隔离为该批次，新下载继续写入新的 delta Hash。
+- 【步骤 8】已使用带随机 owner token 的 `SET NX` 锁（默认 TTL 300 秒）防止多实例重复同步；释放时执行 Lua 比较 token 后删除。MySQL 原子累加由独立的 `@Transactional` 持久化 Service 执行，持久化失败时不删除 syncing 批次。
+- 【步骤 8】已新增仅负责触发的 `RankingSyncTask`，并在启动类启用 Scheduling；`application.yaml` 已集中配置 60 秒 fixed-delay、每批最多 500 条和锁 TTL，未新增接口、表结构或第三方依赖。
+- 【步骤 8】已新增下载同步、持久化和任务触发测试；8 个步骤 8 针对性测试及全量 87 个测试均通过。功能提交为 `1dd8e10 feat(rank): sync download deltas with distributed lock`，已推送到 `origin/dev`。
 
 ---
 
 ## 19. 待完成事项
 
-- T8～T12 的定时任务、专项测试和同步文档任务。
+- T9～T12 的总榜快照、其余专项测试和同步文档任务。
 - 在实现前统一 `docs/04-api-doc.md` 中 Redis Key 示例的旧前缀写法，最终以 `crp:` 规范和 `RedisKeyConstants` 为准。
-- 确定定时任务执行频率、锁 TTL、单批最大资料数等运行参数，并通过配置项集中管理。
+- 当前同步采用“优先不丢数据”的至少一次语义：若 MySQL 事务已提交但随后 Redis `HDEL` 失败，遗留字段可能被重复累加；后续可通过持久化批次记录或幂等流水进一步收敛这一边界。
 - 确定热门搜索词 Redis 故障时“返回空列表”与 API 文档 `50001` 描述的最终口径。
-- 实现后补充真实测试记录、修改文件、commit id 和推送结果。
 
 ---
 
@@ -639,6 +644,8 @@ cd campus-resource-platform
 | `.\mvnw.cmd test`（步骤 6 后） | 通过，66 个测试，0 失败、0 错误、0 跳过 |
 | `.\mvnw.cmd clean "-Dtest=RankingServiceImplTest,FavoriteServiceImplTest,DownloadServiceImplTest,AuditServiceImplTest" test`（步骤 7） | 通过，19 个测试，0 失败、0 错误、0 跳过；覆盖四周期热度、重复下载/收藏/取消、审核提交后回调及 Redis 异常降级 |
 | `.\mvnw.cmd test`（步骤 7 后） | 通过，79 个测试，0 失败、0 错误、0 跳过 |
+| `.\mvnw.cmd clean "-Dtest=DownloadDeltaSyncServiceImplTest,DownloadDeltaPersistenceServiceImplTest,RankingSyncTaskTest" test`（步骤 8） | 通过，8 个测试，0 失败、0 错误、0 跳过；覆盖批次隔离、遗留批次续处理、事务失败保留、锁竞争、限批与任务触发 |
+| `.\mvnw.cmd test`（步骤 8 后） | 通过，87 个测试，0 失败、0 错误、0 跳过 |
 
 ---
 
@@ -673,16 +680,26 @@ cd campus-resource-platform
 | `campus-resource-platform/src/test/java/com/john/campus/service/AuditServiceImplTest.java` | 新增 | 验证审核通过/下架仅在事务提交后联动排行榜 |
 | `campus-resource-platform/src/test/java/com/john/campus/service/AuditServiceDatabaseIntegrationTest.java` | 修改 | 装配排行榜 Service，保持审核数据库集成测试覆盖 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/impl/FavoriteServiceImpl.java` | 用户注释提交 | 仅增加 DuplicateKeyException 事务回滚说明；不属于排行榜逻辑 |
+| `campus-resource-platform/src/main/java/com/john/campus/CampusResourcePlatformApplication.java` | 修改 | 启用 `@EnableScheduling` |
+| `campus-resource-platform/src/main/resources/application.yaml` | 修改 | 配置下载增量同步 fixed-delay、单批最大数量和锁 TTL |
+| `campus-resource-platform/src/main/java/com/john/campus/service/DownloadDeltaSyncService.java` | 新增 | 定义下载增量同步入口 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/DownloadDeltaPersistenceService.java` | 新增 | 定义事务性下载增量持久化接口 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadDeltaSyncServiceImpl.java` | 新增 | 实现锁、批次隔离、限批、失败保留和安全解锁 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadDeltaPersistenceServiceImpl.java` | 新增 | 在事务中调用 Mapper 原子累加下载量 |
+| `campus-resource-platform/src/main/java/com/john/campus/task/RankingSyncTask.java` | 新增 | 按固定延迟触发下载增量同步 |
+| `campus-resource-platform/src/test/java/com/john/campus/service/DownloadDeltaSyncServiceImplTest.java` | 新增 | 覆盖批次、失败、锁竞争和限批 |
+| `campus-resource-platform/src/test/java/com/john/campus/service/DownloadDeltaPersistenceServiceImplTest.java` | 新增 | 覆盖事务性持久化成功和异常 |
+| `campus-resource-platform/src/test/java/com/john/campus/task/RankingSyncTaskTest.java` | 新增 | 覆盖任务委托调用 |
 
-### 21.2 步骤 2、3、4、5、6、7 明确未修改或未涉及
+### 21.2 步骤 2、3、4、5、6、7、8 明确未修改或未涉及
 
 - `sql/**`
-- 定时调度和数据库配置
+- 数据库配置、表结构和 HTTP 接口
 - 步骤 4 未修改 `src/test/**`（用户要求）；步骤 5、6、7 均已补充对应的 Service 或 Controller 测试
 
 ### 21.3 后续计划修改（尚未发生）
 
-- 调度配置、同步 Service、`task` 包和对应测试。
+- 总榜重建、热度快照任务及对应测试。
 - `docs/04-api-doc.md`、`docs/05-redis-design.md`、`docs/06-project-progress.md`、`README.md` 等同步文档。
 
 ---
@@ -745,7 +762,7 @@ cd campus-resource-platform
 | T5 | `feat(rank): implement ranking service`（已使用，commit `fc62f5e`） |
 | T6 | `feat(rank): add ranking query endpoints`（已使用，commit `c2ab537`） |
 | T7 | `feat(rank): connect resource behavior heat updates`（已使用，commit `295b0db`） |
-| T8 | `feat(rank): sync download deltas with distributed lock` |
+| T8 | `feat(rank): sync download deltas with distributed lock`（已使用，commit `1dd8e10`） |
 | T9 | `feat(rank): rebuild hot ranking and persist score snapshots` |
 | T10 | `test(rank): add ranking and scheduled task tests` |
 | T11 | `docs(rank): sync ranking module documentation` |
@@ -765,7 +782,7 @@ cd campus-resource-platform
 | 步骤 5 | 实现排行榜 Service | ✅ 已完成（`fc62f5e`） |
 | 步骤 6 | 实现排行榜 Controller | ✅ 已完成（`c2ab537`） |
 | 步骤 7 | 接入下载/收藏/审核热度联动 | ✅ 已完成（`295b0db`） |
-| 步骤 8 | 实现下载增量定时同步 | 待执行 |
+| 步骤 8 | 实现下载增量定时同步 | ✅ 已完成（`1dd8e10`） |
 | 步骤 9 | 实现总榜重建与热度快照 | 待执行 |
 | 步骤 10 | 补充排行榜模块测试 | 待执行 |
 | 步骤 11 | 同步排行榜相关文档 | 待执行 |
