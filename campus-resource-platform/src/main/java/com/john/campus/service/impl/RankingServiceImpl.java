@@ -343,6 +343,30 @@ public class RankingServiceImpl implements RankingService {
 
     /**
      * 将外部字符串映射为周期白名单；搜索词榜额外排除 all，防止无限累积的总榜被误用于运营热词。
+     *接收 rawPeriod
+      ↓
+rawPeriod 是否为空或只有空格？
+      │
+      ├── 是 → 返回 defaultPeriod
+      │
+      └── 否
+           ↓
+根据 code 查找 RankingPeriod
+           │
+           ├── 找不到 → 抛参数异常
+           │
+           └── 找到
+                 ↓
+当前是否为搜索关键词排行榜？
+           │
+           ├── 否 → 直接允许该周期
+           │
+           └── 是
+                 ↓
+该周期是否支持搜索关键词排行榜？
+           │
+           ├── 是 → 返回该周期
+           └── 否 → 抛参数异常
      */
     private RankingPeriod resolvePeriod(
             String rawPeriod,
