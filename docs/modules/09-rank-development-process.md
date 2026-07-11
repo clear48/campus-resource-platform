@@ -1,8 +1,8 @@
 # 排行榜与定时任务模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**步骤 1 至步骤 5 已完成；排行榜查询 Service 已具备 Redis 实时榜、MySQL 兜底与热词降级能力，步骤 6 待开发**。
-> 步骤 5 只实现查询能力，未实现 Controller、资料热度写入、定时任务或数据库结构变更。
+> 当前状态：**步骤 1 至步骤 6 已完成；排行榜已提供两个匿名只读查询接口，Service 具备 Redis 实时榜、MySQL 兜底与热词降级能力，步骤 7 待开发**。
+> 当前尚未实现资料热度写入、定时任务或数据库结构变更。
 
 ---
 
@@ -14,7 +14,7 @@
 | 英文标识 | rank |
 | 文档路径 | `docs/modules/09-rank-development-process.md` |
 | 当前分支 | `dev` |
-| 当前状态 | 步骤 1 至 5 已完成；下一步实现排行榜 Controller |
+| 当前状态 | 步骤 1 至 6 已完成；下一步接入下载、收藏和审核的热度联动 |
 | 前置依赖模块 | 资料、审核、搜索、下载、收藏模块 |
 | 下游模块 | 首页热门资料展示、搜索框热门词展示、后台运营统计 |
 | 接口前缀 | `/api/v1/rankings` |
@@ -482,7 +482,7 @@ MySQL 查询 APPROVED 资料
 | T3 | DTO / VO | 两个查询 DTO、两个榜单 VO、`RankingQueryDTOTest` | 已完成（`d28ecb8`） |
 | T4 | Mapper 能力 | 榜单补齐/兜底、下载增量、热度快照 SQL | 已完成（`b4b7bbe`） |
 | T5 | 排行榜 Service | 两榜查询、状态过滤、降级、`RankingServiceImplTest` | 已完成（`fc62f5e`） |
-| T6 | 排行榜 Controller | 两个公开 GET 接口 | 待开发 |
+| T6 | 排行榜 Controller | 两个公开 GET 接口 | 已完成（`c2ab537`） |
 | T7 | 行为热度联动 | 下载 +5、收藏 ±3、审核初始化/下架移除 | 待开发 |
 | T8 | 下载增量定时同步 | syncing 批次、锁、事务、补偿 | 待开发 |
 | T9 | 总榜初始化与热度快照 | all 榜重建、`hot_score` 回写 | 待开发 |
@@ -526,12 +526,16 @@ MySQL 查询 APPROVED 资料
 - 【步骤 5】热门资料 Redis 缺失或异常时降级 MySQL `hot_score` 快照；热门搜索词 Redis 缺失或异常时返回空列表，不中断其他业务。
 - 【步骤 5】已新增 `RankingServiceImplTest`，6 个针对性用例覆盖参数校验、顺序恢复、脏成员补足、MySQL 降级和热词异常降级；全量 62 个测试通过。
 - 【步骤 5】功能提交为 `fc62f5e feat(rank): implement ranking service`，已推送到 `origin/dev`。
+- 【步骤 6】已新增 `RankingController`，提供 `GET /api/v1/rankings/resources/hot` 和 `GET /api/v1/rankings/search-keywords/hot` 两个公开只读接口；Controller 仅负责参数绑定、`@Valid` 校验、调用 `RankingService` 和封装 `ApiResponse`。
+- 【步骤 6】复用 `WebMvcConfig` 已存在的 `/api/v1/rankings/**` 匿名放行规则，未新增鉴权、Redis、Mapper 或定时任务逻辑。
+- 【步骤 6】已新增 `RankingControllerTest`，4 个针对性用例覆盖匿名访问、查询参数绑定和非法 `limit` 的提前校验；全量 66 个测试通过。
+- 【步骤 6】功能提交为 `c2ab537 feat(rank): add ranking query endpoints`，已推送到 `origin/dev`。
 
 ---
 
 ## 19. 待完成事项
 
-- T6～T12 的 Controller、热度联动、定时任务、专项测试和同步文档任务。
+- T7～T12 的热度联动、定时任务、专项测试和同步文档任务。
 - 在实现前统一 `docs/04-api-doc.md` 中 Redis Key 示例的旧前缀写法，最终以 `crp:` 规范和 `RedisKeyConstants` 为准。
 - 确定定时任务执行频率、锁 TTL、单批最大资料数等运行参数，并通过配置项集中管理。
 - 确定热门搜索词 Redis 故障时“返回空列表”与 API 文档 `50001` 描述的最终口径。
@@ -626,6 +630,8 @@ cd campus-resource-platform
 | `.\mvnw.cmd test`（步骤 4 后） | 通过，既有 56 个测试，0 失败、0 错误、0 跳过；用户要求未新增专项测试代码 |
 | `.\mvnw.cmd -Dtest=RankingServiceImplTest test`（步骤 5） | 通过，6 个测试，0 失败、0 错误、0 跳过；覆盖参数、排序恢复、脏成员与降级 |
 | `.\mvnw.cmd test`（步骤 5 后） | 通过，62 个测试，0 失败、0 错误、0 跳过 |
+| `.\mvnw.cmd -Dtest=RankingControllerTest test`（步骤 6） | 通过，4 个测试，0 失败、0 错误、0 跳过；覆盖匿名访问、参数绑定与参数校验 |
+| `.\mvnw.cmd test`（步骤 6 后） | 通过，66 个测试，0 失败、0 错误、0 跳过 |
 
 ---
 
@@ -649,17 +655,18 @@ cd campus-resource-platform
 | `campus-resource-platform/src/main/java/com/john/campus/service/RankingService.java` | 新增 | 热门资料和热门搜索词查询业务接口 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/impl/RankingServiceImpl.java` | 新增 | Redis 排行榜查询、MySQL 兜底、脏成员过滤与参数兜底 |
 | `campus-resource-platform/src/test/java/com/john/campus/service/RankingServiceImplTest.java` | 新增 | 验证 Service 参数、排序恢复、分段扫描和降级策略 |
+| `campus-resource-platform/src/main/java/com/john/campus/controller/RankingController.java` | 新增 | 两个公开排行榜查询接口，负责参数绑定、校验和统一响应 |
+| `campus-resource-platform/src/test/java/com/john/campus/controller/RankingControllerTest.java` | 新增 | 验证排行榜公开访问、参数绑定与非法参数拦截 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/impl/FavoriteServiceImpl.java` | 用户注释提交 | 仅增加 DuplicateKeyException 事务回滚说明；不属于排行榜逻辑 |
 
-### 21.2 步骤 2、3、4、5 明确未修改
+### 21.2 步骤 2、3、4、5、6 明确未修改或未涉及
 
 - `sql/**`
-- Controller、热度写入、定时调度和数据库配置
-- 步骤 4 未修改 `src/test/**`（用户要求）；步骤 5 已新增 Service 单元测试
+- 热度写入、定时调度和数据库配置
+- 步骤 4 未修改 `src/test/**`（用户要求）；步骤 5 已新增 Service 单元测试，步骤 6 已新增 Controller 测试
 
 ### 21.3 后续计划修改（尚未发生）
 
-- 排行榜 Controller。
 - 下载、收藏、审核 Service 的热度联动点。
 - 调度配置、同步 Service、`task` 包和对应测试。
 - `docs/04-api-doc.md`、`docs/05-redis-design.md`、`docs/06-project-progress.md`、`README.md` 等同步文档。
@@ -722,7 +729,7 @@ cd campus-resource-platform
 | T3 | `feat(rank): add ranking query DTOs and VOs`（已使用，commit `d28ecb8`） |
 | T4 | `feat(rank): add ranking and statistics mapper queries`（已使用，commit `b4b7bbe`） |
 | T5 | `feat(rank): implement ranking service`（已使用，commit `fc62f5e`） |
-| T6 | `feat(rank): add ranking query endpoints` |
+| T6 | `feat(rank): add ranking query endpoints`（已使用，commit `c2ab537`） |
 | T7 | `feat(rank): connect resource behavior heat updates` |
 | T8 | `feat(rank): sync download deltas with distributed lock` |
 | T9 | `feat(rank): rebuild hot ranking and persist score snapshots` |
@@ -742,7 +749,7 @@ cd campus-resource-platform
 | 步骤 3 | 创建排行榜 DTO 与 VO | ✅ 已完成（`d28ecb8`） |
 | 步骤 4 | 补充 ResourceMapper 排行榜与同步 SQL | ✅ 已完成（`b4b7bbe`；未新增测试代码） |
 | 步骤 5 | 实现排行榜 Service | ✅ 已完成（`fc62f5e`） |
-| 步骤 6 | 实现排行榜 Controller | 待执行 |
+| 步骤 6 | 实现排行榜 Controller | ✅ 已完成（`c2ab537`） |
 | 步骤 7 | 接入下载/收藏/审核热度联动 | 待执行 |
 | 步骤 8 | 实现下载增量定时同步 | 待执行 |
 | 步骤 9 | 实现总榜重建与热度快照 | 待执行 |
