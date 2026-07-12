@@ -49,7 +49,7 @@ crp:stats:resource:download:delta
 | 同资料重复下载去重 | `crp:dedup:download:{userId}:{resourceId}` | String | 10-30 分钟 |
 | 下载量临时统计 | `crp:stats:resource:download:delta` | Hash | 不主动设置 TTL |
 | 总榜重建临时数据 | `crp:rank:resource:hot:all:rebuild:active` | ZSet | 成功后 `RENAME` 消失；下次重建前主动清理遗留数据 |
-| 总榜维护锁 | `crp:lock:sync:hot-rank-maintenance` | Redisson RLock | 看门狗自动续期 |
+| 总榜维护锁 | `crp:lock:sync:hot-rank-maintenance` | Redisson RReadWriteLock | 不传 leaseTime，使用看门狗自动续期 |
 | 登录 Token 黑名单 | `crp:auth:token:blacklist:{jti}` | String | Token 剩余有效期 |
 | 用户登录态版本 | `crp:auth:user:token-version:{userId}` | String | 可不设置或与登录策略一致 |
 | 文件 MD5 去重缓存 | `crp:cache:file:md5:{fileMd5}:{fileSize}` | String | 6-24 小时 |
@@ -237,7 +237,8 @@ Redis 排行榜作为实时数据源，MySQL 保存快照或兜底字段：
 2. 分批写入临时 ZSet `crp:rank:resource:hot:all:rebuild:active`。
 3. 构建成功后使用 Redis `RENAME` 原子替换正式 `all` 榜，查询侧只会看到旧榜或完整新榜。
 4. 分批读取 Redis `all` 榜分数，在独立 MySQL 事务中更新 `resource.hot_score`。
-5. 两类任务共用 Redisson 看门狗锁；未指定 leaseTime 时，持锁客户端存活期间自动续期。
+5. 重建持有 `RReadWriteLock.writeLock()`，热度快照持有 `readLock()`；未指定 leaseTime 时，持锁客户端存活期间自动续期。
+6. 下载、收藏、取消收藏及下架操作写入或移除 `all` 榜时也持有同一 `readLock()`；若重建写锁已获得，实时写入会等待 `RENAME` 完成后再作用于新总榜，因此不会被临时榜替换覆盖。日、周、月榜不使用该锁。
 
 快照 SQL 固定携带 `status = 1`，下架、删除或其他非公开资料即使残留在 ZSet 中也不会被写回 MySQL。
 

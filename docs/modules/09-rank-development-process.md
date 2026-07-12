@@ -1,8 +1,8 @@
 # 排行榜与定时任务模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**步骤 1 至步骤 9、11、12 已完成；步骤 10 按用户要求跳过**。排行榜已具备查询、行为热度联动、下载增量同步、all 总榜缺失重建和热度快照能力。
-> 当前尚未实现排行榜 Mapper 集成测试、运行指标、管理员手动重建入口或数据库结构变更。
+> 当前状态：**步骤 1 至步骤 9、11、12 已完成；步骤 10 按用户要求跳过**。排行榜已具备查询、行为热度联动、下载增量同步、all 总榜缺失重建、热度快照和管理员手动重建能力。
+> 当前尚未实现排行榜 Mapper 集成测试、运行指标或数据库结构变更。
 
 ---
 
@@ -67,7 +67,7 @@
 - 首版不实现浏览量采集；`view_count` 仅作为总榜重建公式中的已有字段使用。
 - 首版不实现复杂时间衰减算法；周期榜通过独立 Key 与 TTL 控制时效，总榜使用行为权重累计。
 - 首版不把 MySQL 历史总量写入 `daily`、`weekly`、`monthly` 榜单。
-- 首版不实现管理员专属排行榜接口；现有两个设计接口均为公开只读接口。
+- 管理员手动重建仅针对 `all` 总榜，不提供管理员查询专属榜单，也不改变两个公开查询接口的可访问性。
 - 首版不修改数据库表结构或既有接口路径；步骤 8 已按用户要求新增 Redisson 依赖。
 
 ---
@@ -213,7 +213,7 @@ idx_resource_hot (status, hot_score, download_count)
 | `crp:rank:resource:hot:all` | ZSet | 不设置 | 总榜 |
 | `crp:lock:sync:download-delta` | Redisson RLock | 默认 30 秒看门狗超时，持锁客户端存活时自动续期 | 下载增量同步任务互斥锁 |
 | `crp:stats:resource:download:syncing:{batchId}` | Hash | `active` 批次成功后按字段删除，失败时保留 | 与实时 delta 隔离的待同步批次 |
-| `crp:lock:sync:hot-rank-maintenance` | Redisson RLock | 默认 30 秒看门狗超时，持锁客户端存活时自动续期 | all 总榜重建与快照互斥锁 |
+| `crp:lock:sync:hot-rank-maintenance` | Redisson RReadWriteLock | 默认 30 秒看门狗超时，持锁客户端存活时自动续期 | 重建使用写锁；快照和实时 all 榜写入使用读锁 |
 | `crp:rank:resource:hot:all:rebuild:active` | ZSet | 成功后 `RENAME` 为正式 all 榜；下次重建前清理遗留 | all 总榜原子替换前的临时构建结果 |
 
 > 步骤 2 已在 `RedisKeyConstants` 中补充热门资料榜、同步锁和 syncing 批次常量及格式化方法；步骤 8 已实际使用下载 delta、同步锁与固定的 `syncing:active` 批次。
@@ -281,13 +281,16 @@ idx_resource_hot (status, hot_score, download_count)
 | service/impl | `DownloadDeltaPersistenceServiceImpl` | 通过 Spring 代理执行 MySQL 原子累加事务 | 已实现 |
 | task | `RankingSyncTask` | 按计划触发下载增量同步，不承载锁或事务细节 | 已实现 |
 | service | `HotRankingMaintenanceService` | 定义 all 总榜缺失重建、显式重建与热度快照入口 | 已实现 |
+| service | `AdminRankingService` | 校验管理员身份后委派 all 总榜手动重建 | 已实现 |
 | service | `HotScoreSnapshotPersistenceService` | 定义独立的事务性 `hot_score` 快照持久化边界 | 已实现 |
 | service/impl | `HotRankingMaintenanceServiceImpl` | Redisson 锁、游标分页、临时 ZSet 原子替换和分批快照编排 | 已实现 |
+| service/impl | `AdminRankingServiceImpl` | 管理员角色校验与重建委派 | 已实现 |
 | service/impl | `HotScoreSnapshotPersistenceServiceImpl` | 通过 Spring 代理分批写入 APPROVED 资料热度快照 | 已实现 |
 | task | `HotRankingMaintenanceTask` | 定时检查 all 榜缺失并重建，定时触发热度快照 | 已实现 |
+| controller | `AdminRankingController` | `POST /api/v1/admin/rankings/resources/hot/rebuild` 管理员手动重建入口 | 已实现 |
 | config/application | 启动类、`application.yaml` 与 `RedissonConfig` | 启用 Spring Scheduling，集中配置频率、单批上限与 Redisson 看门狗超时 | 已实现 |
 | test | `RankingPeriodTest` | 校验周期 TTL、热词边界与排行榜 Key 格式 | 已实现 |
-| test | `RankingControllerTest`、`RankingServiceImplTest`、`DownloadDeltaSyncServiceImplTest`、`HotRankingMaintenanceServiceImplTest`、`HotScoreSnapshotPersistenceServiceImplTest`、`HotRankingMaintenanceTaskTest` 等 | 已覆盖接口、热度行为、下载同步、总榜重建、锁竞争、脏成员跳过、快照持久化与任务触发；Mapper 集成测试待后续补齐 | 部分已实现 |
+| test | `RankingControllerTest`、`AdminRankingControllerTest`、`RankingServiceImplTest`、`AdminRankingServiceImplTest`、`DownloadDeltaSyncServiceImplTest`、`HotRankingMaintenanceServiceImplTest`、`HotScoreSnapshotPersistenceServiceImplTest`、`HotRankingMaintenanceTaskTest` 等 | 已覆盖接口、管理员权限、热度行为、下载同步、总榜重建、读写锁协调、脏成员跳过、快照持久化与任务触发；Mapper 集成测试待后续补齐 | 部分已实现 |
 
 > 项目现有约定要求 Spring Service 使用“接口 + 实现”。定时任务只负责触发，带事务的同步逻辑必须放入独立 Service，由 Spring 代理调用，避免同类自调用导致事务失效。
 
@@ -638,6 +641,8 @@ MySQL 查询 APPROVED 资料
 | 周期榜缺失 | 不用历史总量伪造周期榜 |
 | 快照同步成功 | `resource.hot_score` 与 all 榜一致 |
 | 快照同步失败 | MySQL 事务回滚，Redis 榜不受影响 |
+| 重建与实时 all 榜写入并发 | 重建持写锁；实时 `ZINCRBY`/`ZREM` 持读锁并等待重建 `RENAME` 完成，再操作新总榜 |
+| 普通用户调用手动重建 | Service 返回 `40301`，不调用总榜维护服务 |
 
 ### 20.6 计划测试命令
 
@@ -676,12 +681,21 @@ cd campus-resource-platform
 
 ---
 
+| `mvn test -Dtest=RankingServiceImplTest,HotRankingMaintenanceServiceImplTest,AdminRankingServiceImplTest,AdminRankingControllerTest`（总榜并发修复后） | 通过，21 个测试，0 失败、0 错误、0 跳过；覆盖重建写锁、实时 all 榜读锁顺序和管理员接口权限 |
+
 ## 21. 修改文件记录
 
 ### 21.1 本次真实修改
 
 | 文件 | 操作 | 说明 |
 | --- | --- | --- |
+| `campus-resource-platform/src/main/java/com/john/campus/controller/AdminRankingController.java` | 新增 | 提供管理员手动重建 all 总榜 HTTP 入口 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/AdminRankingService.java` | 新增 | 定义管理员排行榜运维业务边界 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/AdminRankingServiceImpl.java` | 新增 | 校验管理员角色并委派总榜重建 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/RankingServiceImpl.java` | 修改 | 实时 all 榜 ZINCRBY/ZREM 使用与重建共享的读锁 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/HotRankingMaintenanceServiceImpl.java` | 修改 | 重建改用写锁，快照改用读锁 |
+| `campus-resource-platform/src/test/java/com/john/campus/controller/AdminRankingControllerTest.java` | 新增 | 覆盖认证、管理员拒绝和成功路由 |
+| `campus-resource-platform/src/test/java/com/john/campus/service/AdminRankingServiceImplTest.java` | 新增 | 覆盖未登录、普通用户和管理员权限边界 |
 | `docs/modules/09-rank-development-process.md` | 新增 | 排行榜与定时任务模块开发流程文档初稿 |
 | `docs/04-api-doc.md` | 修改 | 校准排行榜查询 Redis Key 与降级口径，并同步下载、收藏热度联动说明 |
 | `docs/05-redis-design.md` | 修改 | 记录总榜重建临时 Key、维护锁、批次策略与真实热度快照流程 |
