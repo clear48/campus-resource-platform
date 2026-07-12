@@ -506,7 +506,7 @@ MySQL 查询 APPROVED 资料
 | T8 | 下载增量定时同步 | syncing 批次、锁、事务、补偿 | 已完成（`1dd8e10`） |
 | T9 | 总榜初始化与热度快照 | all 榜重建、`hot_score` 回写 | 已完成（`45c26ca`） |
 | T10 | 专项测试 | Controller/Service/Mapper/Task 测试 | 已跳过（用户要求） |
-| T11 | 文档同步 | API、Redis、进度、README 等 | 已完成（待本次提交回填） |
+| T11 | 文档同步 | API、Redis、进度、README 等 | 已完成（`6973a59`） |
 | T12 | 流程文档回写 | 根据真实实现更新本文档 | 已完成（待本次提交回填） |
 
 每完成一个任务，必须先运行对应测试；通过后立即 `git add`、`git commit`、`git push` 到当前开发分支，并在本文档记录真实 commit id。
@@ -563,7 +563,7 @@ MySQL 查询 APPROVED 资料
 - 【步骤 9】已新增 `HotScoreSnapshotPersistenceService`：从 Redis all 榜分批读取分数，在独立 `@Transactional` Service 中调用带 `status = 1` 条件的 SQL 回写 `resource.hot_score`；下架或删除资料不会被后台任务重新写入快照。
 - 【步骤 9】已新增总榜维护看门狗锁、5 分钟重建检查/快照任务及 7 个针对性测试；专项测试 7 个、全量 94 个测试均通过。功能提交为 `45c26ca feat(rank): rebuild all ranking and persist score snapshots`，已推送到 `origin/dev`。
 - 【步骤 10】按用户明确要求跳过；未新增排行榜 Mapper 集成测试或其他测试代码。步骤 9 已完成的 7 个专项测试和全量 94 个测试仍为当前真实验证记录。
-- 【步骤 11】已同步 API、Redis、项目进度、README 和数据库变更记录；明确复用既有 `resource` 表，无生产数据库结构变更。
+- 【步骤 11】已同步 API、Redis、项目进度、README 和数据库变更记录；明确复用既有 `resource` 表，无生产数据库结构变更。提交为 `6973a59 docs(rank): sync ranking module documentation`，已推送到 `origin/dev`。
 - 【步骤 12】已基于当前真实代码更新本流程文档的状态、调用关系、事务/一致性边界、测试记录、文件记录、待办事项和提交记录；文档提交将在本次校验后回填。
 
 ---
@@ -811,7 +811,7 @@ cd campus-resource-platform
 | T8 | `feat(rank): sync download deltas with distributed lock`（已使用，commit `1dd8e10`） |
 | T9 | `feat(rank): rebuild hot ranking and persist score snapshots`（已使用，commit `45c26ca`） |
 | T10 | 已跳过（用户明确要求不执行） |
-| T11 | `docs(rank): sync ranking module documentation`（本次使用，commit 待回填） |
+| T11 | `docs(rank): sync ranking module documentation`（已使用，commit `6973a59`） |
 
 ---
 
@@ -831,7 +831,7 @@ cd campus-resource-platform
 | 步骤 8 | 实现下载增量定时同步 | ✅ 已完成（`1dd8e10`） |
 | 步骤 9 | 实现总榜重建与热度快照 | ✅ 已完成（`45c26ca`） |
 | 步骤 10 | 补充排行榜模块测试 | ⏭️ 已跳过（用户要求） |
-| 步骤 11 | 同步排行榜相关文档 | ✅ 已完成（待本次提交回填） |
+| 步骤 11 | 同步排行榜相关文档 | ✅ 已完成（`6973a59`） |
 | 步骤 12 | 更新本模块开发流程文档 | ✅ 已完成（待本次提交回填） |
 
 ### 步骤 2：补充 Redis Key 常量与周期模型
