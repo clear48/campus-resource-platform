@@ -48,6 +48,8 @@ crp:stats:resource:download:delta
 | IP 下载限流 | `crp:rate:download:ip:{ip}` | ZSet | 限流窗口 + 60 秒 |
 | 同资料重复下载去重 | `crp:dedup:download:{userId}:{resourceId}` | String | 10-30 分钟 |
 | 下载量临时统计 | `crp:stats:resource:download:delta` | Hash | 不主动设置 TTL |
+| 总榜重建临时数据 | `crp:rank:resource:hot:all:rebuild:active` | ZSet | 成功后 `RENAME` 消失；下次重建前主动清理遗留数据 |
+| 总榜维护锁 | `crp:lock:sync:hot-rank-maintenance` | Redisson RLock | 看门狗自动续期 |
 | 登录 Token 黑名单 | `crp:auth:token:blacklist:{jti}` | String | Token 剩余有效期 |
 | 用户登录态版本 | `crp:auth:user:token-version:{userId}` | String | 可不设置或与登录策略一致 |
 | 文件 MD5 去重缓存 | `crp:cache:file:md5:{fileMd5}:{fileSize}` | String | 6-24 小时 |
@@ -187,7 +189,7 @@ hot_score
 热度分建议：
 
 ```text
-hot_score = download_count * 5 + favorite_count * 3 + view_count * 1 - time_decay
+hot_score = download_count * 5 + favorite_count * 3 + view_count * 1
 ```
 
 ### 5.3 使用场景
@@ -229,11 +231,15 @@ Redis 排行榜作为实时数据源，MySQL 保存快照或兜底字段：
 - `resource.download_count` 保存下载总数。
 - `resource.favorite_count` 保存收藏总数。
 
-建议定时任务每 5-10 分钟执行：
+当前实现每 5 分钟执行一次总榜维护：
 
-1. 从 Redis ZSet 读取 Top N 或全量分数。
-2. 批量更新 MySQL `resource.hot_score`。
-3. 如果 Redis 数据丢失，可从 MySQL 的 `download_count`、`favorite_count`、`view_count` 重建总榜。
+1. 仅在 `all` Key 缺失时，以主键游标从 MySQL 分批读取 `status = 1` 的资料，按首版公式计算分数。
+2. 分批写入临时 ZSet `crp:rank:resource:hot:all:rebuild:active`。
+3. 构建成功后使用 Redis `RENAME` 原子替换正式 `all` 榜，查询侧只会看到旧榜或完整新榜。
+4. 分批读取 Redis `all` 榜分数，在独立 MySQL 事务中更新 `resource.hot_score`。
+5. 两类任务共用 Redisson 看门狗锁；未指定 leaseTime 时，持锁客户端存活期间自动续期。
+
+快照 SQL 固定携带 `status = 1`，下架、删除或其他非公开资料即使残留在 ZSet 中也不会被写回 MySQL。
 
 下架资料时必须执行：
 

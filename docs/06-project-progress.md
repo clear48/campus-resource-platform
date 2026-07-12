@@ -249,13 +249,13 @@
 
 ### 8.3 排行榜与定时任务
 
-已完成：热门资料排行榜、热门搜索词排行榜、下载量增量同步，以及 Redisson 看门狗分布式锁防重复同步。
+已完成：热门资料排行榜、热门搜索词排行榜、下载量增量同步、Redisson 看门狗分布式锁、all 总榜缺失重建，以及 `resource.hot_score` 定时快照回写。
 
-待实现功能：总榜热度分数计算与 `resource.hot_score` 定时回写。
+待实现功能：排行榜 Mapper 集成测试、任务运行指标与管理员手动重建入口。
 
 涉及表：`resource`。
 
-涉及 Redis Key：`crp:rank:resource:hot:{dateScope}`、`crp:rank:search:keyword:{dateScope}`、`crp:stats:resource:download:delta`。
+涉及 Redis Key：`crp:rank:resource:hot:{period}`、`crp:rank:search:keyword:{period}`、`crp:stats:resource:download:delta`、`crp:lock:sync:hot-rank-maintenance`。
 
 ## 9. 当前未实现的重点功能清单
 
@@ -272,6 +272,7 @@
 | 下载量定时同步 | 已完成 | `RankingSyncTask` 定时触发，Redisson 看门狗锁、`RENAME` 批次隔离、MySQL 事务累加和成功后 `HDEL` 确认 |
 | 收藏资料 | 已完成 | 收藏、取消、状态查询和我的收藏列表已实现；专项测试按用户要求跳过 |
 | 热门资料排行榜 | 已完成 | 支持 Redis ZSet 查询、MySQL 降级和下载/收藏/审核热度联动 |
+| 总榜重建与热度快照 | 已完成 | all 榜缺失时游标分页重建，临时 ZSet 原子替换；每 5 分钟分批回写 `resource.hot_score` |
 | 管理员用户管理 | 未实现 | 当前只有用户角色字段，没有管理员业务接口 |
 | 注解式权限控制 | 未实现 | 当前只通过 JWT 拦截器完成登录校验 |
 | 登录限流 | 未实现 | `ErrorCode.RATE_LIMITED` 已存在，但认证模块未使用 |

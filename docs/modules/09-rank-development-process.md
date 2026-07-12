@@ -1,8 +1,8 @@
 # 排行榜与定时任务模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**步骤 1 至步骤 8 已完成；排行榜已具备查询、行为热度联动及下载增量定时同步能力，步骤 9 待开发**。
-> 当前尚未实现总榜热度快照任务或数据库结构变更。
+> 当前状态：**步骤 1 至步骤 9 已完成；排行榜已具备查询、行为热度联动、下载增量同步、all 总榜缺失重建和热度快照能力，步骤 10 待开发**。
+> 当前尚未实现排行榜 Mapper 集成测试、运行指标或数据库结构变更。
 
 ---
 
@@ -14,7 +14,7 @@
 | 英文标识 | rank |
 | 文档路径 | `docs/modules/09-rank-development-process.md` |
 | 当前分支 | `dev` |
-| 当前状态 | 步骤 1 至 8 已完成；下一步实现总榜重建与热度快照 |
+| 当前状态 | 步骤 1 至 9 已完成；下一步补充排行榜专项测试 |
 | 前置依赖模块 | 资料、审核、搜索、下载、收藏模块 |
 | 下游模块 | 首页热门资料展示、搜索框热门词展示、后台运营统计 |
 | 接口前缀 | `/api/v1/rankings` |
@@ -68,7 +68,7 @@
 - 首版不实现复杂时间衰减算法；周期榜通过独立 Key 与 TTL 控制时效，总榜使用行为权重累计。
 - 首版不把 MySQL 历史总量写入 `daily`、`weekly`、`monthly` 榜单。
 - 首版不实现管理员专属排行榜接口；现有两个设计接口均为公开只读接口。
-- 首版不修改数据库表结构、不新增第三方依赖、不改动已有接口路径。
+- 首版不修改数据库表结构或既有接口路径；步骤 8 已按用户要求新增 Redisson 依赖。
 
 ---
 
@@ -213,6 +213,8 @@ idx_resource_hot (status, hot_score, download_count)
 | `crp:rank:resource:hot:all` | ZSet | 不设置 | 总榜 |
 | `crp:lock:sync:download-delta` | Redisson RLock | 默认 30 秒看门狗超时，持锁客户端存活时自动续期 | 下载增量同步任务互斥锁 |
 | `crp:stats:resource:download:syncing:{batchId}` | Hash | `active` 批次成功后按字段删除，失败时保留 | 与实时 delta 隔离的待同步批次 |
+| `crp:lock:sync:hot-rank-maintenance` | Redisson RLock | 默认 30 秒看门狗超时，持锁客户端存活时自动续期 | all 总榜重建与快照互斥锁 |
+| `crp:rank:resource:hot:all:rebuild:active` | ZSet | 成功后 `RENAME` 为正式 all 榜；下次重建前清理遗留 | all 总榜原子替换前的临时构建结果 |
 
 > 步骤 2 已在 `RedisKeyConstants` 中补充热门资料榜、同步锁和 syncing 批次常量及格式化方法；步骤 8 已实际使用下载 delta、同步锁与固定的 `syncing:active` 批次。
 
@@ -278,9 +280,14 @@ idx_resource_hot (status, hot_score, download_count)
 | service/impl | `DownloadDeltaSyncServiceImpl` | 锁、批次隔离、限批、成功确认和失败保留 | 已实现 |
 | service/impl | `DownloadDeltaPersistenceServiceImpl` | 通过 Spring 代理执行 MySQL 原子累加事务 | 已实现 |
 | task | `RankingSyncTask` | 按计划触发下载增量同步，不承载锁或事务细节 | 已实现 |
+| service | `HotRankingMaintenanceService` | 定义 all 总榜缺失重建、显式重建与热度快照入口 | 已实现 |
+| service | `HotScoreSnapshotPersistenceService` | 定义独立的事务性 `hot_score` 快照持久化边界 | 已实现 |
+| service/impl | `HotRankingMaintenanceServiceImpl` | Redisson 锁、游标分页、临时 ZSet 原子替换和分批快照编排 | 已实现 |
+| service/impl | `HotScoreSnapshotPersistenceServiceImpl` | 通过 Spring 代理分批写入 APPROVED 资料热度快照 | 已实现 |
+| task | `HotRankingMaintenanceTask` | 定时检查 all 榜缺失并重建，定时触发热度快照 | 已实现 |
 | config/application | 启动类、`application.yaml` 与 `RedissonConfig` | 启用 Spring Scheduling，集中配置频率、单批上限与 Redisson 看门狗超时 | 已实现 |
 | test | `RankingPeriodTest` | 校验周期 TTL、热词边界与排行榜 Key 格式 | 已实现 |
-| test | `RankingControllerTest`、`RankingServiceImplTest`、`DownloadServiceImplTest`、`FavoriteServiceImplTest`、`AuditServiceImplTest`、`DownloadDeltaSyncServiceImplTest`、`DownloadDeltaPersistenceServiceImplTest`、`RankingSyncTaskTest` | 已覆盖接口、热度行为、重复请求、Redis 降级、下载同步成功/失败/锁竞争/限批及任务触发；Mapper 与热度快照专项测试待后续补齐 | 部分已实现 |
+| test | `RankingControllerTest`、`RankingServiceImplTest`、`DownloadDeltaSyncServiceImplTest`、`HotRankingMaintenanceServiceImplTest`、`HotScoreSnapshotPersistenceServiceImplTest`、`HotRankingMaintenanceTaskTest` 等 | 已覆盖接口、热度行为、下载同步、总榜重建、锁竞争、脏成员跳过、快照持久化与任务触发；Mapper 集成测试待后续补齐 | 部分已实现 |
 
 > 项目现有约定要求 Spring Service 使用“接口 + 实现”。定时任务只负责触发，带事务的同步逻辑必须放入独立 Service，由 Spring 代理调用，避免同类自调用导致事务失效。
 
@@ -319,6 +326,16 @@ RankingSyncTask
         ├── DownloadDeltaPersistenceService.persistDownloadDeltas()（MySQL 事务）
         ├── 成功后仅 HDEL 本批已持久化字段，剩余字段留待下一轮
         └── 失败保留 syncing:active；仅当前持锁线程执行 Redisson unlock
+
+HotRankingMaintenanceTask
+  ├── HotRankingMaintenanceService.rebuildAllHotRankingIfMissing()
+  │     ├── Redisson RLock.tryLock() 获取 hot-rank-maintenance 锁
+  │     ├── ResourceMapper 游标分页查询 APPROVED 资料
+  │     ├── 按 download*5 + favorite*3 + view*1 写入 rebuild:active
+  │     └── RENAME 临时 ZSet → 正式 all 榜
+  └── HotRankingMaintenanceService.snapshotAllHotScores()
+        ├── 分批读取 all ZSet member 与 score
+        └── HotScoreSnapshotPersistenceService.persistApprovedHotScores()（MySQL 事务）
 ```
 
 ---
@@ -487,7 +504,7 @@ MySQL 查询 APPROVED 资料
 | T6 | 排行榜 Controller | 两个公开 GET 接口 | 已完成（`c2ab537`） |
 | T7 | 行为热度联动 | 下载 +5、收藏 ±3、审核初始化/下架移除 | 已完成（`295b0db`） |
 | T8 | 下载增量定时同步 | syncing 批次、锁、事务、补偿 | 已完成（`1dd8e10`） |
-| T9 | 总榜初始化与热度快照 | all 榜重建、`hot_score` 回写 | 待开发 |
+| T9 | 总榜初始化与热度快照 | all 榜重建、`hot_score` 回写 | 已完成（`45c26ca`） |
 | T10 | 专项测试 | Controller/Service/Mapper/Task 测试 | 待开发 |
 | T11 | 文档同步 | API、Redis、进度、README 等 | 待开发 |
 | T12 | 流程文档回写 | 根据真实实现更新本文档 | 待开发 |
@@ -542,12 +559,15 @@ MySQL 查询 APPROVED 资料
 - 【步骤 8】已新增仅负责触发的 `RankingSyncTask`，并在启动类启用 Scheduling；`application.yaml` 已集中配置 60 秒 fixed-delay、每批最多 500 条和 30 秒 Redisson 看门狗超时。新增 Redisson 依赖，不新增接口或表结构。
 - 【步骤 8】已新增下载同步、持久化和任务触发测试；8 个步骤 8 针对性测试及全量 87 个测试均通过。功能提交为 `1dd8e10 feat(rank): sync download deltas with distributed lock`，已推送到 `origin/dev`。
 - 【步骤 8】已将原生 `SET NX + Lua` 锁替换为 Redisson `RLock`：同步服务调用无 leaseTime 的 `tryLock()` 启用看门狗，持锁客户端存活时自动续期；任务增加 `enabled` 开关，测试环境关闭真实调度以避免连接外部 Redis。重构提交为 `c132d03 refactor(rank): use redisson watchdog for download sync lock`，已推送到 `origin/dev`。
+- 【步骤 9】已新增 `HotRankingMaintenanceService`：仅当 all 榜缺失时，按主键游标分批读取 APPROVED 资料，以 `download*5 + favorite*3 + view*1` 计算分数，构建临时 ZSet 后通过 `RENAME` 原子替换正式 all 榜；日、周、月榜不使用历史统计重建。
+- 【步骤 9】已新增 `HotScoreSnapshotPersistenceService`：从 Redis all 榜分批读取分数，在独立 `@Transactional` Service 中调用带 `status = 1` 条件的 SQL 回写 `resource.hot_score`；下架或删除资料不会被后台任务重新写入快照。
+- 【步骤 9】已新增总榜维护看门狗锁、5 分钟重建检查/快照任务及 7 个针对性测试；专项测试 7 个、全量 94 个测试均通过。功能提交为 `45c26ca feat(rank): rebuild all ranking and persist score snapshots`，已推送到 `origin/dev`。
 
 ---
 
 ## 19. 待完成事项
 
-- T9～T12 的总榜快照、其余专项测试和同步文档任务。
+- T10～T12 的 Mapper 集成测试、其余专项测试和同步文档任务。
 - 在实现前统一 `docs/04-api-doc.md` 中 Redis Key 示例的旧前缀写法，最终以 `crp:` 规范和 `RedisKeyConstants` 为准。
 - 当前同步采用“优先不丢数据”的至少一次语义：若 MySQL 事务已提交但随后 Redis `HDEL` 失败，遗留字段可能被重复累加；后续可通过持久化批次记录或幂等流水进一步收敛这一边界。
 - 确定热门搜索词 Redis 故障时“返回空列表”与 API 文档 `50001` 描述的最终口径。
@@ -648,6 +668,8 @@ cd campus-resource-platform
 | `.\mvnw.cmd clean "-Dtest=DownloadDeltaSyncServiceImplTest,DownloadDeltaPersistenceServiceImplTest,RankingSyncTaskTest" test`（步骤 8） | 通过，8 个测试，0 失败、0 错误、0 跳过；覆盖批次隔离、遗留批次续处理、事务失败保留、锁竞争、限批与任务触发 |
 | `.\mvnw.cmd test`（步骤 8 后） | 通过，87 个测试，0 失败、0 错误、0 跳过 |
 | `.\mvnw.cmd clean test`（Redisson 看门狗改造后） | 通过，87 个测试，0 失败、0 错误、0 跳过；Spring 上下文测试关闭真实定时同步，Redisson 依赖不要求测试环境连接 Redis |
+| `.\mvnw.cmd -Dtest=HotRankingMaintenanceServiceImplTest,HotScoreSnapshotPersistenceServiceImplTest,HotRankingMaintenanceTaskTest test`（步骤 9） | 通过，7 个测试，0 失败、0 错误、0 跳过；覆盖总榜重建、原子替换、锁竞争、脏成员跳过、快照持久化与任务触发 |
+| `.\mvnw.cmd test`（步骤 9 后） | 通过，94 个测试，0 失败、0 错误、0 跳过 |
 
 ---
 
@@ -695,6 +717,17 @@ cd campus-resource-platform
 | `campus-resource-platform/src/test/java/com/john/campus/service/DownloadDeltaPersistenceServiceImplTest.java` | 新增 | 覆盖事务性持久化成功和异常 |
 | `campus-resource-platform/src/test/java/com/john/campus/task/RankingSyncTaskTest.java` | 新增 | 覆盖任务委托调用 |
 | `campus-resource-platform/src/test/resources/application.properties` | 新增 | 测试环境关闭下载增量定时任务，避免连接真实 Redis |
+| `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java` | 修改 | 新增总榜维护锁和 all 榜重建临时 Key |
+| `campus-resource-platform/src/main/java/com/john/campus/mapper/ResourceMapper.java` | 修改 | 新增 APPROVED 资料主键游标分页查询 |
+| `campus-resource-platform/src/main/resources/mapper/ResourceMapper.xml` | 修改 | 实现 APPROVED 固定过滤和主键游标分页 SQL |
+| `campus-resource-platform/src/main/java/com/john/campus/service/HotRankingMaintenanceService.java` | 新增 | 定义 all 榜缺失重建、显式重建和快照入口 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/HotScoreSnapshotPersistenceService.java` | 新增 | 定义事务性热度快照持久化边界 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/HotRankingMaintenanceServiceImpl.java` | 新增 | 实现总榜重建、临时 ZSet 原子替换、看门狗锁和分批快照 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/HotScoreSnapshotPersistenceServiceImpl.java` | 新增 | 在事务中回写 APPROVED 资料热度快照 |
+| `campus-resource-platform/src/main/java/com/john/campus/task/HotRankingMaintenanceTask.java` | 新增 | 定时触发总榜缺失重建和快照 |
+| `campus-resource-platform/src/test/java/com/john/campus/service/HotRankingMaintenanceServiceImplTest.java` | 新增 | 覆盖重建、公式、锁竞争、原子替换和脏成员 |
+| `campus-resource-platform/src/test/java/com/john/campus/service/HotScoreSnapshotPersistenceServiceImplTest.java` | 新增 | 覆盖快照 Mapper 写入及异常传播 |
+| `campus-resource-platform/src/test/java/com/john/campus/task/HotRankingMaintenanceTaskTest.java` | 新增 | 覆盖总榜维护任务委托调用 |
 
 ### 21.2 步骤 2、3、4、5、6、7、8 明确未修改或未涉及
 
@@ -768,7 +801,7 @@ cd campus-resource-platform
 | T6 | `feat(rank): add ranking query endpoints`（已使用，commit `c2ab537`） |
 | T7 | `feat(rank): connect resource behavior heat updates`（已使用，commit `295b0db`） |
 | T8 | `feat(rank): sync download deltas with distributed lock`（已使用，commit `1dd8e10`） |
-| T9 | `feat(rank): rebuild hot ranking and persist score snapshots` |
+| T9 | `feat(rank): rebuild hot ranking and persist score snapshots`（已使用，commit `45c26ca`） |
 | T10 | `test(rank): add ranking and scheduled task tests` |
 | T11 | `docs(rank): sync ranking module documentation` |
 
@@ -788,7 +821,7 @@ cd campus-resource-platform
 | 步骤 6 | 实现排行榜 Controller | ✅ 已完成（`c2ab537`） |
 | 步骤 7 | 接入下载/收藏/审核热度联动 | ✅ 已完成（`295b0db`） |
 | 步骤 8 | 实现下载增量定时同步 | ✅ 已完成（`1dd8e10`） |
-| 步骤 9 | 实现总榜重建与热度快照 | 待执行 |
+| 步骤 9 | 实现总榜重建与热度快照 | ✅ 已完成（`45c26ca`） |
 | 步骤 10 | 补充排行榜模块测试 | 待执行 |
 | 步骤 11 | 同步排行榜相关文档 | 待执行 |
 | 步骤 12 | 更新本模块开发流程文档 | 待执行 |
