@@ -2,7 +2,6 @@ package com.john.campus.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -11,7 +10,6 @@ import static org.mockito.Mockito.when;
 
 import com.john.campus.common.RedisKeyConstants;
 import com.john.campus.service.impl.DownloadDeltaSyncServiceImpl;
-import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,10 +18,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.data.redis.core.script.RedisScript;
 
 /**
  * 下载增量同步编排测试：覆盖锁竞争、原子批次隔离、失败保留和单批上限，确保并发下载不会因清理 Hash 丢失。
@@ -36,9 +34,11 @@ class DownloadDeltaSyncServiceImplTest {
     @Mock
     private StringRedisTemplate stringRedisTemplate;
     @Mock
-    private ValueOperations<String, String> valueOperations;
-    @Mock
     private HashOperations<String, Object, Object> hashOperations;
+    @Mock
+    private RedissonClient redissonClient;
+    @Mock
+    private RLock lock;
     @Mock
     private DownloadDeltaPersistenceService downloadDeltaPersistenceService;
 
@@ -47,12 +47,9 @@ class DownloadDeltaSyncServiceImplTest {
     @BeforeEach
     void setUp() {
         syncService = new DownloadDeltaSyncServiceImpl(
-                stringRedisTemplate, downloadDeltaPersistenceService, 2, 120L);
-        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+                stringRedisTemplate, redissonClient, downloadDeltaPersistenceService, 2);
+        when(redissonClient.getLock(RedisKeyConstants.DOWNLOAD_DELTA_SYNC_LOCK)).thenReturn(lock);
         org.mockito.Mockito.lenient().when(stringRedisTemplate.opsForHash()).thenReturn(hashOperations);
-        // 每轮都会执行安全释放脚本；其结果不影响同步断言。
-        org.mockito.Mockito.lenient().doReturn(1L).when(stringRedisTemplate)
-                .execute(any(RedisScript.class), anyList(), any());
     }
 
     @Test
@@ -67,6 +64,8 @@ class DownloadDeltaSyncServiceImplTest {
 
         syncService.syncDownloadDeltas();
 
+        verify(lock).tryLock();
+        verify(lock).unlock();
         verify(stringRedisTemplate).rename(RedisKeyConstants.DOWNLOAD_DELTA, SYNCING_KEY);
         ArgumentCaptor<Map<Long, Long>> deltasCaptor = ArgumentCaptor.forClass(Map.class);
         verify(downloadDeltaPersistenceService).persistDownloadDeltas(deltasCaptor.capture());
@@ -102,9 +101,7 @@ class DownloadDeltaSyncServiceImplTest {
 
     @Test
     void shouldSkipSynchronizationWhenAnotherInstanceOwnsLock() {
-        when(valueOperations.setIfAbsent(
-                eq(RedisKeyConstants.DOWNLOAD_DELTA_SYNC_LOCK), anyString(), eq(Duration.ofSeconds(120))))
-                .thenReturn(false);
+        when(lock.tryLock()).thenReturn(false);
 
         syncService.syncDownloadDeltas();
 
@@ -131,8 +128,8 @@ class DownloadDeltaSyncServiceImplTest {
     }
 
     private void lockAcquired() {
-        when(valueOperations.setIfAbsent(
-                eq(RedisKeyConstants.DOWNLOAD_DELTA_SYNC_LOCK), anyString(), eq(Duration.ofSeconds(120))))
-                .thenReturn(true);
+        // tryLock() 不传 leaseTime，实际运行时会启用 Redisson 看门狗自动续期。
+        when(lock.tryLock()).thenReturn(true);
+        when(lock.isHeldByCurrentThread()).thenReturn(true);
     }
 }
