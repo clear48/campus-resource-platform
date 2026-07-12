@@ -543,9 +543,10 @@ ZINCRBY crp:rank:resource:hot:all 5 {resourceId}
 
 定时同步流程：
 
-1. 定时任务读取 `crp:stats:resource:download:delta`。
-2. 获取所有 `resourceId -> delta`。
-3. 批量执行 MySQL 更新：
+1. `RankingSyncTask` 使用 Redisson `RLock.tryLock()` 获取 `crp:lock:sync:download-delta`；不传 leaseTime，Redisson 看门狗会在持锁客户端存活期间自动续期，默认超时为 30 秒。
+2. 若存在 `crp:stats:resource:download:syncing:active`，优先继续处理；否则以 Redis 原子 `RENAME` 将 `delta` 隔离为该 Key，新下载继续写入新的 `delta` Hash。
+3. 从 `syncing:active` 读取合法的 `resourceId -> delta`，每轮最多处理 500 条。
+4. 在独立 MySQL 事务中批量执行：
 
 ```sql
 UPDATE resource
@@ -553,26 +554,23 @@ SET download_count = download_count + ?
 WHERE id = ?;
 ```
 
-4. MySQL 更新成功后删除对应 Hash 字段：
+5. MySQL 更新成功后，只删除 `syncing:active` 中已经持久化的 Hash 字段：
 
 ```text
-HDEL crp:stats:resource:download:delta {resourceId}
+HDEL crp:stats:resource:download:syncing:active {resourceId}
 ```
 
-5. 如果 MySQL 更新失败，不删除 Redis Hash 字段，等待下一轮重试。
+6. 如果 MySQL 更新失败，不删除 `syncing:active` 字段，下一轮优先重试；任务结束时仅由当前持锁线程调用 `unlock`。
 
-并发同步建议：
-
-- 使用分布式锁 `crp:lock:sync:download-delta` 防止多个定时任务同时同步。
-- 或者使用 Lua 脚本把待同步数据移动到临时 Key，再由任务处理。
-
-更稳妥的同步方式：
+并发与一致性说明：
 
 ```text
 crp:stats:resource:download:delta -> crp:stats:resource:download:syncing:{batchId}
 ```
 
-MySQL 成功后删除 `syncing` Key；失败则合并回 delta Key 或保留重试。
+- `RENAME` 避免“读取旧增量后，又有新下载，随后 HDEL 误删新下载”的丢数问题。
+- 看门狗替代固定锁 TTL，避免长批次因锁到期而被另一实例并发处理；客户端崩溃后看门狗停止续期，锁会自动过期。
+- Redis 与 MySQL 没有分布式事务，因此仍是至少一次语义：若 MySQL 已提交而 Redis `HDEL` 失败，遗留字段可能在重试时被重复累加。
 
 ### 8.7 为什么选择 Hash
 
@@ -594,12 +592,11 @@ RedisKeyConstants.DOWNLOAD_DELTA           // "crp:stats:resource:download:delta
 - `DownloadServiceImpl.tryCountDownload`：首次下载（去重 Key 命中前）执行 `HINCRBY crp:stats:resource:download:delta {resourceId} 1`。
 - Hash **不设 TTL**，与本节设计一致，防止定时任务异常时统计丢失。
 - 下载失败不写增量。
+- `RankingSyncTask` → `DownloadDeltaSyncServiceImpl`：每 60 秒触发一次同步，使用 Redisson 看门狗锁、`RENAME` 批次隔离、MySQL 事务累加和提交后 `HDEL` 确认。
+- `DownloadDeltaPersistenceServiceImpl`：使用 `download_count = download_count + delta` 原子 SQL；任一资料更新失败时整批事务回滚，并保留 syncing 批次。
 
 尚未实现（归排行榜与定时任务模块）：
 
-- 下载量 Redis→MySQL 定时同步任务（`HDEL` 清理已同步字段）。
-- 分布式锁 `crp:lock:sync:download-delta`。
-- 下载成功时对 `crp:rank:resource:hot:{period}` 的 `ZINCRBY +5` 联动。
 - 热度分 `hot_score` 计算与回写。
 
 ## 9. 登录 Token

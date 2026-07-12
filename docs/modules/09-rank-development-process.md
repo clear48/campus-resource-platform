@@ -61,7 +61,7 @@
 
 ## 4. 本模块不做什么
 
-- 首版不新增 Elasticsearch、RocketMQ、Redisson 等依赖，使用现有 `StringRedisTemplate`、MyBatis 和 Spring Scheduling 实现。
+- 首版不新增 Elasticsearch、RocketMQ 等依赖；下载增量同步使用 Redisson `RLock` 看门狗，其他 Redis 读写继续使用 `StringRedisTemplate`。
 - 首版不新增排行榜快照表或搜索词快照表，只复用 `resource.hot_score`、`download_count` 等现有字段。
 - 首版不实现热门课程榜、热门上传者榜、下载趋势报表等扩展榜单。
 - 首版不实现浏览量采集；`view_count` 仅作为总榜重建公式中的已有字段使用。
@@ -211,7 +211,7 @@ idx_resource_hot (status, hot_score, download_count)
 | `crp:rank:resource:hot:weekly` | ZSet | 14 天 | 周榜 |
 | `crp:rank:resource:hot:monthly` | ZSet | 60 天 | 月榜 |
 | `crp:rank:resource:hot:all` | ZSet | 不设置 | 总榜 |
-| `crp:lock:sync:download-delta` | String | 默认 300 秒 TTL | 下载增量同步任务互斥锁，value 为随机 owner token |
+| `crp:lock:sync:download-delta` | Redisson RLock | 默认 30 秒看门狗超时，持锁客户端存活时自动续期 | 下载增量同步任务互斥锁 |
 | `crp:stats:resource:download:syncing:{batchId}` | Hash | `active` 批次成功后按字段删除，失败时保留 | 与实时 delta 隔离的待同步批次 |
 
 > 步骤 2 已在 `RedisKeyConstants` 中补充热门资料榜、同步锁和 syncing 批次常量及格式化方法；步骤 8 已实际使用下载 delta、同步锁与固定的 `syncing:active` 批次。
@@ -236,7 +236,7 @@ idx_resource_hot (status, hot_score, download_count)
 - 热门搜索词只属于运营数据；Redis 丢失不影响搜索主流程。
 - 行为热度更新失败时记录日志并降级，不回滚已经成功的下载或收藏主业务。
 - 下载增量 Hash 不设置 TTL；只有 MySQL 事务成功后才允许删除对应 syncing 批次。
-- 分布式锁必须保存随机 owner token，释放时通过 Lua 比较 token 后删除，不能直接 `DEL`。
+- 下载增量同步锁由 Redisson `RLock` 管理，获取时不指定 leaseTime 以启用看门狗自动续期；仅持锁线程可调用 `unlock`。
 
 ---
 
@@ -278,7 +278,7 @@ idx_resource_hot (status, hot_score, download_count)
 | service/impl | `DownloadDeltaSyncServiceImpl` | 锁、批次隔离、限批、成功确认和失败保留 | 已实现 |
 | service/impl | `DownloadDeltaPersistenceServiceImpl` | 通过 Spring 代理执行 MySQL 原子累加事务 | 已实现 |
 | task | `RankingSyncTask` | 按计划触发下载增量同步，不承载锁或事务细节 | 已实现 |
-| config/application | 启动类与 `application.yaml` | 启用 Spring Scheduling，集中配置频率、单批上限与锁 TTL | 已实现 |
+| config/application | 启动类、`application.yaml` 与 `RedissonConfig` | 启用 Spring Scheduling，集中配置频率、单批上限与 Redisson 看门狗超时 | 已实现 |
 | test | `RankingPeriodTest` | 校验周期 TTL、热词边界与排行榜 Key 格式 | 已实现 |
 | test | `RankingControllerTest`、`RankingServiceImplTest`、`DownloadServiceImplTest`、`FavoriteServiceImplTest`、`AuditServiceImplTest`、`DownloadDeltaSyncServiceImplTest`、`DownloadDeltaPersistenceServiceImplTest`、`RankingSyncTaskTest` | 已覆盖接口、热度行为、重复请求、Redis 降级、下载同步成功/失败/锁竞争/限批及任务触发；Mapper 与热度快照专项测试待后续补齐 | 部分已实现 |
 
@@ -314,11 +314,11 @@ AuditServiceImpl（MySQL 状态事务提交后）
 
 RankingSyncTask
   └── DownloadDeltaSyncService.syncDownloadDeltas()
-        ├── SET NX 获取 crp:lock:sync:download-delta（随机 owner token）
+        ├── Redisson RLock.tryLock() 获取 crp:lock:sync:download-delta（不传 leaseTime，启用看门狗）
         ├── 优先续处理 syncing:active；否则原子 RENAME delta → syncing:active
         ├── DownloadDeltaPersistenceService.persistDownloadDeltas()（MySQL 事务）
         ├── 成功后仅 HDEL 本批已持久化字段，剩余字段留待下一轮
-        └── 失败保留 syncing:active；Lua 比较 owner token 后释放锁
+        └── 失败保留 syncing:active；仅当前持锁线程执行 Redisson unlock
 ```
 
 ---
@@ -431,7 +431,7 @@ MySQL 查询 APPROVED 资料
 | 行为热度写 Redis 失败 | 记录日志，不中断下载、收藏、审核主流程 |
 | 未获取同步锁 | 本轮任务直接跳过，不视为业务异常 |
 | 下载增量 MySQL 同步失败 | 事务回滚，保留或恢复 syncing 批次，等待重试 |
-| 锁过期或释放失败 | 使用 owner token + Lua 安全释放，并记录告警 |
+| 锁长时间持有或释放失败 | Redisson 看门狗在客户端存活时续期；释放失败记录告警，客户端失活后停止续期并自动过期 |
 
 ---
 
@@ -538,9 +538,10 @@ MySQL 查询 APPROVED 资料
 - 【步骤 7】已新增下载、收藏、审核热度联动测试，并扩展排行榜 Service 测试；19 个针对性测试和全量 79 个测试均通过。
 - 【步骤 7】功能提交为 `295b0db feat(rank): connect resource behavior heat updates`，已推送到 `origin/dev`。
 - 【步骤 8】已新增 `DownloadDeltaSyncService`、`DownloadDeltaPersistenceService` 及其实现；同步任务先处理遗留的 `syncing:active`，否则通过 Redis `RENAME` 将实时 delta 原子隔离为该批次，新下载继续写入新的 delta Hash。
-- 【步骤 8】已使用带随机 owner token 的 `SET NX` 锁（默认 TTL 300 秒）防止多实例重复同步；释放时执行 Lua 比较 token 后删除。MySQL 原子累加由独立的 `@Transactional` 持久化 Service 执行，持久化失败时不删除 syncing 批次。
-- 【步骤 8】已新增仅负责触发的 `RankingSyncTask`，并在启动类启用 Scheduling；`application.yaml` 已集中配置 60 秒 fixed-delay、每批最多 500 条和锁 TTL，未新增接口、表结构或第三方依赖。
+- 【步骤 8】已使用 Redisson `RLock.tryLock()` 防止多实例重复同步；不传 leaseTime 以启用看门狗，避免长批次因固定 TTL 到期而被其他实例并发处理。MySQL 原子累加由独立的 `@Transactional` 持久化 Service 执行，持久化失败时不删除 syncing 批次。
+- 【步骤 8】已新增仅负责触发的 `RankingSyncTask`，并在启动类启用 Scheduling；`application.yaml` 已集中配置 60 秒 fixed-delay、每批最多 500 条和 30 秒 Redisson 看门狗超时。新增 Redisson 依赖，不新增接口或表结构。
 - 【步骤 8】已新增下载同步、持久化和任务触发测试；8 个步骤 8 针对性测试及全量 87 个测试均通过。功能提交为 `1dd8e10 feat(rank): sync download deltas with distributed lock`，已推送到 `origin/dev`。
+- 【步骤 8】已将原生 `SET NX + Lua` 锁替换为 Redisson `RLock`：同步服务调用无 leaseTime 的 `tryLock()` 启用看门狗，持锁客户端存活时自动续期；任务增加 `enabled` 开关，测试环境关闭真实调度以避免连接外部 Redis。重构提交为 `c132d03 refactor(rank): use redisson watchdog for download sync lock`，已推送到 `origin/dev`。
 
 ---
 
@@ -646,6 +647,7 @@ cd campus-resource-platform
 | `.\mvnw.cmd test`（步骤 7 后） | 通过，79 个测试，0 失败、0 错误、0 跳过 |
 | `.\mvnw.cmd clean "-Dtest=DownloadDeltaSyncServiceImplTest,DownloadDeltaPersistenceServiceImplTest,RankingSyncTaskTest" test`（步骤 8） | 通过，8 个测试，0 失败、0 错误、0 跳过；覆盖批次隔离、遗留批次续处理、事务失败保留、锁竞争、限批与任务触发 |
 | `.\mvnw.cmd test`（步骤 8 后） | 通过，87 个测试，0 失败、0 错误、0 跳过 |
+| `.\mvnw.cmd clean test`（Redisson 看门狗改造后） | 通过，87 个测试，0 失败、0 错误、0 跳过；Spring 上下文测试关闭真实定时同步，Redisson 依赖不要求测试环境连接 Redis |
 
 ---
 
@@ -681,7 +683,9 @@ cd campus-resource-platform
 | `campus-resource-platform/src/test/java/com/john/campus/service/AuditServiceDatabaseIntegrationTest.java` | 修改 | 装配排行榜 Service，保持审核数据库集成测试覆盖 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/impl/FavoriteServiceImpl.java` | 用户注释提交 | 仅增加 DuplicateKeyException 事务回滚说明；不属于排行榜逻辑 |
 | `campus-resource-platform/src/main/java/com/john/campus/CampusResourcePlatformApplication.java` | 修改 | 启用 `@EnableScheduling` |
-| `campus-resource-platform/src/main/resources/application.yaml` | 修改 | 配置下载增量同步 fixed-delay、单批最大数量和锁 TTL |
+| `campus-resource-platform/src/main/resources/application.yaml` | 修改 | 配置下载增量同步 fixed-delay、单批最大数量和 Redisson 看门狗超时 |
+| `campus-resource-platform/pom.xml` | 修改 | 新增 Redisson 依赖，用于步骤八分布式锁及看门狗 |
+| `campus-resource-platform/src/main/java/com/john/campus/config/RedissonConfig.java` | 新增 | 复用 Redis 连接参数创建 RedissonClient，并配置锁看门狗超时 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/DownloadDeltaSyncService.java` | 新增 | 定义下载增量同步入口 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/DownloadDeltaPersistenceService.java` | 新增 | 定义事务性下载增量持久化接口 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadDeltaSyncServiceImpl.java` | 新增 | 实现锁、批次隔离、限批、失败保留和安全解锁 |
@@ -690,6 +694,7 @@ cd campus-resource-platform
 | `campus-resource-platform/src/test/java/com/john/campus/service/DownloadDeltaSyncServiceImplTest.java` | 新增 | 覆盖批次、失败、锁竞争和限批 |
 | `campus-resource-platform/src/test/java/com/john/campus/service/DownloadDeltaPersistenceServiceImplTest.java` | 新增 | 覆盖事务性持久化成功和异常 |
 | `campus-resource-platform/src/test/java/com/john/campus/task/RankingSyncTaskTest.java` | 新增 | 覆盖任务委托调用 |
+| `campus-resource-platform/src/test/resources/application.properties` | 新增 | 测试环境关闭下载增量定时任务，避免连接真实 Redis |
 
 ### 21.2 步骤 2、3、4、5、6、7、8 明确未修改或未涉及
 
@@ -726,7 +731,7 @@ cd campus-resource-platform
 3. 为什么下载量使用 Hash：一个 Key 聚合多个资源增量，便于原子累加和定时批处理。
 4. 如何避免同步时丢增量：先把 delta 原子隔离为 syncing 批次，新请求继续写新 delta；MySQL 成功后才清理旧批次。
 5. 为什么仅有分布式锁还不够：锁只能防重复执行，不能解决“读取后又新增、随后 HDEL”造成的并发丢数。
-6. 如何安全释放分布式锁：锁值保存 owner token，Lua 比较 token 后删除，避免误删过期后被其他实例获取的新锁。
+6. 如何安全释放分布式锁：Redisson `RLock` 只允许持锁线程解锁；不指定 leaseTime 时看门狗会在客户端存活期间续期，避免固定 TTL 误过期。
 7. Redis 与 MySQL 如何保证一致：不追求强事务，通过批次隔离、MySQL 事务、成功后确认、失败保留重试实现最终一致。
 8. 如何防止下架资料出现在榜单：状态变更时主动 `ZREM`，查询时再由 MySQL 固定过滤 `status = 1` 双重兜底。
 9. 为什么周期榜不能直接从总量重建：总量没有事件时间信息，把历史累计值写入日榜会破坏周期语义。
@@ -746,7 +751,7 @@ cd campus-resource-platform
 - 根据访问量增加分类榜、课程榜等独立 Key，避免全局榜分段过滤。
 - 引入可配置权重和时间衰减，避免老资料长期占据总榜。
 - 增加任务执行指标、批次大小、失败次数、遗留 syncing Key 监控和告警。
-- 使用 Redis Cluster 时，为需要原子操作的相关 Key 设计一致的 hash tag。
+- 使用 Redis Cluster 时，为需要原子操作的相关 Key 设计一致的 hash tag，并将 RedissonClient 改为对应集群配置。
 - 补充管理员手动重建接口，并使用管理员权限和审计日志保护。
 
 ---
@@ -937,21 +942,21 @@ cd campus-resource-platform
 本步目标：
 - 创建 DownloadDeltaSyncService 接口与实现，事务方法由 Spring 代理调用。
 - 创建 RankingSyncTask，只负责按计划触发 Service。
-- 使用 `crp:lock:sync:download-delta` 获取分布式锁，value 为随机 owner token，设置合理 TTL。
+- 使用 Redisson `RLock` 获取 `crp:lock:sync:download-delta`；调用 `tryLock()` 时不传 leaseTime，启用看门狗自动续期。
 - 使用 Lua 或等价原子操作把 delta 隔离为 syncing 批次，避免并发 HINCRBY 被 HDEL 丢失。
 - 在 MySQL 事务中原子累加 download_count。
 - 提交成功后删除 syncing；失败时保留或安全合并回 delta。
-- 使用比较 owner token 的 Lua 释放锁。
-- 启用 Spring Scheduling，不新增第三方依赖。
+- 仅在当前线程持有 Redisson 锁时调用 `unlock`。
+- 启用 Spring Scheduling，并新增 Redisson 依赖及可配置的看门狗超时。
 
 完成标准：
 - 覆盖空批次、正常同步、同步期间新增量、事务失败、锁竞争、锁过期和遗留批次。
-- 明确任务频率、锁 TTL、批次上限和配置来源。
+- 明确任务频率、看门狗超时、批次上限和配置来源。
 - 针对性测试及全量测试通过后提交并推送。
 - 更新流程文档。
 
 本步不做什么：
-- 不新增 Redisson、消息队列或数据库表。
+- 不新增消息队列或数据库表。
 - 不把事务逻辑写在 @Scheduled 方法内。
 ```
 

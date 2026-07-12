@@ -168,7 +168,7 @@
 | 我的下载记录 | 已完成 | `GET /api/v1/users/me/download-records`，需登录，只查当前用户，分页返回 |
 | Redis 下载限流 | 已完成 | ZSet 滑动窗口 + Lua 原子脚本，按用户（10次/分）和 IP（30次/分）限流 |
 | 下载去重 | 已完成 | Redis `SETNX` + TTL 10分钟，同用户同资料去重期内不重复计入下载量 |
-| 下载量增量统计 | 已完成 | `HINCRBY crp:stats:resource:download:delta`，不设 TTL，等待定时任务同步 |
+| 下载量增量统计 | 已完成 | `HINCRBY crp:stats:resource:download:delta`，不设 TTL，由排行榜定时任务安全同步到 MySQL |
 | 文件流读取 | 已完成 | `FileStorageService.loadAsResource`，含路径穿越防护、文件存在和可读校验 |
 | 模块测试 | 待补充 | 下载模块针对性测试尚未编写，当前通过全量 49 个已有测试无回归 |
 
@@ -176,7 +176,7 @@
 
 涉及 Redis Key：`crp:rate:download:user:{userId}`、`crp:rate:download:ip:{ip}`、`crp:dedup:download:{userId}:{resourceId}`、`crp:stats:resource:download:delta`。
 
-首版未实现：下载地址过期机制、热度 ZSet `ZINCRBY` 联动、下载量 Redis→MySQL 定时同步（归排行榜与定时任务模块）。详见 `docs/modules/07-download-development-process.md`。
+首版未实现：下载地址过期机制。下载热度 ZSet 联动与 Redis→MySQL 定时同步已由排行榜与定时任务模块完成。详见 `docs/modules/07-download-development-process.md`。
 
 ### 6.8 收藏模块
 
@@ -249,7 +249,9 @@
 
 ### 8.3 排行榜与定时任务
 
-待实现功能：热门资料排行榜、热门搜索词排行榜、下载量增量同步、热度分数计算与回写、分布式锁防重复同步。
+已完成：热门资料排行榜、热门搜索词排行榜、下载量增量同步，以及 Redisson 看门狗分布式锁防重复同步。
+
+待实现功能：总榜热度分数计算与 `resource.hot_score` 定时回写。
 
 涉及表：`resource`。
 
@@ -267,9 +269,9 @@
 | 搜索限流 | 未实现 | `42901` 为设计预留错误码 |
 | 下载接口 | 已完成 | `POST` 创建下载记录、`GET` 文件流、`GET` 我的下载记录，见第 6.7 节 |
 | 下载限流 | 已完成 | Redis ZSet 滑动窗口 + Lua，用户 10次/分、IP 30次/分 |
-| 下载量定时同步 | 未实现 | Redis Hash 增量已落地，定时回写 MySQL 归排行榜与定时任务模块 |
+| 下载量定时同步 | 已完成 | `RankingSyncTask` 定时触发，Redisson 看门狗锁、`RENAME` 批次隔离、MySQL 事务累加和成功后 `HDEL` 确认 |
 | 收藏资料 | 已完成 | 收藏、取消、状态查询和我的收藏列表已实现；专项测试按用户要求跳过 |
-| 热门资料排行榜 | 未实现 | Redis ZSet 设计已完成 |
+| 热门资料排行榜 | 已完成 | 支持 Redis ZSet 查询、MySQL 降级和下载/收藏/审核热度联动 |
 | 管理员用户管理 | 未实现 | 当前只有用户角色字段，没有管理员业务接口 |
 | 注解式权限控制 | 未实现 | 当前只通过 JWT 拦截器完成登录校验 |
 | 登录限流 | 未实现 | `ErrorCode.RATE_LIMITED` 已存在，但认证模块未使用 |
