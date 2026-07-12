@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.redisson.api.RLock;
+import org.redisson.api.RReadWriteLock;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,7 +70,7 @@ public class HotRankingMaintenanceServiceImpl implements HotRankingMaintenanceSe
     /** 仅在 all Key 不存在时重建，避免周期性任务反复用 MySQL 快照覆盖正常的 Redis 实时增量。 */
     @Override
     public void rebuildAllHotRankingIfMissing() {
-        withMaintenanceLock("检查并重建 all 总榜", () -> {
+        withRebuildWriteLock("检查并重建 all 总榜", false, () -> {
             if (!Boolean.TRUE.equals(stringRedisTemplate.hasKey(allHotRankKey()))) {
                 rebuildAllHotRankingInternal();
             }
@@ -79,13 +80,15 @@ public class HotRankingMaintenanceServiceImpl implements HotRankingMaintenanceSe
     /** 供后续受权限保护的内部操作显式调用；每次均以当前 APPROVED 资料的统计字段重新计算总榜。 */
     @Override
     public void rebuildAllHotRanking() {
-        withMaintenanceLock("重建 all 总榜", this::rebuildAllHotRankingInternal);
+        // 管理员显式重建不能“抢锁失败即成功返回”，必须等待正在进行的重建结束后真正执行一次。
+        withRebuildWriteLock("重建 all 总榜", true, this::rebuildAllHotRankingInternal);
     }
 
     /** 将 Redis all 榜当前分数分批落库；快照失败不影响 Redis 实时榜，下轮任务会从头重新读取。 */
     @Override
     public void snapshotAllHotScores() {
-        withMaintenanceLock("回写 all 总榜热度快照", this::snapshotAllHotScoresInternal);
+        // 快照只读取总榜，使用读锁可与实时 ZINCRBY 并发，不必为长批次回写阻塞用户操作。
+        withAllHotRankReadLock("回写 all 总榜热度快照", this::snapshotAllHotScoresInternal);
     }
 
     /**
@@ -198,13 +201,41 @@ public class HotRankingMaintenanceServiceImpl implements HotRankingMaintenanceSe
         return RedisKeyConstants.resourceHotRank(RankingPeriod.ALL.getCode());
     }
 
-    /** 获取不到锁或 Redis 异常时只记录日志并跳过，不能让定时线程持续抛出异常。 */
-    private void withMaintenanceLock(String action, Runnable task) {
+    /**
+     * 重建使用写锁，实时 all 榜写入使用同一把锁的读锁。定时缺失检查不等待锁以避免任务堆积，
+     * 管理员显式重建则等待锁，保证 HTTP 成功响应对应一次实际执行的重建。
+     */
+    private void withRebuildWriteLock(String action, boolean waitForLock, Runnable task) {
         RLock lock = null;
         try {
-            lock = redissonClient.getLock(RedisKeyConstants.HOT_RANK_MAINTENANCE_LOCK);
-            if (!lock.tryLock()) {
+            RReadWriteLock readWriteLock = redissonClient.getReadWriteLock(RedisKeyConstants.HOT_RANK_MAINTENANCE_LOCK);
+            lock = readWriteLock.writeLock();
+            if (waitForLock) {
+                // 不传 leaseTime，Redisson 看门狗会在重建期间持续续期。
+                lock.lock();
+            } else if (!lock.tryLock()) {
                 log.debug("跳过{}，其他实例正在执行", action);
+                return;
+            }
+            task.run();
+        } catch (RuntimeException ex) {
+            log.warn("{}失败，本轮结束", action, ex);
+        } finally {
+            releaseLock(lock, action);
+        }
+    }
+
+    /**
+     * 快照使用读锁：重建写锁持有期间直接跳过本轮，避免读取即将被替换的旧总榜；
+     * 与实时热度写入共享读锁，维持排行榜写入的低延迟。
+     */
+    private void withAllHotRankReadLock(String action, Runnable task) {
+        RLock lock = null;
+        try {
+            RReadWriteLock readWriteLock = redissonClient.getReadWriteLock(RedisKeyConstants.HOT_RANK_MAINTENANCE_LOCK);
+            lock = readWriteLock.readLock();
+            if (!lock.tryLock()) {
+                log.debug("跳过{}，all 总榜正在重建", action);
                 return;
             }
             task.run();

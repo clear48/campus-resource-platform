@@ -28,7 +28,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.redisson.api.RLock;
+import org.redisson.api.RReadWriteLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.DefaultTypedTuple;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -52,11 +56,24 @@ class RankingServiceImplTest {
     @Mock
     private ZSetOperations<String, String> zSetOperations;
 
+    @Mock
+    private RedissonClient redissonClient;
+
+    @Mock
+    private RReadWriteLock allHotRankReadWriteLock;
+
+    @Mock
+    private RLock allHotRankReadLock;
+
     private RankingService rankingService;
 
     @BeforeEach
     void setUp() {
-        rankingService = new RankingServiceImpl(resourceMapper, stringRedisTemplateProvider);
+        rankingService = new RankingServiceImpl(resourceMapper, stringRedisTemplateProvider, redissonClient);
+        org.mockito.Mockito.lenient().when(redissonClient.getReadWriteLock(RedisKeyConstants.HOT_RANK_MAINTENANCE_LOCK))
+                .thenReturn(allHotRankReadWriteLock);
+        org.mockito.Mockito.lenient().when(allHotRankReadWriteLock.readLock()).thenReturn(allHotRankReadLock);
+        org.mockito.Mockito.lenient().when(allHotRankReadLock.isHeldByCurrentThread()).thenReturn(true);
     }
 
     @Test
@@ -194,6 +211,20 @@ class RankingServiceImplTest {
             // 三个行为事件都刷新周期榜 TTL；all 总榜没有 TTL，因此不会调用 expire。
             period.getTtl().ifPresent(ttl -> verify(stringRedisTemplate, times(3)).expire(key, ttl));
         }
+    }
+
+    @Test
+    void allRankingHeatWriteShouldAcquireSharedReadLockBeforeIncrement() {
+        mockRedisAvailable();
+
+        rankingService.recordResourceDownload(100L);
+
+        // 与重建写锁共享同一个读写锁，确保 all 榜的 ZINCRBY 只能发生在 RENAME 前或 RENAME 后，绝不会被替换丢失。
+        InOrder inOrder = org.mockito.Mockito.inOrder(allHotRankReadLock, zSetOperations);
+        inOrder.verify(allHotRankReadLock).lock();
+        inOrder.verify(zSetOperations).incrementScore(
+                RedisKeyConstants.resourceHotRank(RankingPeriod.ALL.getCode()), "100", 5D);
+        verify(allHotRankReadLock).unlock();
     }
 
     @Test

@@ -25,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.redisson.api.RLock;
+import org.redisson.api.RReadWriteLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.DefaultTypedTuple;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -46,7 +47,11 @@ class HotRankingMaintenanceServiceImplTest {
     @Mock
     private RedissonClient redissonClient;
     @Mock
-    private RLock lock;
+    private RReadWriteLock readWriteLock;
+    @Mock
+    private RLock writeLock;
+    @Mock
+    private RLock readLock;
     @Mock
     private ZSetOperations<String, String> zSetOperations;
     @Mock
@@ -62,7 +67,9 @@ class HotRankingMaintenanceServiceImplTest {
                 redissonClient,
                 hotScoreSnapshotPersistenceService,
                 2);
-        when(redissonClient.getLock(RedisKeyConstants.HOT_RANK_MAINTENANCE_LOCK)).thenReturn(lock);
+        when(redissonClient.getReadWriteLock(RedisKeyConstants.HOT_RANK_MAINTENANCE_LOCK)).thenReturn(readWriteLock);
+        org.mockito.Mockito.lenient().when(readWriteLock.writeLock()).thenReturn(writeLock);
+        org.mockito.Mockito.lenient().when(readWriteLock.readLock()).thenReturn(readLock);
         // 锁竞争和“all 榜已存在”分支会提前返回，不会访问 ZSet，因此公共桩设为宽松。
         org.mockito.Mockito.lenient().when(stringRedisTemplate.opsForZSet()).thenReturn(zSetOperations);
     }
@@ -85,7 +92,7 @@ class HotRankingMaintenanceServiceImplTest {
                 .extracting(tuple -> Map.entry(tuple.getValue(), tuple.getScore()))
                 .containsExactlyInAnyOrder(Map.entry("101", 23D), Map.entry("102", 10D));
         verify(stringRedisTemplate).rename(REBUILD_KEY, ALL_KEY);
-        verify(lock).unlock();
+        verify(writeLock).unlock();
     }
 
     @Test
@@ -101,7 +108,7 @@ class HotRankingMaintenanceServiceImplTest {
 
     @Test
     void shouldSnapshotOnlyValidAllRankingMembersInBatches() {
-        lockAcquired();
+        readLockAcquired();
         Set<ZSetOperations.TypedTuple<String>> firstBatch = new LinkedHashSet<>();
         firstBatch.add(new DefaultTypedTuple<>("101", 8D));
         firstBatch.add(new DefaultTypedTuple<>("invalid", Double.NaN));
@@ -116,18 +123,36 @@ class HotRankingMaintenanceServiceImplTest {
 
     @Test
     void shouldSkipMaintenanceWhenAnotherInstanceOwnsTheLock() {
-        when(lock.tryLock()).thenReturn(false);
+        when(writeLock.tryLock()).thenReturn(false);
 
-        hotRankingMaintenanceService.rebuildAllHotRanking();
+        hotRankingMaintenanceService.rebuildAllHotRankingIfMissing();
 
         verify(resourceMapper, never()).selectApprovedResourcesAfterId(anyLong(), any(Integer.class));
         verify(stringRedisTemplate, never()).opsForZSet();
     }
 
+    @Test
+    void explicitRebuildShouldWaitForWriteLockInsteadOfSilentlySkipping() {
+        // 管理员入口调用显式重建；即使其他实例正在运行，也应等待后完成本次重建。
+        when(writeLock.isHeldByCurrentThread()).thenReturn(true);
+        when(resourceMapper.selectApprovedResourcesAfterId(0L, 2)).thenReturn(List.of());
+
+        hotRankingMaintenanceService.rebuildAllHotRanking();
+
+        verify(writeLock).lock();
+        verify(stringRedisTemplate).delete(ALL_KEY);
+    }
+
     private void lockAcquired() {
         // tryLock() 不传 leaseTime，实际运行时会启用 Redisson 看门狗自动续期。
-        when(lock.tryLock()).thenReturn(true);
-        when(lock.isHeldByCurrentThread()).thenReturn(true);
+        when(writeLock.tryLock()).thenReturn(true);
+        when(writeLock.isHeldByCurrentThread()).thenReturn(true);
+    }
+
+    private void readLockAcquired() {
+        // 快照与实时热度写入共享读锁，只有重建写锁占用时才会跳过本轮。
+        when(readLock.tryLock()).thenReturn(true);
+        when(readLock.isHeldByCurrentThread()).thenReturn(true);
     }
 
     private Resource approvedResource(Long id, Long downloads, Long favorites, Long views) {

@@ -19,6 +19,10 @@ import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.redisson.api.RLock;
+import org.redisson.api.RReadWriteLock;
+import org.redisson.api.RedissonClient;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -75,11 +79,18 @@ public class RankingServiceImpl implements RankingService {
      */
     private final ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider;
 
+    /**
+     * 与总榜重建共用的 Redisson 读写锁客户端。实时写 all 榜时持有读锁，确保重建的 RENAME 不会覆盖并发增量。
+     */
+    private final RedissonClient redissonClient;
+
     public RankingServiceImpl(
             ResourceMapper resourceMapper,
-            ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider) {
+            ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
+            @Lazy RedissonClient redissonClient) {
         this.resourceMapper = resourceMapper;
         this.stringRedisTemplateProvider = stringRedisTemplateProvider;
+        this.redissonClient = redissonClient;
     }
 
     /**
@@ -200,6 +211,10 @@ public class RankingServiceImpl implements RankingService {
             ZSetOperations<String, String> zSetOperations = stringRedisTemplate.opsForZSet();
             String member = String.valueOf(resourceId);
             for (RankingPeriod period : RankingPeriod.values()) {
+                if (period == RankingPeriod.ALL) {
+                    removeFromAllHotRankingUnderReadLock(zSetOperations, member);
+                    continue;
+                }
                 zSetOperations.remove(RedisKeyConstants.resourceHotRank(period.getCode()), member);
             }
         } catch (RuntimeException ex) {
@@ -224,12 +239,57 @@ public class RankingServiceImpl implements RankingService {
             String member = String.valueOf(resourceId);
             for (RankingPeriod period : RankingPeriod.values()) {
                 String key = RedisKeyConstants.resourceHotRank(period.getCode());
+                if (period == RankingPeriod.ALL) {
+                    adjustAllHotRankingUnderReadLock(zSetOperations, member, delta);
+                    continue;
+                }
                 zSetOperations.incrementScore(key, member, delta);
                 // all 总榜不设置过期时间，其余周期通过 TTL 限制 Redis 历史数据的保留窗口。
                 period.getTtl().ifPresent(ttl -> stringRedisTemplate.expire(key, ttl));
             }
         } catch (RuntimeException ex) {
             log.warn("写入 Redis 资料热度失败: event={}, resourceId={}, delta={}", event, resourceId, delta, ex);
+        }
+    }
+
+    /**
+     * 实时热度写入总榜前获取读锁。若手动或定时重建已持有写锁，当前线程会等待其 RENAME 完成，
+     * 随后再对新总榜执行 ZINCRBY，避免新增热度被旧榜替换操作丢失。
+     */
+    private void adjustAllHotRankingUnderReadLock(
+            ZSetOperations<String, String> zSetOperations,
+            String member,
+            double delta) {
+        withAllHotRankReadLock(() -> zSetOperations.incrementScore(
+                RedisKeyConstants.resourceHotRank(RankingPeriod.ALL.getCode()), member, delta));
+    }
+
+    /**
+     * 下架移除也必须受同一读锁保护：重建完成后再移除成员，防止下架资料被构建中的临时榜重新带回总榜。
+     */
+    private void removeFromAllHotRankingUnderReadLock(
+            ZSetOperations<String, String> zSetOperations,
+            String member) {
+        withAllHotRankReadLock(() -> zSetOperations.remove(
+                RedisKeyConstants.resourceHotRank(RankingPeriod.ALL.getCode()), member));
+    }
+
+    /**
+     * 不指定 leaseTime 的阻塞式读锁会启用 Redisson 看门狗。实时写入宁可在重建窗口短暂等待，
+     * 也不绕过锁直接写 Redis，否则 RENAME 与 ZINCRBY 并发时仍可能丢失热度。
+     */
+    private void withAllHotRankReadLock(Runnable operation) {
+        RLock readLock = null;
+        try {
+            RReadWriteLock readWriteLock = redissonClient.getReadWriteLock(
+                    RedisKeyConstants.HOT_RANK_MAINTENANCE_LOCK);
+            readLock = readWriteLock.readLock();
+            readLock.lock();
+            operation.run();
+        } finally {
+            if (readLock != null && readLock.isHeldByCurrentThread()) {
+                readLock.unlock();
+            }
         }
     }
 
