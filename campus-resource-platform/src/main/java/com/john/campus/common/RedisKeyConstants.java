@@ -61,6 +61,16 @@ public final class RedisKeyConstants {
      */
     public static final String DOWNLOAD_DELTA_SYNC_LOCK = "crp:lock:sync:download-delta";
 
+    /**
+     * 总榜重建和热度快照共用的维护锁，避免多实例同时替换 all 榜或重复回写 MySQL 快照。
+     */
+    public static final String HOT_RANK_MAINTENANCE_LOCK = "crp:lock:sync:hot-rank-maintenance";
+
+    /**
+     * all 总榜重建临时 Key；构建完成后原子替换正式总榜，查询侧不会读取到半成品。
+     */
+    public static final String RESOURCE_HOT_RANK_REBUILD = "crp:rank:resource:hot:all:rebuild:%s";
+
     private RedisKeyConstants() {
     }
 
@@ -97,6 +107,13 @@ public final class RedisKeyConstants {
      */
     public static String resourceHotRank(String period) {
         return String.format(RESOURCE_HOT_RANK, period);
+    }
+
+    /**
+     * 生成总榜重建临时 Key，batchId 用于隔离正在构建的 ZSet 与线上正式 all 榜。
+     */
+    public static String resourceHotRankRebuild(String batchId) {
+        return String.format(RESOURCE_HOT_RANK_REBUILD, batchId);
     }
 
     /**

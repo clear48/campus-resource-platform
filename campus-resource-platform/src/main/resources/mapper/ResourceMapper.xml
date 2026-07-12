@@ -238,6 +238,17 @@
         LIMIT #{limit}
     </select>
 
+    <!-- 总榜重建使用主键游标分页，固定过滤 APPROVED，避免 OFFSET 在大表上的扫描开销和一次性全量加载。 -->
+    <select id="selectApprovedResourcesAfterId" resultMap="ResourceResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM `resource`
+        WHERE status = 1
+          AND id &gt; #{lastResourceId}
+        ORDER BY id ASC
+        LIMIT #{limit}
+    </select>
+
     <!-- 公开详情只允许返回已审核通过资料，命中 idx_resource_status_created 的状态前缀。 -->
     <select id="selectPublicDetailById" resultMap="ResourceResultMap">
         SELECT

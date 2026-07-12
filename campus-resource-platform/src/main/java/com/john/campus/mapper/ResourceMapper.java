@@ -42,6 +42,13 @@ public interface ResourceMapper {
             @Param("limit") Integer limit);
 
     /**
+     * 以主键游标分批扫描审核通过资料，用于重建 all 总榜；避免一次性把全部资料加载到应用内存。
+     */
+    List<Resource> selectApprovedResourcesAfterId(
+            @Param("lastResourceId") Long lastResourceId,
+            @Param("limit") Integer limit);
+
+    /**
      * 查询公开资料详情，只返回审核通过的资料，避免未审核资料被匿名访问。
      */
     Resource selectPublicDetailById(@Param("id") Long id);

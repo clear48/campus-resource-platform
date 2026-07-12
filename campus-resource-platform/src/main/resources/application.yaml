@@ -49,3 +49,12 @@ rank:
       max-batch-size: ${RANK_DOWNLOAD_DELTA_MAX_BATCH_SIZE:500}
       # Redisson 看门狗会为未指定 leaseTime 的锁自动续期；客户端失活后停止续期并在此超时后释放锁。
       lock-watchdog-timeout-ms: ${RANK_DOWNLOAD_DELTA_LOCK_WATCHDOG_TIMEOUT_MS:30000}
+    hot-ranking:
+      # 总榜维护默认开启；测试或维护窗口可关闭，避免后台任务在无 Redis 环境下触发连接。
+      enabled: ${RANK_HOT_RANKING_SYNC_ENABLED:true}
+      # all 榜缺失时才重建，较长间隔用于 Redis 重启后的恢复，不反复覆盖实时行为增量。
+      rebuild-fixed-delay-ms: ${RANK_HOT_RANKING_REBUILD_FIXED_DELAY_MS:300000}
+      # 热度快照定期回写 MySQL，为搜索排序和 Redis 故障降级提供持久化兜底。
+      snapshot-fixed-delay-ms: ${RANK_HOT_RANKING_SNAPSHOT_FIXED_DELAY_MS:300000}
+      # 重建写 Redis 与快照写 MySQL 共用的单批上限，控制内存、网络往返和事务时长。
+      batch-size: ${RANK_HOT_RANKING_BATCH_SIZE:500}
