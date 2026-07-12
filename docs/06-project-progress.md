@@ -6,7 +6,7 @@
 
 已经完成的核心能力包括：Spring Boot 后端基础骨架、统一响应与异常处理、JWT 鉴权、Redis Token 黑名单、用户注册/登录/退出登录/当前用户查询、公开分类查询、文件上传与 MD5 秒传、基于 `fileId` 创建资料、公开资料详情、我的上传资料分页查询、管理员待审核列表、审核通过、审核拒绝、下架资料、审核记录查询、公开资料搜索与热门搜索词写入、登录后下载，以及收藏/取消收藏/收藏状态查询/我的收藏列表。
 
-资料模块首版已经把 `file_info` 物理文件转换为 `resource` 业务资料主体，审核模块进一步把待审核资料推进到 `APPROVED`、`REJECTED`、`OFFLINE` 状态，并通过 `audit_record` 保留审计流水。搜索模块首版消费 `status = 1 APPROVED` 的公开资料，提供关键词/分类/课程/类型/标签筛选、分页排序，并把非空关键词写入 Redis 热门搜索词 ZSet。收藏模块首版以 MySQL `favorite` 表和唯一索引保证幂等，维护 `resource.favorite_count`，并以 Redis Set 加速状态查询。下一阶段建议优先开发“排行榜与定时任务模块”。
+资料模块首版已经把 `file_info` 物理文件转换为 `resource` 业务资料主体，审核模块进一步把待审核资料推进到 `APPROVED`、`REJECTED`、`OFFLINE` 状态，并通过 `audit_record` 保留审计流水。搜索模块首版消费 `status = 1 APPROVED` 的公开资料，提供关键词/分类/课程/类型/标签筛选、分页排序，并把非空关键词写入 Redis 热门搜索词 ZSet。收藏模块首版以 MySQL `favorite` 表和唯一索引保证幂等，维护 `resource.favorite_count`，并以 Redis Set 加速状态查询。排行榜与定时任务模块已完成查询、行为热度联动、下载增量同步、all 总榜重建和热度快照；下一阶段可补充 Mapper 集成测试和任务运行指标。
 
 ## 2. 进度状态说明
 
@@ -24,8 +24,8 @@
 | `docs/01-requirements.md` | 已完成 | 项目背景、用户角色、功能需求、非功能需求、项目亮点 |
 | `docs/02-business-flow.md` | 已完成 | 上传、审核、搜索、下载、收藏等核心业务流程和状态流转 |
 | `docs/03-database-design.md` | 已完成 | MySQL 表结构、字段说明、索引、设计理由和知识点 |
-| `docs/04-api-doc.md` | 已同步 | 认证、分类、文件上传、资料、审核、搜索、下载、收藏接口已按当前代码校准；搜索建议和排行榜仍为设计接口 |
-| `docs/05-redis-design.md` | 已同步 | Token 黑名单、文件 MD5 缓存、搜索热门词、下载限流/去重/增量统计和用户收藏 Set 已落地；排行榜仍为后续设计 |
+| `docs/04-api-doc.md` | 已同步 | 认证、分类、文件上传、资料、审核、搜索、下载、收藏和两个排行榜查询接口均已按当前代码校准 |
+| `docs/05-redis-design.md` | 已同步 | Redis Key、热度 ZSet、下载增量批次、Redisson 锁、all 榜重建与快照策略均已按真实实现记录 |
 | `docs/modules/01-auth-development-process.md` | 已完成 | 用户认证模块开发记录 |
 | `docs/modules/02-category-development-process.md` | 已完成 | 分类查询模块开发记录 |
 | `docs/modules/03-file-upload-development-process.md` | 已完成 | 文件上传模块开发流程记录 |
@@ -33,6 +33,7 @@
 | `docs/modules/05-audit-development-process.md` | 已完成 | 审核模块开发流程、真实接口、状态机、权限、测试记录和后续优化 |
 | `docs/modules/06-search-development-process.md` | 已完成 | 搜索模块开发流程、真实接口、排序白名单、Redis 热词统计、测试记录和后续优化 |
 | `docs/modules/08-favorite-development-process.md` | 已完成 | 收藏模块真实接口、MySQL 幂等、Redis Set、一致性策略和跳过专项测试记录 |
+| `docs/modules/09-rank-development-process.md` | 已完成 | 排行榜查询、热度联动、下载同步、all 榜重建、快照、测试和文档记录 |
 | `docs/database/database-change-log.md` | 已同步 | 记录认证、分类、文件上传、资料、审核、搜索、下载和收藏模块均复用已有生产表结构 |
 | `README.md` | 已同步 | 启动说明、当前完成模块、测试命令和下一阶段建议 |
 
@@ -60,7 +61,7 @@
 | 模块 | 状态 | 已实现内容 |
 | --- | --- | --- |
 | Spring Boot 工程骨架 | 已完成 | Maven Wrapper、启动类、标准分层包结构 |
-| 基础依赖 | 已完成 | Web、Validation、MyBatis、MySQL、Redis、JWT、BCrypt、Lombok、测试 H2 |
+| 基础依赖 | 已完成 | Web、Validation、MyBatis、MySQL、Redis、Redisson、JWT、BCrypt、Lombok、测试 H2 |
 | 配置文件 | 已完成 | 端口、MySQL、Redis、MyBatis、JWT、上传目录配置 |
 | 统一响应 | 已完成 | `ApiResponse<T>` 统一返回 `code/message/data/traceId` |
 | 统一错误码 | 已完成 | `ErrorCode` 维护业务错误码 |
@@ -194,7 +195,7 @@
 
 涉及 Redis Key：`crp:user:favorites:{userId}`。
 
-首版未实现：热度 ZSet `ZINCRBY` 联动、收藏夹/分组、批量取消收藏。详见 `docs/modules/08-favorite-development-process.md`。
+首版未实现：收藏夹/分组、批量取消收藏。真实收藏/取消收藏已在 MySQL 事务提交后联动排行榜 ZSet `+3/-3`；接口响应中的 `hotScoreDelta` 仍保留为兼容字段 `0`。详见 `docs/modules/08-favorite-development-process.md`。
 
 ## 7. 测试与验证
 

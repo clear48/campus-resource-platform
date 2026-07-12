@@ -355,7 +355,9 @@ RedisKeyConstants.searchKeywordRank(period) // period 取 daily、weekly、month
 - 通过 `ObjectProvider<StringRedisTemplate>` 声明为可选依赖，Redis 未装配时直接跳过统计，不影响搜索主流程。
 - Redis 写入异常时记录日志并吞掉异常，搜索结果照常返回。
 
-尚未实现：热门搜索词排行榜查询接口（归排行榜模块）、MySQL 搜索词快照表、搜索限流。
+已实现：`GET /api/v1/rankings/search-keywords/hot` 查询热门搜索词排行榜；Redis 不可用时返回空列表。
+
+尚未实现：MySQL 搜索词快照表、搜索限流。
 
 ## 7. 用户下载限流
 

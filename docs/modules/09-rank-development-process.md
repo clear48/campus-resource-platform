@@ -1,8 +1,8 @@
 # 排行榜与定时任务模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**步骤 1 至步骤 9 已完成；排行榜已具备查询、行为热度联动、下载增量同步、all 总榜缺失重建和热度快照能力，步骤 10 待开发**。
-> 当前尚未实现排行榜 Mapper 集成测试、运行指标或数据库结构变更。
+> 当前状态：**步骤 1 至步骤 9、11、12 已完成；步骤 10 按用户要求跳过**。排行榜已具备查询、行为热度联动、下载增量同步、all 总榜缺失重建和热度快照能力。
+> 当前尚未实现排行榜 Mapper 集成测试、运行指标、管理员手动重建入口或数据库结构变更。
 
 ---
 
@@ -14,7 +14,7 @@
 | 英文标识 | rank |
 | 文档路径 | `docs/modules/09-rank-development-process.md` |
 | 当前分支 | `dev` |
-| 当前状态 | 步骤 1 至 9 已完成；下一步补充排行榜专项测试 |
+| 当前状态 | 步骤 1 至 9、11、12 已完成；步骤 10 按用户要求跳过 |
 | 前置依赖模块 | 资料、审核、搜索、下载、收藏模块 |
 | 下游模块 | 首页热门资料展示、搜索框热门词展示、后台运营统计 |
 | 接口前缀 | `/api/v1/rankings` |
@@ -505,9 +505,9 @@ MySQL 查询 APPROVED 资料
 | T7 | 行为热度联动 | 下载 +5、收藏 ±3、审核初始化/下架移除 | 已完成（`295b0db`） |
 | T8 | 下载增量定时同步 | syncing 批次、锁、事务、补偿 | 已完成（`1dd8e10`） |
 | T9 | 总榜初始化与热度快照 | all 榜重建、`hot_score` 回写 | 已完成（`45c26ca`） |
-| T10 | 专项测试 | Controller/Service/Mapper/Task 测试 | 待开发 |
-| T11 | 文档同步 | API、Redis、进度、README 等 | 待开发 |
-| T12 | 流程文档回写 | 根据真实实现更新本文档 | 待开发 |
+| T10 | 专项测试 | Controller/Service/Mapper/Task 测试 | 已跳过（用户要求） |
+| T11 | 文档同步 | API、Redis、进度、README 等 | 已完成（待本次提交回填） |
+| T12 | 流程文档回写 | 根据真实实现更新本文档 | 已完成（待本次提交回填） |
 
 每完成一个任务，必须先运行对应测试；通过后立即 `git add`、`git commit`、`git push` 到当前开发分支，并在本文档记录真实 commit id。
 
@@ -562,12 +562,15 @@ MySQL 查询 APPROVED 资料
 - 【步骤 9】已新增 `HotRankingMaintenanceService`：仅当 all 榜缺失时，按主键游标分批读取 APPROVED 资料，以 `download*5 + favorite*3 + view*1` 计算分数，构建临时 ZSet 后通过 `RENAME` 原子替换正式 all 榜；日、周、月榜不使用历史统计重建。
 - 【步骤 9】已新增 `HotScoreSnapshotPersistenceService`：从 Redis all 榜分批读取分数，在独立 `@Transactional` Service 中调用带 `status = 1` 条件的 SQL 回写 `resource.hot_score`；下架或删除资料不会被后台任务重新写入快照。
 - 【步骤 9】已新增总榜维护看门狗锁、5 分钟重建检查/快照任务及 7 个针对性测试；专项测试 7 个、全量 94 个测试均通过。功能提交为 `45c26ca feat(rank): rebuild all ranking and persist score snapshots`，已推送到 `origin/dev`。
+- 【步骤 10】按用户明确要求跳过；未新增排行榜 Mapper 集成测试或其他测试代码。步骤 9 已完成的 7 个专项测试和全量 94 个测试仍为当前真实验证记录。
+- 【步骤 11】已同步 API、Redis、项目进度、README 和数据库变更记录；明确复用既有 `resource` 表，无生产数据库结构变更。
+- 【步骤 12】已基于当前真实代码更新本流程文档的状态、调用关系、事务/一致性边界、测试记录、文件记录、待办事项和提交记录；文档提交将在本次校验后回填。
 
 ---
 
 ## 19. 待完成事项
 
-- T10～T12 的 Mapper 集成测试、其余专项测试和同步文档任务。
+- 排行榜 Mapper 集成测试按步骤 10 的用户要求跳过；如后续恢复该任务，应覆盖游标分页、`status = 1` 过滤和 `hot_score` 更新 SQL。
 - 在实现前统一 `docs/04-api-doc.md` 中 Redis Key 示例的旧前缀写法，最终以 `crp:` 规范和 `RedisKeyConstants` 为准。
 - 当前同步采用“优先不丢数据”的至少一次语义：若 MySQL 事务已提交但随后 Redis `HDEL` 失败，遗留字段可能被重复累加；后续可通过持久化批次记录或幂等流水进一步收敛这一边界。
 - 确定热门搜索词 Redis 故障时“返回空列表”与 API 文档 `50001` 描述的最终口径。
@@ -680,6 +683,11 @@ cd campus-resource-platform
 | 文件 | 操作 | 说明 |
 | --- | --- | --- |
 | `docs/modules/09-rank-development-process.md` | 新增 | 排行榜与定时任务模块开发流程文档初稿 |
+| `docs/04-api-doc.md` | 修改 | 校准排行榜查询 Redis Key 与降级口径，并同步下载、收藏热度联动说明 |
+| `docs/05-redis-design.md` | 修改 | 记录总榜重建临时 Key、维护锁、批次策略与真实热度快照流程 |
+| `docs/06-project-progress.md` | 修改 | 更新排行榜模块完成状态、依赖、测试和后续事项 |
+| `README.md` | 修改 | 更新排行榜与定时任务能力、全量测试数量和下一阶段建议 |
+| `docs/database/database-change-log.md` | 修改 | 记录排行榜复用 resource 表及无生产数据库结构变更 |
 | `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java` | 修改 | 新增热门资料榜、同步锁和 syncing 批次 Key |
 | `campus-resource-platform/src/main/java/com/john/campus/enums/RankingPeriod.java` | 新增 | 统一排行榜周期、TTL 和热词支持范围 |
 | `campus-resource-platform/src/test/java/com/john/campus/enums/RankingPeriodTest.java` | 新增 | 验证周期规则与 Key 格式 |
@@ -737,8 +745,8 @@ cd campus-resource-platform
 
 ### 21.3 后续计划修改（尚未发生）
 
-- 总榜重建、热度快照任务及对应测试。
-- `docs/04-api-doc.md`、`docs/05-redis-design.md`、`docs/06-project-progress.md`、`README.md` 等同步文档。
+- 排行榜 Mapper 集成测试（步骤 10 已按用户要求跳过，后续如恢复需单独执行）。
+- 任务运行指标、失败告警、管理员手动重建接口和热度时间衰减策略。
 
 ---
 
@@ -802,8 +810,8 @@ cd campus-resource-platform
 | T7 | `feat(rank): connect resource behavior heat updates`（已使用，commit `295b0db`） |
 | T8 | `feat(rank): sync download deltas with distributed lock`（已使用，commit `1dd8e10`） |
 | T9 | `feat(rank): rebuild hot ranking and persist score snapshots`（已使用，commit `45c26ca`） |
-| T10 | `test(rank): add ranking and scheduled task tests` |
-| T11 | `docs(rank): sync ranking module documentation` |
+| T10 | 已跳过（用户明确要求不执行） |
+| T11 | `docs(rank): sync ranking module documentation`（本次使用，commit 待回填） |
 
 ---
 
@@ -822,9 +830,9 @@ cd campus-resource-platform
 | 步骤 7 | 接入下载/收藏/审核热度联动 | ✅ 已完成（`295b0db`） |
 | 步骤 8 | 实现下载增量定时同步 | ✅ 已完成（`1dd8e10`） |
 | 步骤 9 | 实现总榜重建与热度快照 | ✅ 已完成（`45c26ca`） |
-| 步骤 10 | 补充排行榜模块测试 | 待执行 |
-| 步骤 11 | 同步排行榜相关文档 | 待执行 |
-| 步骤 12 | 更新本模块开发流程文档 | 待执行 |
+| 步骤 10 | 补充排行榜模块测试 | ⏭️ 已跳过（用户要求） |
+| 步骤 11 | 同步排行榜相关文档 | ✅ 已完成（待本次提交回填） |
+| 步骤 12 | 更新本模块开发流程文档 | ✅ 已完成（待本次提交回填） |
 
 ### 步骤 2：补充 Redis Key 常量与周期模型
 

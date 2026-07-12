@@ -1017,7 +1017,7 @@ GET /api/v1/admin/resources/20001/audit-records
 }
 ```
 
-说明：首次收藏返回 `duplicateIgnored=false`；如果用户已经收藏过该资料，接口按幂等成功处理并返回 `duplicateIgnored=true`，不重复增加收藏数。首版未接入排行榜热度 ZSet，`hotScoreDelta` 固定为 `0`。
+说明：首次收藏返回 `duplicateIgnored=false`；如果用户已经收藏过该资料，接口按幂等成功处理并返回 `duplicateIgnored=true`，不重复增加收藏数。MySQL 事务提交后，系统会异步向四周期热门资料 ZSet 增加 `+3` 热度；响应中的 `hotScoreDelta` 仍是首版兼容字段，固定为 `0`。
 
 可能的错误码：
 
@@ -1063,7 +1063,7 @@ GET /api/v1/admin/resources/20001/audit-records
 }
 ```
 
-说明：取消不存在或已取消的收藏记录返回 `40401`。首版未接入排行榜热度 ZSet，`hotScoreDelta` 固定为 `0`。
+说明：取消不存在或已取消的收藏记录返回 `40401`。MySQL 事务提交后，系统会异步向四周期热门资料 ZSet 扣减 `-3` 热度；响应中的 `hotScoreDelta` 仍是首版兼容字段，固定为 `0`。
 
 可能的错误码：
 
@@ -1169,7 +1169,7 @@ GET /api/v1/admin/resources/20001/audit-records
 
 ## 8. 下载模块
 
-> 本节已按当前 `DownloadController`、`DownloadServiceImpl`、VO 和真实代码同步。下载模块首版实现创建下载记录、文件流返回和我的下载记录查询；已接入 Redis 滑动窗口限流、下载去重和下载量增量统计。文件流接口返回二进制流，不走 `ApiResponse` JSON 包装。首版未实现下载地址过期机制和热度 ZSet 联动。
+> 本节已按当前 `DownloadController`、`DownloadServiceImpl`、VO 和真实代码同步。下载模块首版实现创建下载记录、文件流返回和我的下载记录查询；已接入 Redis 滑动窗口限流、下载去重、下载量增量统计和排行榜热度联动。文件流接口返回二进制流，不走 `ApiResponse` JSON 包装。首版仍未实现下载地址过期机制。
 
 ### 8.1 创建下载记录并获取下载地址
 
@@ -1229,8 +1229,8 @@ Authorization: Bearer eyJhbG...
 - 校验资料存在且为 `APPROVED`，否则拒绝。
 - 写入 `download_record`（`download_status = 1`）。
 - 通过 Redis `SETNX` 去重 Key（TTL 10 分钟）判断是否计入下载量。
-- 下载量增量写 Redis Hash `crp:stats:resource:download:delta`，不在本接口直接 `UPDATE resource.download_count`。
-- 首版不实现热度 ZSet `ZINCRBY`，该联动归排行榜模块。
+- 下载量增量写 Redis Hash `crp:stats:resource:download:delta`，不在本接口直接 `UPDATE resource.download_count`，后续由定时任务安全同步 MySQL。
+- 仅当去重与增量写入均成功时，排行榜模块对四周期热门资料 ZSet 执行 `ZINCRBY +5`；Redis 热度更新异常不影响已成功的下载记录。
 
 可能的错误码：
 
@@ -1421,7 +1421,7 @@ Authorization: Bearer eyJhbG...
 }
 ```
 
-说明：该接口优先读取 Redis ZSet，例如 `ranking:resource:hot`，MySQL 的 `resource.hot_score` 仅作为兜底或快照。
+说明：该接口优先读取 Redis ZSet `crp:rank:resource:hot:{period}`；Redis 缺失或读取异常时，按 `resource.hot_score DESC, download_count DESC, id DESC` 查询 MySQL 快照兜底。只返回 `status = 1` 的资料。
 
 可能的错误码：
 
@@ -1478,14 +1478,13 @@ Authorization: Bearer eyJhbG...
 }
 ```
 
-说明：该接口读取 Redis ZSet，例如 `ranking:search:keyword:daily`。
+说明：该接口读取 Redis ZSet `crp:rank:search:keyword:{period}`；Redis 未装配、Key 缺失或读取异常时返回空列表并记录日志，不返回 `50001`。
 
 可能的错误码：
 
 | 错误码 | 说明 |
 | --- | --- |
 | `40001` | 参数错误 |
-| `50001` | Redis 查询失败 |
 
 ## 10. 搜索模块
 

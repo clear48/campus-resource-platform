@@ -1,5 +1,34 @@
 # 数据库变更记录
 
+## 2026-07-12 排行榜与定时任务模块
+
+### 变更结论
+
+本模块没有新增生产数据库表、字段或索引，复用 `sql/init.sql` 中已设计的 `resource` 表及其 `idx_resource_hot` 索引。
+
+### 使用到的已有表与字段
+
+| 表/字段 | 使用方式 |
+| --- | --- |
+| `resource.download_count` | 接收 Redis 下载增量的 MySQL 原子累加结果，并作为 all 总榜重建的权重输入 |
+| `resource.favorite_count` | 作为 all 总榜重建的权重输入 |
+| `resource.view_count` | 作为 all 总榜重建的权重输入；当前未实现新的浏览计数写入 |
+| `resource.hot_score` | 定时从 Redis all 总榜分批回写，供搜索排序和 Redis 故障降级 |
+| `resource.status` | 游标重建查询及热度快照更新均固定过滤 `status = 1`，避免下架或删除资料被写回公开快照 |
+
+### 使用到的已有索引
+
+| 索引 | 使用场景 |
+| --- | --- |
+| `idx_resource_hot (status, hot_score, download_count)` | Redis 不可用时按 MySQL 热度快照查询热门资料 |
+| 主键 `id` | 总榜重建通过 `id > lastResourceId ORDER BY id` 游标分页，避免 OFFSET 大分页扫描 |
+
+### 备注
+
+- 不新增排行榜快照表；Redis `crp:rank:resource:hot:all` 是实时总榜，MySQL `hot_score` 是可降级快照。
+- all 榜重建只处理审核通过资料，首版公式为 `download_count * 5 + favorite_count * 3 + view_count * 1`。
+- 本次无生产库迁移 SQL；新增的 Mapper SQL 均复用既有 `resource` 字段。
+
 ## 2026-07-07 审核模块
 
 ### 变更结论
