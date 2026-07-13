@@ -12,6 +12,7 @@
   "dependencies": {
     "axios": "^1.18.1",
     "element-plus": "^2.14.3",
+    "spark-md5": "^3.0.2",
     "vue": "^3.5.39",
     "vue-router": "^5.1.0"
   },

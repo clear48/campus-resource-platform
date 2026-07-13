@@ -176,8 +176,8 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
-| T23 | BLOCKED | 实现 MD5 工具和文件 API | `package.json`、`file-md5.ts`、`files.ts`、文件类型及测试 | 等待用户明确授权新增轻量 MD5 依赖后执行 |
-| T24 | TODO | 实现上传页文件选择、预检和上传 | `UploadView.vue` 及测试、Router、默认 Layout | 显示 MD5 进度；命中秒传不上传；获得 `fileId` |
+| T23 | DONE | 实现 MD5 工具和文件 API | `package.json`、`file-md5.ts`、`files.ts`、文件类型及测试 | 分片 MD5 稳定；预检 query 和 FormData 上传正确 |
+| T24 | IN_PROGRESS | 实现上传页文件选择、预检和上传 | `UploadView.vue` 及测试、Router、默认 Layout | 显示 MD5 进度；命中秒传不上传；获得 `fileId` |
 | T25 | TODO | 增加资料元数据表单 | 上传页及测试，复用分类和资料 API | 标题、简介、分类、课程、类型、标签可填写；无 `fileId` 禁止提交 |
 | T26 | TODO | 完成资料创建和结果跳转 | 上传页及测试 | 创建后显示资料 ID 和待审核状态；失败保留表单 |
 
@@ -602,6 +602,18 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | 资料详情页测试 3/3 和生产构建通过。 |
 | Git commit message | `feat(frontend): add resource download flow` |
 | 实际 commit id | `0cba471b6689bc161a1ef84cfeef54de2ba84d8f` |
+| 推送分支 | `origin/dev` |
+
+### T23
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 修改文件 | `package.json`、`package-lock.json`、MD5 工具、本地类型声明、文件 API/类型/测试和前端进度文档 |
+| 核心实现 | 经用户授权新增 `spark-md5@3.0.2`（约 40 KB，WTFPL OR MIT）；分片读取文件计算 MD5；预检使用 query，上传使用 FormData。 |
+| 测试结果 | MD5 与文件 API 测试 3/3、`npm audit` 0 vulnerabilities、生产构建通过。 |
+| Git commit message | `feat(frontend): add file md5 and upload api` |
+| 实际 commit id |  |
 | 推送分支 | `origin/dev` |
 
 ---
