@@ -19,6 +19,8 @@
 - 本轮已完成三个开发阶段，队列暂停在 T19 收藏 API 前；本机后端 8080 端口未监听，真实接口联调仍待补充。
 - T19 已通过 `npm run test:unit -- src/api/favorites.test.ts`（3/3）和 `npm run build`；收藏、取消和状态请求均由会话层携带 Token，未使用 `hotScoreDelta` 计算热度。
 - 当前执行 T20：详情页收藏操作；真实接口联调仍待后端 8080 服务可用后执行。
+- T20 已通过 `npm run test:unit -- src/views/ResourceDetailView.test.ts`（2/2）和 `npm run build`；游客跳登录，登录用户可收藏或取消收藏。
+- 当前执行 T21：下载 API 和文件流工具。
 
 ## 2. 进度状态说明
 

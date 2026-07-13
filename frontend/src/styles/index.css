@@ -128,6 +128,10 @@ body {
   margin-top: 24px;
 }
 
+.resource-detail-view__favorite-alert {
+  margin-bottom: 20px;
+}
+
 .resource-detail-view__notice {
   margin: 24px 0 16px;
   color: #64748b;
