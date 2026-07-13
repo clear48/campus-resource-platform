@@ -35,7 +35,8 @@
 - T28 已通过 `npm run test:unit -- src/views/user/MyUploadsView.test.ts`（1/1）和 `npm run build`；已验证上传资料、状态和拒绝原因展示。
 - T29 已通过 `npm run test:unit -- src/api/users.test.ts`（4/4）和 `npm run build`；已验证收藏列表 Token 与分页参数。
 - T30 已通过 `npm run test:unit -- src/views/user/MyFavoritesView.test.ts`（1/1）和 `npm run build`；已验证详情入口及取消收藏后刷新列表。
-- 当前执行 T31：我的下载 API。
+- T31 已通过 `npm run test:unit -- src/api/users.test.ts`（5/5）和 `npm run build`；已验证下载记录 Token 与分页参数。
+- 当前执行 T32：我的下载页面。
 
 ## 2. 进度状态说明
 

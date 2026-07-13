@@ -24,3 +24,9 @@ export interface DownloadRecordItem {
   downloadStatus: number
   createdAt: string
 }
+
+/** “我的下载”接口仅接受的分页参数。 */
+export interface DownloadRecordListQuery {
+  pageNo?: number
+  pageSize?: number
+}

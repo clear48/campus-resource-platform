@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T31` |
-| 已完成任务 | 30 |
+| 当前任务 | `T32` |
+| 已完成任务 | 31 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -189,8 +189,8 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | T28 | DONE | 实现“我的上传”页面 | `MyUploadsView.vue` 及测试、Router、导航 | 可筛选状态、分页、显示拒绝/下架原因；无编辑删除 |
 | T29 | DONE | 实现“我的收藏”API | `users.ts`、收藏类型、用户 API 测试 | 收藏列表分页参数和 records 类型正确 |
 | T30 | DONE | 实现“我的收藏”页面 | `MyFavoritesView.vue` 及测试、Router、导航 | 可分页、跳详情和取消收藏；不做收藏夹分组 |
-| T31 | IN_PROGRESS | 实现“我的下载”API | `users.ts`、下载类型、用户 API 测试 | 下载记录只包含文档字段；分页参数正确 |
-| T32 | TODO | 实现“我的下载”页面 | `MyDownloadsView.vue` 及测试、Router、导航 | 可分页、跳详情、再次下载；文件名取响应头 |
+| T31 | DONE | 实现“我的下载”API | `users.ts`、下载类型、用户 API 测试 | 下载记录只包含文档字段；分页参数正确 |
+| T32 | IN_PROGRESS | 实现“我的下载”页面 | `MyDownloadsView.vue` 及测试、Router、导航 | 可分页、跳详情、再次下载；文件名取响应头 |
 
 ### 第七阶段：管理员审核与下架
 
@@ -697,6 +697,18 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 核心实现 | 分页展示收藏资料，提供公开资料详情入口；取消收藏后重新读取后端列表，不实现收藏夹分组。 |
 | 测试结果 | 我的收藏页面组件测试 1/1 和生产构建通过。 |
 | Git commit message | `feat(frontend): add my favorites page` |
+| 实际 commit id | `21f39e28ef16db4bb4373d3c32d8bfd5f5d5c706` |
+| 推送分支 | `origin/dev` |
+
+### T31
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 修改文件 | `frontend/src/types/download.ts`、`frontend/src/api/users.ts`、`frontend/src/api/users.test.ts` 和前端进度文档 |
+| 核心实现 | 声明下载记录分页参数，通过 `/users/me/download-records` 查询当前用户下载记录；不声明 IP、User-Agent 等审计字段。 |
+| 测试结果 | 用户 API 测试 5/5 和生产构建通过。 |
+| Git commit message | `feat(frontend): add my downloads api` |
 | 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |
 
