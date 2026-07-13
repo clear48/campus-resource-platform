@@ -1,0 +1,51 @@
+:root {
+  color: #1f2937;
+  background: #f5f7fa;
+  font-family: Inter, 'Microsoft YaHei', system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+.app-shell {
+  display: grid;
+  min-height: 100vh;
+  padding: 24px;
+  place-items: center;
+}
+
+.welcome-card {
+  width: min(680px, 100%);
+  padding: 48px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgb(15 23 42 / 8%);
+}
+
+.eyebrow {
+  margin: 0;
+  color: #409eff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 16px 0;
+  font-size: clamp(28px, 5vw, 40px);
+}
+
+.description {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.75;
+}

@@ -6,7 +6,7 @@
 
 已经完成的核心能力包括：Spring Boot 后端基础骨架、统一响应与异常处理、JWT 鉴权、Redis Token 黑名单、用户注册/登录/退出登录/当前用户查询、公开分类查询、文件上传与 MD5 秒传、基于 `fileId` 创建资料、公开资料详情、我的上传资料分页查询、管理员待审核列表、审核通过、审核拒绝、下架资料、审核记录查询、公开资料搜索与热门搜索词写入、登录后下载，以及收藏/取消收藏/收藏状态查询/我的收藏列表。
 
-资料模块首版已经把 `file_info` 物理文件转换为 `resource` 业务资料主体，审核模块进一步把待审核资料推进到 `APPROVED`、`REJECTED`、`OFFLINE` 状态，并通过 `audit_record` 保留审计流水。搜索模块首版消费 `status = 1 APPROVED` 的公开资料，提供关键词/分类/课程/类型/标签筛选、分页排序，并把非空关键词写入 Redis 热门搜索词 ZSet。收藏模块首版以 MySQL `favorite` 表和唯一索引保证幂等，维护 `resource.favorite_count`，并以 Redis Set 加速状态查询。排行榜与定时任务模块已完成查询、行为热度联动、下载增量同步、all 总榜重建、热度快照和管理员手动重建；总榜重建与实时热度写入已通过 Redisson 读写锁协调。下一阶段可补充 Mapper 集成测试和任务运行指标。
+资料模块首版已经把 `file_info` 物理文件转换为 `resource` 业务资料主体，审核模块进一步把待审核资料推进到 `APPROVED`、`REJECTED`、`OFFLINE` 状态，并通过 `audit_record` 保留审计流水。搜索模块首版消费 `status = 1 APPROVED` 的公开资料，提供关键词/分类/课程/类型/标签筛选、分页排序，并把非空关键词写入 Redis 热门搜索词 ZSet。收藏模块首版以 MySQL `favorite` 表和唯一索引保证幂等，维护 `resource.favorite_count`，并以 Redis Set 加速状态查询。排行榜与定时任务模块已完成查询、行为热度联动、下载增量同步、all 总榜重建、热度快照和管理员手动重建；总榜重建与实时热度写入已通过 Redisson 读写锁协调。前端演示模块已完成 T01：Vue 3 + Vite + TypeScript 工程骨架已创建，`npm run build` 和开发服务 HTTP 验证通过；当前进入 T02 Element Plus 接入。下一阶段可补充 Mapper 集成测试和任务运行指标。
 
 ## 2. 进度状态说明
 
@@ -36,6 +36,7 @@
 | `docs/modules/09-rank-development-process.md` | 已完成 | 排行榜查询、热度联动、下载同步、all 榜重建、快照、测试和文档记录 |
 | `docs/database/database-change-log.md` | 已同步 | 记录认证、分类、文件上传、资料、审核、搜索、下载和收藏模块均复用已有生产表结构 |
 | `README.md` | 已同步 | 启动说明、当前完成模块、测试命令和下一阶段建议 |
+| `docs/frontend/01-frontend-requirements.md` 至 `05-frontend-task-queue.md` | 已完成 | 前端演示需求、页面、API 映射、开发计划和自动任务队列 |
 
 ## 4. 数据库与脚本状态
 

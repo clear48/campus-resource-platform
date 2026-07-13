@@ -7,13 +7,13 @@
 | 模块名称 | 前端演示模块 |
 | 模块定位 | 只服务于当前 Java 后端项目功能演示 |
 | 当前分支 | `dev` |
-| 当前状态 | 待开发 |
+| 当前状态 | 开发中 |
 | 任务执行模式 | 自动推进，遇到停止条件暂停 |
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T01` |
-| 已完成任务 | 0 |
+| 当前任务 | `T02` |
+| 已完成任务 | 1 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -134,7 +134,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
-| T01 | TODO | 创建 Vue 3 + Vite + TypeScript 空工程 | `frontend/package.json`、`index.html`、Vite/TS 配置、`src/main.ts`、`src/App.vue` | `npm run build` 通过；开发服务可打开简单标题页 |
+| T01 | DONE | 创建 Vue 3 + Vite + TypeScript 空工程 | `frontend/package.json`、`index.html`、Vite/TS 配置、`src/main.ts`、`src/App.vue` | `npm run build` 通过；开发服务返回 HTTP 200 |
 | T02 | TODO | 接入 Element Plus 和基础样式 | `frontend/package.json`、`src/main.ts`、`src/App.vue`、`src/styles/index.css` | Element Plus 组件可渲染；无复杂主题系统 |
 | T03 | TODO | 接入 Vue Router 和最小页面壳 | Router、默认 Layout、首页占位、`App.vue`、`main.ts` | `/` 通过 Router 渲染；未知路由有简单兜底 |
 | T04 | TODO | 配置环境变量和后端代理 | `vite.config.ts`、`.env.example`、`.env.development`、必要时 `.gitignore` | API 地址可配置；代理不包含敏感信息 |
@@ -230,19 +230,19 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 
 | 项目 | 记录 |
 | --- | --- |
-| 状态 | TODO |
-| 开始时间 |  |
-| 完成时间 |  |
-| 开始前 commit |  |
-| 修改文件 |  |
-| 核心实现 |  |
-| 测试命令 |  |
-| 测试结果 |  |
-| 文档更新 |  |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 完成时间 | 2026-07-13 |
+| 开始前 commit | `74554259ba03de64b78cd17bf75ca5aa993600e6` |
+| 修改文件 | `frontend/` Vite 工程文件、`docs/frontend/04-frontend-dev-plan.md`、本队列、`docs/CURRENT_STATUS.md`、`docs/BRANCH_HANDOFF.md`、`docs/06-project-progress.md` |
+| 核心实现 | 生成 Vue 3 + Vite + TypeScript 工程，并将默认演示替换为轻量项目标题页 |
+| 测试命令 | `npm install`；`npm run build`；启动 Vite 后请求 `http://127.0.0.1:5173/` |
+| 测试结果 | 依赖安装成功；构建通过；开发服务返回 HTTP 200 |
+| 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
 | Git commit message | `chore(frontend): scaffold vue vite app` |
 | 实际 commit id |  |
 | 推送分支 |  |
-| 备注 |  |
+| 备注 | 实际 commit id 和推送结果在提交完成后记录到任务完成摘要 |
 
 ---
 

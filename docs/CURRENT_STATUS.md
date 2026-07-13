@@ -7,8 +7,8 @@
 | 项目名称 | 校园资料共享与智能检索平台 |
 | 当前分支 | `dev` |
 | 当前后端状态 | 认证、分类、文件、资料、审核、搜索、下载、收藏、排行榜与定时任务均已完成首版 |
-| 当前前端状态 | 前端需求、页面设计、API 映射、开发计划和任务队列已完成；`frontend/` 工程尚未创建 |
-| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，第一个待执行任务为 `T01` |
+| 当前前端状态 | 已完成 T01：Vue 3 + Vite + TypeScript 空工程；正在执行 T02：接入 Element Plus |
+| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T02` |
 
 ## 当前工作
 
@@ -22,8 +22,8 @@
 | --- | --- |
 | 允许范围 | `frontend/` 前端代码、前端测试、前端运行说明，以及队列要求的前端进度文档 |
 | 不允许范围 | 后端 Java、SQL、数据库、Redis、接口路径和其他业务模块 |
-| 当前任务 | `T01`：创建 Vue 3 + Vite + TypeScript 空工程 |
-| 后续任务 | `T02`：接入 Element Plus；`T03`：接入 Vue Router 和最小页面壳 |
+| 当前任务 | `T02`：接入 Element Plus 和基础样式 |
+| 后续任务 | `T03`：接入 Vue Router 和最小页面壳 |
 | 停止条件 | 见 `docs/frontend/05-frontend-task-queue.md` 的“停止条件” |
 
 ## 已知事项
@@ -37,7 +37,7 @@
 | 范围 | 命令/方式 | 结果 |
 | --- | --- | --- |
 | 后端现有代码 | 见 `docs/06-project-progress.md` 与各模块文档 | 已有后端验证记录 |
-| 前端 | 尚未开始 | 无前端构建或测试结果 |
+| 前端 T01 | `npm run build`；Vite 开发服务 HTTP 请求 | 构建通过；`http://127.0.0.1:5173/` 返回 HTTP 200 |
 
 ## 下一步
 
