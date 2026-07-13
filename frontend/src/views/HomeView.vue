@@ -101,7 +101,11 @@ onMounted(() => {
             </div>
           </template>
 
-          <el-alert v-if="resourceError" class="ranking-card__alert" type="error" :title="resourceError" :closable="false" show-icon />
+          <el-alert v-if="resourceError" class="ranking-card__alert" type="error" :title="resourceError" :closable="false" show-icon>
+            <template #default>
+              <el-button data-test="retry-resource-ranking" link type="primary" @click="loadHotResources">重新加载</el-button>
+            </template>
+          </el-alert>
           <el-table v-else v-loading="resourceLoading" :data="hotResources" empty-text="暂无热门资料">
             <el-table-column prop="rank" label="排名" width="70" />
             <el-table-column prop="title" label="资料标题" min-width="180" />
@@ -134,7 +138,11 @@ onMounted(() => {
             </div>
           </template>
 
-          <el-alert v-if="keywordError" class="ranking-card__alert" type="error" :title="keywordError" :closable="false" show-icon />
+          <el-alert v-if="keywordError" class="ranking-card__alert" type="error" :title="keywordError" :closable="false" show-icon>
+            <template #default>
+              <el-button data-test="retry-keyword-ranking" link type="primary" @click="loadHotKeywords">重新加载</el-button>
+            </template>
+          </el-alert>
           <el-table v-else v-loading="keywordLoading" :data="hotKeywords" empty-text="暂无热门搜索词">
             <el-table-column prop="rank" label="排名" width="70" />
             <el-table-column prop="keyword" label="关键词" min-width="130" />

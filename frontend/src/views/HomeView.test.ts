@@ -15,6 +15,8 @@ vi.mock('../api/rankings', () => ({
 
 describe('HomeView', () => {
   beforeEach(() => {
+    getHotResources.mockReset()
+    getHotSearchKeywords.mockReset()
     getHotResources.mockResolvedValue([
       {
         rank: 1,
@@ -41,5 +43,35 @@ describe('HomeView', () => {
     expect(getHotSearchKeywords).toHaveBeenCalledWith({ limit: 10, period: 'daily' })
     expect(wrapper.text()).toContain('数据结构复习提纲')
     expect(wrapper.text()).toContain('热门搜索词')
+  })
+
+  it('排行榜加载失败后应支持重新加载', async () => {
+    getHotResources
+      .mockRejectedValueOnce(new Error('排行榜服务暂不可用'))
+      .mockResolvedValueOnce([
+        {
+          rank: 1,
+          resourceId: 20002,
+          title: '重试后的热门资料',
+          courseName: '操作系统',
+          downloadCount: 88,
+          favoriteCount: 12,
+          hotScore: 256,
+        },
+      ])
+
+    const wrapper = mount(HomeView, {
+      global: {
+        plugins: [ElementPlus],
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('排行榜服务暂不可用')
+    await wrapper.get('[data-test="retry-resource-ranking"]').trigger('click')
+    await flushPromises()
+
+    expect(getHotResources).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('重试后的热门资料')
   })
 })

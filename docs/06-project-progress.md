@@ -57,7 +57,8 @@
 - T41 已通过 `npm run test:unit -- src/views/admin/RankingManagementView.test.ts`（1/1）和 `npm run build`；已验证两类榜单周期、总榜重建确认和无虚构进度。
 - 当前执行 T42：登录和管理员路由守卫。
 - T42 已通过 `npm run test:unit -- src/router/index.test.ts`（3/3）和 `npm run build`；已验证游客、普通用户和管理员的页面跳转。
-- 当前执行 T43：固定导航和页面通用状态收口。
+- T43 已通过 `npm run test:unit -- src/layouts/DefaultLayout.test.ts src/layouts/AdminLayout.test.ts src/views/HomeView.test.ts`（6/6）、全量前端测试（31 个文件、65 个测试）和 `npm run build`；固定导航、管理员入口与排行榜失败重试均已验证。
+- 前端第八阶段（T40-T43，排行榜运维、路由守卫和页面状态收口）已完成；当前进入 T44 真实后端认证、上传和审核联调验收。
 
 ## 2. 进度状态说明
 
