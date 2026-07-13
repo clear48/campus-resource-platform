@@ -7,8 +7,8 @@
 | 项目名称 | 校园资料共享与智能检索平台 |
 | 当前分支 | `dev` |
 | 当前后端状态 | 认证、分类、文件、资料、审核、搜索、下载、收藏、排行榜与定时任务均已完成首版 |
-| 当前前端状态 | 已完成 T01：工程骨架；已完成 T02：Element Plus 与基础样式；正在执行 T03：Vue Router 和最小页面壳 |
-| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T03` |
+| 当前前端状态 | 已完成第一阶段 T01-T03：工程骨架、Element Plus、固定 Router；正在执行 T04：环境变量与后端代理 |
+| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T04` |
 
 ## 当前工作
 
@@ -22,8 +22,8 @@
 | --- | --- |
 | 允许范围 | `frontend/` 前端代码、前端测试、前端运行说明，以及队列要求的前端进度文档 |
 | 不允许范围 | 后端 Java、SQL、数据库、Redis、接口路径和其他业务模块 |
-| 当前任务 | `T03`：接入 Vue Router 和最小页面壳 |
-| 后续任务 | `T04`：配置环境变量和后端代理 |
+| 当前任务 | `T04`：配置环境变量和后端代理 |
+| 后续任务 | `T05`：创建通用 API 类型和 Axios 请求实例 |
 | 停止条件 | 见 `docs/frontend/05-frontend-task-queue.md` 的“停止条件” |
 
 ## 已知事项
@@ -39,6 +39,7 @@
 | 后端现有代码 | 见 `docs/06-project-progress.md` 与各模块文档 | 已有后端验证记录 |
 | 前端 T01 | `npm run build`；Vite 开发服务 HTTP 请求 | 构建通过；`http://127.0.0.1:5173/` 返回 HTTP 200 |
 | 前端 T02 | `npm run build`；Vite 开发服务 HTTP 请求 | Element Plus 构建通过；`http://127.0.0.1:5173/` 返回 HTTP 200 |
+| 前端 T03 | `npm run build`；Vite 首页和未知路径请求 | 构建通过；两条路径均返回 HTTP 200 SPA 入口 |
 
 ## 下一步
 

@@ -15,11 +15,35 @@ body {
   min-width: 320px;
 }
 
-.app-shell {
-  display: grid;
+.default-layout {
   min-height: 100vh;
+}
+
+.default-layout__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.brand {
+  color: #1e293b;
+  font-size: 18px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.default-layout__main {
+  display: grid;
   padding: 24px;
+  background: #f5f7fa;
   place-items: center;
+}
+
+.home-view {
+  width: min(680px, 100%);
 }
 
 .welcome-card {
@@ -52,4 +76,10 @@ h1 {
 
 .status-tag {
   margin-top: 24px;
+}
+
+.not-found-view {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
 }

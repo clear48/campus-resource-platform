@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T03` |
-| 已完成任务 | 2 |
+| 当前任务 | `T04` |
+| 已完成任务 | 3 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -136,7 +136,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | --- | --- | --- | --- | --- |
 | T01 | DONE | 创建 Vue 3 + Vite + TypeScript 空工程 | `frontend/package.json`、`index.html`、Vite/TS 配置、`src/main.ts`、`src/App.vue` | `npm run build` 通过；开发服务返回 HTTP 200 |
 | T02 | DONE | 接入 Element Plus 和基础样式 | `frontend/package.json`、`src/main.ts`、`src/App.vue`、`src/styles/index.css` | Element Plus 组件可渲染；生产构建和开发服务验证通过 |
-| T03 | TODO | 接入 Vue Router 和最小页面壳 | Router、默认 Layout、首页占位、`App.vue`、`main.ts` | `/` 通过 Router 渲染；未知路由有简单兜底 |
+| T03 | DONE | 接入 Vue Router 和最小页面壳 | Router、默认 Layout、首页占位、`App.vue`、`main.ts` | `/` 与未知路径均返回 SPA 入口；客户端配置 404 兜底 |
 | T04 | TODO | 配置环境变量和后端代理 | `vite.config.ts`、`.env.example`、`.env.development`、必要时 `.gitignore` | API 地址可配置；代理不包含敏感信息 |
 | T05 | TODO | 创建通用 API 类型和 Axios 请求实例 | `src/types/api.ts`、`src/utils/request.ts` | 统一响应、分页、错误消息和 `traceId` 可处理 |
 | T06 | TODO | 建立最小单元测试环境 | `package.json`、`vite.config.ts`、`tests/setup.ts`、请求层测试 | Vitest 和 Axios Mock 测试通过；生产构建通过 |
@@ -258,6 +258,24 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | 依赖安装成功；构建通过；开发服务返回 HTTP 200 |
 | 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
 | Git commit message | `chore(frontend): integrate element plus` |
+| 实际 commit id | `513208be5767a0b18f7fc54085f1e000653f8ab7` |
+| 推送分支 | `origin/dev` |
+| 备注 | 已完成并推送 |
+
+### T03
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 完成时间 | 2026-07-13 |
+| 开始前 commit | `513208be5767a0b18f7fc54085f1e000653f8ab7` |
+| 修改文件 | `frontend/package.json`、`frontend/package-lock.json`、`frontend/src/main.ts`、`frontend/src/App.vue`、`frontend/src/router/index.ts`、`frontend/src/layouts/DefaultLayout.vue`、`frontend/src/views/HomeView.vue`、`frontend/src/views/NotFoundView.vue`、`frontend/src/styles/index.css`、本队列和前端进度文档 |
+| 核心实现 | 接入固定 Vue Router、默认布局、首页占位和未知路径 404 兜底；使用相对导入避免 TypeScript 6 路径别名弃用配置 |
+| 测试命令 | `npm install vue-router`；`npm run build`；启动 Vite 后请求首页与未知路径 |
+| 测试结果 | 依赖安装成功；构建通过；首页和未知路径均返回 HTTP 200 SPA 入口 |
+| 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
+| Git commit message | `feat(frontend): add router and base layout` |
 | 实际 commit id |  |
 | 推送分支 |  |
 | 备注 | 实际 commit id 和推送结果在提交完成后记录到任务完成摘要 |
