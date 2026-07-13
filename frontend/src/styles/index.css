@@ -254,6 +254,26 @@ body {
   margin-top: 20px;
 }
 
+.published-resources-view {
+  width: min(1280px, 100%);
+}
+
+.published-resources-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.published-resources-view__alert {
+  margin-bottom: 16px;
+}
+
+.published-resources-view__pagination {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
 .ranking-card__header {
   display: flex;
   align-items: center;

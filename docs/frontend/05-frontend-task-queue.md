@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T37` |
-| 已完成任务 | 36 |
+| 当前任务 | `T38` |
+| 已完成任务 | 37 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -200,8 +200,8 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | T34 | DONE | 实现待审核列表页面 | `ReviewManagementView.vue`、`AdminLayout.vue`、Router 及测试 | 只读列表、筛选、分页、审核流水可用；无写按钮 |
 | T35 | DONE | 实现审核通过和拒绝 API | 管理员资料 API、审核类型及测试 | 通过/拒绝 path、body、Token 正确；拒绝原因必填 |
 | T36 | DONE | 在审核页接入通过和拒绝 | 审核管理页及测试 | 二次确认；成功后移出列表；409 状态冲突可见 |
-| T37 | IN_PROGRESS | 创建发布资料只读管理页 | `PublishedResourcesView.vue`、Router、管理员菜单及测试 | 只列 APPROVED 资料；支持筛选、分页和详情；无下架按钮 |
-| T38 | TODO | 实现下架 API | 管理员资料 API、审核类型及测试 | 下架 path、`offlineReason` body 和 Token 正确 |
+| T37 | DONE | 创建发布资料只读管理页 | `PublishedResourcesView.vue`、Router、管理员菜单及测试 | 只列 APPROVED 资料；支持筛选、分页和详情；无下架按钮 |
+| T38 | IN_PROGRESS | 实现下架 API | 管理员资料 API、审核类型及测试 | 下架 path、`offlineReason` body 和 Token 正确 |
 | T39 | TODO | 接入下架和审核流水 | 发布资料页及测试 | 原因必填；下架后移出公开列表；可查看流水 |
 
 ### 第八阶段：排行榜运维与路由收口
@@ -769,6 +769,18 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 核心实现 | 审核通过与拒绝均使用二次确认；拒绝原因非空后才请求；成功后重新读取待审核队列，409 等后端业务错误原样显示。 |
 | 测试结果 | 待审核页面组件测试 3/3 和生产构建通过。 |
 | Git commit message | `feat(frontend): add review actions` |
+| 实际 commit id | `1359c17c3b08b53d5b4f66a5f3ec62cdc2be6fe8` |
+| 推送分支 | `origin/dev` |
+
+### T37
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 修改文件 | `PublishedResourcesView.vue`、对应测试、Router、管理员菜单、样式和前端进度文档 |
+| 核心实现 | 复用后端固定限制 APPROVED 的公开搜索接口展示已发布资料，支持筛选、分页、详情入口；本任务不提供下架操作。 |
+| 测试结果 | 发布资料页面组件测试 1/1 和生产构建通过。 |
+| Git commit message | `feat(frontend): add published resources page` |
 | 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |
 

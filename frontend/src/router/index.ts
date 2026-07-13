@@ -70,6 +70,11 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-reviews',
         component: () => import('../views/admin/ReviewManagementView.vue'),
       },
+      {
+        path: 'resources',
+        name: 'admin-resources',
+        component: () => import('../views/admin/PublishedResourcesView.vue'),
+      },
     ],
   },
   {

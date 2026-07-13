@@ -46,6 +46,8 @@
 - 当前执行 T36：审核页写操作。
 - T36 已通过 `npm run test:unit -- src/views/admin/ReviewManagementView.test.ts`（3/3）和 `npm run build`；已验证二次确认、拒绝原因校验、成功刷新和 409 错误展示。
 - 当前执行 T37：发布资料只读管理页。
+- T37 已通过 `npm run test:unit -- src/views/admin/PublishedResourcesView.test.ts`（1/1）和 `npm run build`；已验证发布资料只来自公开搜索结果，且不含下架操作。
+- 当前执行 T38：下架 API。
 
 ## 2. 进度状态说明
 
