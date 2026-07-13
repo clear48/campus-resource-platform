@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T46` |
-| 已完成任务 | 45 |
+| 当前任务 | `T47` |
+| 已完成任务 | 46 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -218,7 +218,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | --- | --- | --- | --- | --- |
 | T44 | DONE | 验证认证和上传审核闭环 | 仅缺陷文件、`tests/manual/auth-upload-review.md` | 注册、登录、秒传、创建、审核、退出黑名单均验证 |
 | T45 | DONE | 验证搜索收藏下载闭环 | 仅缺陷文件、`tests/manual/resource-consumption.md` | 搜索隔离、收藏、两步下载、去重和限流均验证 |
-| T46 | TODO | 验证排行榜和管理员下架闭环 | 仅缺陷文件、`tests/manual/ranking-admin.md` | 热度、重建、下架、角色拒绝均验证 |
+| T46 | DONE | 验证排行榜和管理员下架闭环 | 仅缺陷文件、`tests/manual/ranking-admin.md` | 热度、重建、下架、角色拒绝均验证 |
 | T47 | TODO | 整理启动说明和最终验证记录 | `frontend/README.md`、开发计划和必要进度文档 | 干净环境安装、测试、构建、启动通过；不记录真实密钥 |
 
 ---
@@ -874,6 +874,24 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 停止条件 | 未命中。 |
 | Git commit message | `test(frontend): verify auth upload audit flow` |
 | 上次阻塞记录 commit | `3516620` |
+| 实际 commit id | 待本次提交后回填 |
+| 推送分支 | `origin/dev` |
+
+### T46
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 起始 commit | `f25066a` |
+| 完成时间 | 2026-07-13 |
+| 修改文件 | `frontend/tests/manual/ranking-admin.md` 与前端进度文档；未修改前端业务页面。 |
+| 核心实现 | 真实验证资料热榜与热词榜、管理员总榜重建、下架状态流转、公开隔离和角色边界。 |
+| 范围约束 | 用户提供的 PDF 保持已审核公开状态；下架只使用另一条已审核测试资料。 |
+| 已通过验证 | 普通用户调用总榜重建、下架均为 HTTP 403；PDF 进入总榜，`UML` 进入日热词榜；管理员总榜重建成功；资料 ID `1` 从状态 `1` 下架至 `3`，退出公开详情、搜索和热榜并有审计记录；PDF 仍为公开资料。 |
+| 测试结果 | `npm run test:unit`（31 个文件、65 个用例）通过；`npm run build` 通过；`git diff --check` 通过。 |
+| 停止条件 | 未命中。 |
+| Git commit message | `test(frontend): verify ranking admin flow` |
 | 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |
 
