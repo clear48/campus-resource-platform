@@ -44,6 +44,11 @@ export interface RejectResourceRequest {
   rejectReason: string
 }
 
+/** 下架已发布资料时必须提交的业务原因。 */
+export interface OfflineResourceRequest {
+  offlineReason: string
+}
+
 /** 审核通过、拒绝和下架接口共用的状态流转结果字段。 */
 export interface AuditActionResult {
   resourceId: number

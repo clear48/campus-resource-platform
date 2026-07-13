@@ -3,6 +3,7 @@ import type {
   ApproveResourceRequest,
   AuditActionResult,
   AuditRecordItem,
+  OfflineResourceRequest,
   PendingReviewQuery,
   PendingReviewResource,
   RejectResourceRequest,
@@ -27,4 +28,9 @@ export function approveResource(resourceId: number, data: ApproveResourceRequest
 /** 审核拒绝待审核资料；调用方必须传入非空拒绝原因。 */
 export function rejectResource(resourceId: number, data: RejectResourceRequest): Promise<AuditActionResult> {
   return request.post<AuditActionResult, RejectResourceRequest>(`/admin/resources/${resourceId}/audit-rejections`, data)
+}
+
+/** 下架已审核通过资料；后端负责状态机校验、审核流水和公开可见性变更。 */
+export function offlineResource(resourceId: number, data: OfflineResourceRequest): Promise<AuditActionResult> {
+  return request.post<AuditActionResult, OfflineResourceRequest>(`/admin/resources/${resourceId}/offline-records`, data)
 }

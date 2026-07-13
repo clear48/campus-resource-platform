@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T38` |
-| 已完成任务 | 37 |
+| 当前任务 | `T39` |
+| 已完成任务 | 38 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -201,8 +201,8 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | T35 | DONE | 实现审核通过和拒绝 API | 管理员资料 API、审核类型及测试 | 通过/拒绝 path、body、Token 正确；拒绝原因必填 |
 | T36 | DONE | 在审核页接入通过和拒绝 | 审核管理页及测试 | 二次确认；成功后移出列表；409 状态冲突可见 |
 | T37 | DONE | 创建发布资料只读管理页 | `PublishedResourcesView.vue`、Router、管理员菜单及测试 | 只列 APPROVED 资料；支持筛选、分页和详情；无下架按钮 |
-| T38 | IN_PROGRESS | 实现下架 API | 管理员资料 API、审核类型及测试 | 下架 path、`offlineReason` body 和 Token 正确 |
-| T39 | TODO | 接入下架和审核流水 | 发布资料页及测试 | 原因必填；下架后移出公开列表；可查看流水 |
+| T38 | DONE | 实现下架 API | 管理员资料 API、审核类型及测试 | 下架 path、`offlineReason` body 和 Token 正确 |
+| T39 | IN_PROGRESS | 接入下架和审核流水 | 发布资料页及测试 | 原因必填；下架后移出公开列表；可查看流水 |
 
 ### 第八阶段：排行榜运维与路由收口
 
@@ -781,6 +781,18 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 核心实现 | 复用后端固定限制 APPROVED 的公开搜索接口展示已发布资料，支持筛选、分页、详情入口；本任务不提供下架操作。 |
 | 测试结果 | 发布资料页面组件测试 1/1 和生产构建通过。 |
 | Git commit message | `feat(frontend): add published resources page` |
+| 实际 commit id | `051c3f2a92c8f454cf4bdb5ba55a7e07eda95309` |
+| 推送分支 | `origin/dev` |
+
+### T38
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 修改文件 | `frontend/src/types/audit.ts`、`frontend/src/api/admin/resources.ts`、对应测试和前端进度文档 |
+| 核心实现 | 提供下架请求方法，传递必填 `offlineReason`；后端负责已通过状态校验、审核流水和公开可见性切换。 |
+| 测试结果 | 管理员资料 API 测试 5/5 和生产构建通过。 |
+| Git commit message | `feat(frontend): add resource offline api` |
 | 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |
 

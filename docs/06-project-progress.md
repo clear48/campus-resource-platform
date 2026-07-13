@@ -48,6 +48,8 @@
 - 当前执行 T37：发布资料只读管理页。
 - T37 已通过 `npm run test:unit -- src/views/admin/PublishedResourcesView.test.ts`（1/1）和 `npm run build`；已验证发布资料只来自公开搜索结果，且不含下架操作。
 - 当前执行 T38：下架 API。
+- T38 已通过 `npm run test:unit -- src/api/admin/resources.test.ts`（5/5）和 `npm run build`；已验证下架接口的 Token、路径和 `offlineReason` 请求体。
+- 当前执行 T39：下架和审核流水页面操作。
 
 ## 2. 进度状态说明
 

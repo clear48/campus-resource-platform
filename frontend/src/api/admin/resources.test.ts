@@ -1,6 +1,6 @@
 import MockAdapter from 'axios-mock-adapter'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { approveResource, getAuditRecords, getPendingReviews, rejectResource } from './resources'
+import { approveResource, getAuditRecords, getPendingReviews, offlineResource, rejectResource } from './resources'
 import { session } from '../../state/session'
 import { httpClient } from '../../utils/request'
 
@@ -119,5 +119,21 @@ describe('admin resources api', () => {
     })
 
     await expect(rejectResource(20001, { rejectReason: '请补充实验截图' })).resolves.toMatchObject({ afterStatus: 2 })
+  })
+
+  it('应携带 Token 和下架原因下架已发布资料', async () => {
+    mock.onPost('/admin/resources/20001/offline-records').reply((config) => {
+      expect(config.headers?.Authorization).toBe('Bearer admin-review-token')
+      expect(JSON.parse(config.data)).toEqual({ offlineReason: '收到举报，经核实存在版权风险' })
+
+      return [200, {
+        code: 0,
+        message: 'success',
+        data: { resourceId: 20001, actionType: 3, beforeStatus: 1, afterStatus: 3, auditRecordId: 50003, auditReason: '收到举报，经核实存在版权风险', approvedAt: null, offlineAt: '2026-07-02T12:00:00' },
+        traceId: 'offline-trace',
+      }]
+    })
+
+    await expect(offlineResource(20001, { offlineReason: '收到举报，经核实存在版权风险' })).resolves.toMatchObject({ afterStatus: 3 })
   })
 })
