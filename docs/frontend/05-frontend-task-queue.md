@@ -14,8 +14,8 @@
 | 任务总数 | 47 |
 | 当前任务 | `T01` |
 | 已完成任务 | 0 |
-| `docs/CURRENT_STATUS.md` | 当前不存在；自动执行时不得静默跳过 |
-| `docs/BRANCH_HANDOFF.md` | 当前不存在；自动执行时不得静默跳过 |
+| `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
+| `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
 ---
 
@@ -109,7 +109,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 18. 再次检查停止条件；如果未命中，立即执行下一个 TODO；
 19. 如果没有 TODO，更新模块状态为“已完成”，输出最终汇总并停止。
 
-> 当前仓库尚无 `docs/CURRENT_STATUS.md` 和 `docs/BRANCH_HANDOFF.md`。首次实际启动自动队列时，必须按停止条件暂停并请用户决定创建这两个文件，或明确批准使用现有 `docs/06-project-progress.md` 与本队列代替；不得自行忽略根 `AGENTS.md` 的更新要求。
+> `docs/CURRENT_STATUS.md` 和 `docs/BRANCH_HANDOFF.md` 已在用户明确授权后创建。后续自动推进必须同步更新这两份文档，不得再以缺失为由跳过。
 
 ---
 
