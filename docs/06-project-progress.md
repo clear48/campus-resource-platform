@@ -54,6 +54,8 @@
 - 前端第七阶段（T33-T39，管理员审核与下架）已完成；当前执行第八阶段 T40。
 - T40 已通过 `npm run test:unit -- src/api/admin/rankings.test.ts`（1/1）和 `npm run build`；已验证管理员 Token、无业务参数与 `data=null` 响应。
 - 当前执行 T41：排行榜运维页面。
+- T41 已通过 `npm run test:unit -- src/views/admin/RankingManagementView.test.ts`（1/1）和 `npm run build`；已验证两类榜单周期、总榜重建确认和无虚构进度。
+- 当前执行 T42：登录和管理员路由守卫。
 
 ## 2. 进度状态说明
 

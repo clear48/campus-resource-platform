@@ -75,6 +75,11 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-resources',
         component: () => import('../views/admin/PublishedResourcesView.vue'),
       },
+      {
+        path: 'rankings',
+        name: 'admin-rankings',
+        component: () => import('../views/admin/RankingManagementView.vue'),
+      },
     ],
   },
   {

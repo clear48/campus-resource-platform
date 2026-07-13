@@ -274,6 +274,36 @@ body {
   margin-top: 20px;
 }
 
+.ranking-management-view {
+  width: min(1280px, 100%);
+}
+
+.ranking-management-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.ranking-management-view__alert {
+  margin-bottom: 16px;
+}
+
+.ranking-management-view__period {
+  margin-bottom: 16px;
+}
+
+.ranking-management-view__keyword-column {
+  margin-top: 20px;
+}
+
+@media (min-width: 1200px) {
+  .ranking-management-view__keyword-column {
+    margin-top: 0;
+  }
+}
+
 .ranking-card__header {
   display: flex;
   align-items: center;

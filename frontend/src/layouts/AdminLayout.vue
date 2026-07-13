@@ -5,6 +5,7 @@
       <el-space>
         <RouterLink class="header-link" to="/admin/reviews">审核管理</RouterLink>
         <RouterLink class="header-link" to="/admin/resources">发布资料</RouterLink>
+        <RouterLink class="header-link" to="/admin/rankings">排行榜运维</RouterLink>
         <el-tag type="warning" effect="plain">管理员演示</el-tag>
       </el-space>
     </el-header>
