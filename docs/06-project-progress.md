@@ -42,6 +42,8 @@
 - 当前执行 T34：只读待审核列表页面。
 - T34 已通过 `npm run test:unit -- src/views/admin/ReviewManagementView.test.ts`（1/1）和 `npm run build`；已验证只读列表与审核流水查看。
 - 当前执行 T35：审核通过和拒绝 API。
+- T35 已通过 `npm run test:unit -- src/api/admin/resources.test.ts`（4/4）和 `npm run build`；已验证审核通过、拒绝请求的 Token、路径和请求体。
+- 当前执行 T36：审核页写操作。
 
 ## 2. 进度状态说明
 

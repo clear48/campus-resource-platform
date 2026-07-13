@@ -1,6 +1,6 @@
 import MockAdapter from 'axios-mock-adapter'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { getAuditRecords, getPendingReviews } from './resources'
+import { approveResource, getAuditRecords, getPendingReviews, rejectResource } from './resources'
 import { session } from '../../state/session'
 import { httpClient } from '../../utils/request'
 
@@ -87,5 +87,37 @@ describe('admin resources api', () => {
     await expect(getAuditRecords(20001)).resolves.toMatchObject([
       { auditRecordId: 50001, actionType: 1 },
     ])
+  })
+
+  it('应携带 Token 和可选意见审核通过资料', async () => {
+    mock.onPost('/admin/resources/20001/audit-approvals').reply((config) => {
+      expect(config.headers?.Authorization).toBe('Bearer admin-review-token')
+      expect(JSON.parse(config.data)).toEqual({ auditReason: '资料内容完整，允许发布' })
+
+      return [200, {
+        code: 0,
+        message: 'success',
+        data: { resourceId: 20001, actionType: 1, beforeStatus: 0, afterStatus: 1, auditRecordId: 50001, auditReason: '资料内容完整，允许发布', approvedAt: '2026-07-02T11:00:00', offlineAt: null },
+        traceId: 'approve-trace',
+      }]
+    })
+
+    await expect(approveResource(20001, { auditReason: '资料内容完整，允许发布' })).resolves.toMatchObject({ afterStatus: 1 })
+  })
+
+  it('应携带 Token 和拒绝原因审核拒绝资料', async () => {
+    mock.onPost('/admin/resources/20001/audit-rejections').reply((config) => {
+      expect(config.headers?.Authorization).toBe('Bearer admin-review-token')
+      expect(JSON.parse(config.data)).toEqual({ rejectReason: '请补充实验截图' })
+
+      return [200, {
+        code: 0,
+        message: 'success',
+        data: { resourceId: 20001, actionType: 2, beforeStatus: 0, afterStatus: 2, auditRecordId: 50002, auditReason: '请补充实验截图', approvedAt: null, offlineAt: null },
+        traceId: 'reject-trace',
+      }]
+    })
+
+    await expect(rejectResource(20001, { rejectReason: '请补充实验截图' })).resolves.toMatchObject({ afterStatus: 2 })
   })
 })
