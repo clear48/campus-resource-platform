@@ -59,6 +59,7 @@
 - T42 已通过 `npm run test:unit -- src/router/index.test.ts`（3/3）和 `npm run build`；已验证游客、普通用户和管理员的页面跳转。
 - T43 已通过 `npm run test:unit -- src/layouts/DefaultLayout.test.ts src/layouts/AdminLayout.test.ts src/views/HomeView.test.ts`（6/6）、全量前端测试（31 个文件、65 个测试）和 `npm run build`；固定导航、管理员入口与排行榜失败重试均已验证。
 - 前端第八阶段（T40-T43，排行榜运维、路由守卫和页面状态收口）已完成；T44 真实后端联调已完成：健康检查、注册/登录、文件 MD5 预检、首次上传和秒传、待审核资料创建、管理员审核、审核流水、公开详情、权限边界以及退出 Token 黑名单均通过。用户提供的 PDF 已审核为公开演示资料，并保存到 `data/user-uploads`；前端全量测试 65/65、构建和后端编译通过，当前进入 T45。
+- T45 已完成真实资料消费联调：已审核 PDF 可由公开搜索返回；待审核资料不会泄露；收藏/取消收藏后的状态和列表一致；首次两步下载 `counted=true`，重复下载 `counted=false`，文件流 MD5 与源 PDF 一致；用户维度限流返回 HTTP 429。全量前端测试 31 个文件、65 个用例和生产构建均通过，下一步进入 T46 排行榜与管理员下架联调。
 
 ## 2. 进度状态说明
 
