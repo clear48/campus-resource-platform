@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T39` |
-| 已完成任务 | 38 |
+| 当前任务 | `T40` |
+| 已完成任务 | 39 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -202,13 +202,13 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | T36 | DONE | 在审核页接入通过和拒绝 | 审核管理页及测试 | 二次确认；成功后移出列表；409 状态冲突可见 |
 | T37 | DONE | 创建发布资料只读管理页 | `PublishedResourcesView.vue`、Router、管理员菜单及测试 | 只列 APPROVED 资料；支持筛选、分页和详情；无下架按钮 |
 | T38 | DONE | 实现下架 API | 管理员资料 API、审核类型及测试 | 下架 path、`offlineReason` body 和 Token 正确 |
-| T39 | IN_PROGRESS | 接入下架和审核流水 | 发布资料页及测试 | 原因必填；下架后移出公开列表；可查看流水 |
+| T39 | DONE | 接入下架和审核流水 | 发布资料页及测试 | 原因必填；下架后移出公开列表；可查看流水 |
+| T40 | IN_PROGRESS | 实现管理员总榜重建 API | `api/admin/rankings.ts` 及测试 | 无业务参数；携带管理员 Token；正确处理 `data=null` |
 
 ### 第八阶段：排行榜运维与路由收口
 
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
-| T40 | TODO | 实现管理员总榜重建 API | `api/admin/rankings.ts` 及测试 | 无业务参数；携带管理员 Token；正确处理 `data=null` |
 | T41 | TODO | 实现排行榜运维页面 | `RankingManagementView.vue`、Router、管理员菜单及测试 | 表格展示两类榜；周期正确；重建有确认，无虚构进度 |
 | T42 | TODO | 收口登录和管理员路由守卫 | Router、会话状态、Layout 及路由测试 | 游客、普通用户、管理员跳转正确；后端仍为最终鉴权边界 |
 | T43 | TODO | 收口固定导航和页面通用状态 | 两个 Layout、确有缺失的页面状态及测试 | 页面均可达；加载、空、错、重试完整；无复杂视觉重构 |
@@ -793,6 +793,18 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 核心实现 | 提供下架请求方法，传递必填 `offlineReason`；后端负责已通过状态校验、审核流水和公开可见性切换。 |
 | 测试结果 | 管理员资料 API 测试 5/5 和生产构建通过。 |
 | Git commit message | `feat(frontend): add resource offline api` |
+| 实际 commit id | `aecd9f666fe00bfa37446277b22fe27676da8c7b` |
+| 推送分支 | `origin/dev` |
+
+### T39
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 修改文件 | `frontend/src/views/admin/PublishedResourcesView.vue`、对应测试和前端进度文档 |
+| 核心实现 | 发布资料页接入审核流水与下架；下架原因必填且二次确认，成功后重新读取公开搜索列表。 |
+| 测试结果 | 发布资料页面组件测试 2/2 和生产构建通过。 |
+| Git commit message | `feat(frontend): add resource offline action` |
 | 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |
 
