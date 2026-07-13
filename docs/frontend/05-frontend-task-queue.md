@@ -160,8 +160,8 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | T14 | DONE | 将首页改为排行榜首页 | `HomeView.vue` 及测试 | 两类榜单可切换周期并展示空/错/加载状态；无图表 |
 | T15 | DONE | 实现分类和搜索 API | `categories.ts`、`search.ts`、相关类型及测试 | 分类与搜索 query、分页、响应字段正确；不调用搜索建议 |
 | T16 | DONE | 实现资料搜索页面 | `SearchView.vue` 及测试、Router、默认 Layout | 筛选、排序、分页和 URL 关键词可用；只展示公开资料 |
-| T17 | IN_PROGRESS | 实现资料详情和创建资料 API | `resources.ts`、资料类型及测试 | 详情和创建方法正确；本任务不创建页面 |
-| T18 | TODO | 实现只读资料详情页 | `ResourceDetailView.vue` 及测试、Router | 展示详情真实字段；游客可访问；不接收藏和下载 |
+| T17 | DONE | 实现资料详情和创建资料 API | `resources.ts`、资料类型及测试 | 详情和创建方法正确；本任务不创建页面 |
+| T18 | IN_PROGRESS | 实现只读资料详情页 | `ResourceDetailView.vue` 及测试、Router | 展示详情真实字段；游客可访问；不接收藏和下载 |
 
 ### 第四阶段：收藏与下载
 
@@ -510,9 +510,27 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | 搜索页组件测试 1/1 通过；生产构建通过。 |
 | 文档更新 | 已更新开发计划、当前状态、分支交接、项目进度与任务队列。 |
 | Git commit message | `feat(frontend): add resource search page` |
-| 实际 commit id |  |
+| 实际 commit id | `ba62a651c8ac36e2ee8fe24a56d2d0a08d0c7a40` |
 | 推送分支 | `origin/dev` |
 | 备注 | Vite 产物体积告警不影响构建；真实筛选联调待后端 8080 服务可用后执行。 |
+
+### T17
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 完成时间 | 2026-07-13 |
+| 开始前 commit | `ba62a651c8ac36e2ee8fe24a56d2d0a08d0c7a40` |
+| 修改文件 | `frontend/src/types/resource.ts`、`frontend/src/api/resources.ts`、`frontend/src/api/resources.test.ts`、本队列和前端进度文档 |
+| 核心实现 | 资料详情类型严格使用后端明确字段；创建资料保留 fileId、分类、课程、类型和标签请求体，并通过已有请求拦截器自动携带 Token；本任务不创建页面。 |
+| 测试命令 | `npm run test:unit -- src/api/resources.test.ts`；`npm run build` |
+| 测试结果 | 资料 API 测试 2/2 通过；生产构建通过。 |
+| 文档更新 | 已更新开发计划、当前状态、分支交接、项目进度与任务队列。 |
+| Git commit message | `feat(frontend): add resource api client` |
+| 实际 commit id |  |
+| 推送分支 | `origin/dev` |
+| 备注 | `favorited` 是否由公开详情接口随 Token 实时填充存在文档歧义；详情页后续不以该字段驱动收藏操作。 |
 
 ---
 
