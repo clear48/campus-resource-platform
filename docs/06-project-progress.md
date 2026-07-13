@@ -13,7 +13,8 @@
 - 已完成 T01-T14：基础工程、认证闭环、会话、公开排行榜 API 与排行榜首页。
 - T14 已通过 `npm run test:unit -- src/views/HomeView.test.ts`（1/1）和 `npm run build`；首页不使用图表，热点数据为空时展示正常空态。
 - T15 已通过 `npm run test:unit -- src/api/categories.test.ts src/api/search.test.ts`（2/2）和 `npm run build`；未调用后端尚未实现的搜索建议接口。
-- 当前执行 T16：资料搜索页面；本机后端 8080 端口未监听，真实接口联调仍待补充。
+- T16 已通过 `npm run test:unit -- src/views/SearchView.test.ts`（1/1）和 `npm run build`；页面支持公开资料筛选、排序、分页和 URL 关键词回填。
+- 当前执行 T17：资料详情和创建资料 API；本机后端 8080 端口未监听，真实接口联调仍待补充。
 
 ## 2. 进度状态说明
 

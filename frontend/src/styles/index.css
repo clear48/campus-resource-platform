@@ -59,6 +59,45 @@ body {
   margin-top: 20px;
 }
 
+.search-view {
+  width: min(1200px, 100%);
+}
+
+.search-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.search-view__summary {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.search-view__control {
+  width: 100%;
+}
+
+.search-view__alert {
+  margin-bottom: 16px;
+}
+
+.search-view__results {
+  margin-top: 20px;
+}
+
+.search-view__tag {
+  margin-right: 4px;
+}
+
+.search-view__pagination {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
 .ranking-card__header {
   display: flex;
   align-items: center;
