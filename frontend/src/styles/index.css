@@ -24,10 +24,10 @@ body {
 
 .welcome-card {
   width: min(680px, 100%);
+}
+
+.welcome-card .el-card__body {
   padding: 48px;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 12px 32px rgb(15 23 42 / 8%);
 }
 
 .eyebrow {
@@ -48,4 +48,8 @@ h1 {
   margin: 0;
   color: #64748b;
   line-height: 1.75;
+}
+
+.status-tag {
+  margin-top: 24px;
 }

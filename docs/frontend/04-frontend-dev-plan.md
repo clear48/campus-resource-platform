@@ -18,6 +18,7 @@
 | 计划步骤 | 队列任务 | 状态 | 验证记录 | 下一步 |
 | --- | --- | --- | --- | --- |
 | F01 | T01 | 已完成 | `npm install` 成功；`npm run build` 通过；Vite 开发服务返回 HTTP 200 | F02 / T02：接入 Element Plus |
+| F02 | T02 | 已完成 | `npm install element-plus` 成功；`npm run build` 通过；Vite 开发服务返回 HTTP 200 | F03 / T03：接入 Vue Router |
 
 ## 2. 技术栈与开发边界
 

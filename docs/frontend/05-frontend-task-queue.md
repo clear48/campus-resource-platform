@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T02` |
-| 已完成任务 | 1 |
+| 当前任务 | `T03` |
+| 已完成任务 | 2 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -135,7 +135,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
 | T01 | DONE | 创建 Vue 3 + Vite + TypeScript 空工程 | `frontend/package.json`、`index.html`、Vite/TS 配置、`src/main.ts`、`src/App.vue` | `npm run build` 通过；开发服务返回 HTTP 200 |
-| T02 | TODO | 接入 Element Plus 和基础样式 | `frontend/package.json`、`src/main.ts`、`src/App.vue`、`src/styles/index.css` | Element Plus 组件可渲染；无复杂主题系统 |
+| T02 | DONE | 接入 Element Plus 和基础样式 | `frontend/package.json`、`src/main.ts`、`src/App.vue`、`src/styles/index.css` | Element Plus 组件可渲染；生产构建和开发服务验证通过 |
 | T03 | TODO | 接入 Vue Router 和最小页面壳 | Router、默认 Layout、首页占位、`App.vue`、`main.ts` | `/` 通过 Router 渲染；未知路由有简单兜底 |
 | T04 | TODO | 配置环境变量和后端代理 | `vite.config.ts`、`.env.example`、`.env.development`、必要时 `.gitignore` | API 地址可配置；代理不包含敏感信息 |
 | T05 | TODO | 创建通用 API 类型和 Axios 请求实例 | `src/types/api.ts`、`src/utils/request.ts` | 统一响应、分页、错误消息和 `traceId` 可处理 |
@@ -240,6 +240,24 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | 依赖安装成功；构建通过；开发服务返回 HTTP 200 |
 | 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
 | Git commit message | `chore(frontend): scaffold vue vite app` |
+| 实际 commit id | `93067f31b52652a44ef92cfcae70d202f66139be` |
+| 推送分支 | `origin/dev` |
+| 备注 | 已完成并推送 |
+
+### T02
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 完成时间 | 2026-07-13 |
+| 开始前 commit | `93067f31b52652a44ef92cfcae70d202f66139be` |
+| 修改文件 | `frontend/package.json`、`frontend/package-lock.json`、`frontend/src/main.ts`、`frontend/src/App.vue`、`frontend/src/styles/index.css`、本队列和前端进度文档 |
+| 核心实现 | 注册 Element Plus、导入组件样式，并使用 `el-card` 与 `el-tag` 验证组件可渲染 |
+| 测试命令 | `npm install element-plus`；`npm run build`；启动 Vite 后请求 `http://127.0.0.1:5173/` |
+| 测试结果 | 依赖安装成功；构建通过；开发服务返回 HTTP 200 |
+| 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
+| Git commit message | `chore(frontend): integrate element plus` |
 | 实际 commit id |  |
 | 推送分支 |  |
 | 备注 | 实际 commit id 和推送结果在提交完成后记录到任务完成摘要 |
