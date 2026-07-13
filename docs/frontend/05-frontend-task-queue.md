@@ -170,13 +170,13 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | T19 | DONE | 实现收藏 API | `favorites.ts`、收藏类型及测试 | 收藏、取消和状态方法正确；均携带 Token |
 | T20 | DONE | 在详情页接入收藏操作 | 详情页及测试；必要时小型收藏按钮组件 | 能查询、收藏、取消；游客跳登录；按钮防重复提交 |
 | T21 | DONE | 实现下载 API 和文件流工具 | `downloads.ts`、下载类型、文件下载工具及测试 | 两步下载方法分离；中文文件名和 JSON 错误可处理 |
-| T22 | IN_PROGRESS | 在详情页接入两步下载 | 详情页及测试 | 严格“创建记录→文件流”；展示 `counted`；429 提示正确 |
+| T22 | DONE | 在详情页接入两步下载 | 详情页及测试 | 严格“创建记录→文件流”；展示 `counted`；429 提示正确 |
 
 ### 第五阶段：文件上传与资料创建
 
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
-| T23 | TODO | 实现 MD5 工具和文件 API | `package.json`、`file-md5.ts`、`files.ts`、文件类型及测试 | 分片 MD5 稳定；预检 query 和 FormData 上传正确 |
+| T23 | IN_PROGRESS | 实现 MD5 工具和文件 API | `package.json`、`file-md5.ts`、`files.ts`、文件类型及测试 | 分片 MD5 稳定；预检 query 和 FormData 上传正确 |
 | T24 | TODO | 实现上传页文件选择、预检和上传 | `UploadView.vue` 及测试、Router、默认 Layout | 显示 MD5 进度；命中秒传不上传；获得 `fileId` |
 | T25 | TODO | 增加资料元数据表单 | 上传页及测试，复用分类和资料 API | 标题、简介、分类、课程、类型、标签可填写；无 `fileId` 禁止提交 |
 | T26 | TODO | 完成资料创建和结果跳转 | 上传页及测试 | 创建后显示资料 ID 和待审核状态；失败保留表单 |
@@ -589,6 +589,18 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 核心实现 | 创建记录与文件流下载分离；解析 RFC 5987 中文文件名和 JSON Blob 错误。 |
 | 测试结果 | 下载 API/工具测试 4/4 和生产构建通过。 |
 | Git commit message | `feat(frontend): add download api client` |
+| 实际 commit id | `fdd9b2819b1712af12a941bf55d90e2b621c826b` |
+| 推送分支 | `origin/dev` |
+
+### T22
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 修改文件 | 资料详情页及测试、前端进度文档 |
+| 核心实现 | 创建下载记录后才请求文件流；保存时使用响应头文件名，展示 counted 结果和后端限流错误。 |
+| 测试结果 | 资料详情页测试 3/3 和生产构建通过。 |
+| Git commit message | `feat(frontend): add resource download flow` |
 | 实际 commit id |  |
 | 推送分支 | `origin/dev` |
 

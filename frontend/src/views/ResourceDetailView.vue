@@ -3,11 +3,13 @@ import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { addFavorite, getFavoriteStatus, removeFavorite } from '../api/favorites'
+import { createDownloadRecord, downloadFile } from '../api/downloads'
 import { getResourceDetail } from '../api/resources'
 import { session } from '../state/session'
 import type { ResourceDetail } from '../types/resource'
 import { getResourceStatusLabel, getResourceTypeLabel } from '../types/enums'
 import { formatDateTime, formatNumber } from '../utils/format'
+import { saveDownloadBlob } from '../utils/file-download'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,6 +21,9 @@ const favoriteLoading = ref(false)
 const favoriteError = ref('')
 // 将嵌套会话计算属性提升为顶层绑定，确保模板按布尔值而非 Ref 对象判断。
 const isLoggedIn = session.isLoggedIn
+const downloadLoading = ref(false)
+const downloadError = ref('')
+const downloadNotice = ref('')
 
 function getResourceId(): number | null {
   const rawResourceId = route.params.resourceId
@@ -98,6 +103,38 @@ async function toggleFavorite() {
   }
 }
 
+/** 严格保持后端定义的两步下载链路，避免前端直接拼接任何存储路径。 */
+async function startDownload() {
+  const resourceId = getResourceId()
+
+  if (!resourceId) {
+    errorMessage.value = '资料 ID 不合法'
+    return
+  }
+
+  if (!session.isLoggedIn.value) {
+    void router.push({ name: 'login', query: { redirect: route.fullPath } })
+    return
+  }
+
+  downloadLoading.value = true
+  downloadError.value = ''
+  downloadNotice.value = ''
+
+  try {
+    const record = await createDownloadRecord(resourceId)
+    const file = await downloadFile(record.downloadRecordId)
+
+    saveDownloadBlob(file.blob, file.fileName)
+    downloadNotice.value = record.counted ? '下载已开始，本次下载已计入统计。' : '下载已开始，重复下载未重复计入统计。'
+  } catch (error) {
+    // 42901 等业务错误在请求层已保留后端 message，页面不伪造限流文案。
+    downloadError.value = error instanceof Error ? error.message : '下载失败'
+  } finally {
+    downloadLoading.value = false
+  }
+}
+
 function goToSearch() {
   void router.push({ name: 'search' })
 }
@@ -137,6 +174,8 @@ onMounted(() => {
         :closable="false"
         show-icon
       />
+      <el-alert v-if="downloadError" class="resource-detail-view__favorite-alert" type="error" :title="downloadError" :closable="false" show-icon />
+      <el-alert v-if="downloadNotice" class="resource-detail-view__favorite-alert" type="success" :title="downloadNotice" :closable="false" show-icon />
 
       <el-descriptions :column="2" border>
         <el-descriptions-item label="资料 ID">{{ detail.resourceId }}</el-descriptions-item>
@@ -162,7 +201,7 @@ onMounted(() => {
         </el-col>
       </el-row>
 
-      <p class="resource-detail-view__notice">下载 {{ formatNumber(detail.downloadCount) }} 次；下载操作将在后续任务接入。</p>
+      <p class="resource-detail-view__notice">下载 {{ formatNumber(detail.downloadCount) }} 次。</p>
       <el-button
         data-test="favorite-button"
         :type="favorited ? 'warning' : 'primary'"
@@ -171,6 +210,9 @@ onMounted(() => {
         @click="toggleFavorite"
       >
         {{ isLoggedIn ? (favorited ? '取消收藏' : '收藏资料') : '登录后收藏' }}
+      </el-button>
+      <el-button data-test="download-button" type="success" :loading="downloadLoading" :disabled="downloadLoading" @click="startDownload">
+        {{ isLoggedIn ? '下载资料' : '登录后下载' }}
       </el-button>
       <el-button @click="goToSearch">返回资料搜索</el-button>
     </el-card>

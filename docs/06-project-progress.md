@@ -23,6 +23,8 @@
 - 当前执行 T21：下载 API 和文件流工具。
 - T21 已通过 `npm run test:unit -- src/api/downloads.test.ts src/utils/file-download.test.ts`（4/4）和 `npm run build`。
 - 当前执行 T22：详情页两步下载。
+- T22 已通过 `npm run test:unit -- src/views/ResourceDetailView.test.ts`（3/3）和 `npm run build`；页面严格执行两步下载并展示 counted。
+- 当前执行 T23：MD5 工具和文件 API。
 
 ## 2. 进度状态说明
 
