@@ -44,6 +44,8 @@
 - 当前执行 T35：审核通过和拒绝 API。
 - T35 已通过 `npm run test:unit -- src/api/admin/resources.test.ts`（4/4）和 `npm run build`；已验证审核通过、拒绝请求的 Token、路径和请求体。
 - 当前执行 T36：审核页写操作。
+- T36 已通过 `npm run test:unit -- src/views/admin/ReviewManagementView.test.ts`（3/3）和 `npm run build`；已验证二次确认、拒绝原因校验、成功刷新和 409 错误展示。
+- 当前执行 T37：发布资料只读管理页。
 
 ## 2. 进度状态说明
 
