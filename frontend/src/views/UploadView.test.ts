@@ -5,9 +5,11 @@ import UploadView from './UploadView.vue'
 
 const { calculateFileMd5 } = vi.hoisted(() => ({ calculateFileMd5: vi.fn() }))
 const { checkFileDuplicate, uploadFile } = vi.hoisted(() => ({ checkFileDuplicate: vi.fn(), uploadFile: vi.fn() }))
+const { getCategories } = vi.hoisted(() => ({ getCategories: vi.fn() }))
 
 vi.mock('../utils/file-md5', () => ({ calculateFileMd5 }))
 vi.mock('../api/files', () => ({ checkFileDuplicate, uploadFile }))
+vi.mock('../api/categories', () => ({ getCategories }))
 
 describe('UploadView', () => {
   beforeEach(() => {
@@ -16,6 +18,7 @@ describe('UploadView', () => {
       return 'file-md5'
     })
     checkFileDuplicate.mockResolvedValue({ secondUpload: true, fileId: 30001 })
+    getCategories.mockResolvedValue([{ categoryId: 10, parentId: 0, categoryName: '计算机基础', description: null, sortOrder: 1 }])
   })
 
   it('命中秒传时应复用 fileId 而不上传文件', async () => {
@@ -31,5 +34,11 @@ describe('UploadView', () => {
     expect(uploadFile).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('文件 ID：30001')
     expect(wrapper.text()).toContain('命中秒传')
+  })
+
+  it('没有 fileId 时应禁用资料提交入口', () => {
+    const wrapper = mount(UploadView, { global: { plugins: [ElementPlus] } })
+
+    expect((wrapper.get('[data-test="metadata-submit"]').element as HTMLButtonElement).disabled).toBe(true)
   })
 })

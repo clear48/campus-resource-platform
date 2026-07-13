@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import { getCategories } from '../api/categories'
 import { checkFileDuplicate, uploadFile } from '../api/files'
+import type { CategoryItem } from '../types/category'
+import { getResourceTypeLabel } from '../types/enums'
 import { calculateFileMd5 } from '../utils/file-md5'
 
 const selectedFile = ref<File | null>(null)
@@ -10,6 +13,8 @@ const uploadProgress = ref(0)
 const processing = ref(false)
 const errorMessage = ref('')
 const resultMessage = ref('')
+const categories = ref<CategoryItem[]>([])
+const metadata = ref({ title: '', description: '', categoryId: undefined as number | undefined, courseName: '', resourceType: undefined as number | undefined, tags: '' })
 
 /** 选择文件后完成 MD5、秒传预检和必要的物理上传；本步不创建资料记录。 */
 async function processSelectedFile(file: File) {
@@ -54,6 +59,14 @@ function handleFileChange(event: Event) {
     void processSelectedFile(file)
   }
 }
+
+async function loadCategories() {
+  categories.value = await getCategories({ parentId: 0 })
+}
+
+onMounted(() => {
+  void loadCategories()
+})
 </script>
 
 <template>
@@ -74,6 +87,19 @@ function handleFileChange(event: Event) {
       <el-alert v-if="errorMessage" class="upload-view__alert" type="error" :title="errorMessage" :closable="false" show-icon />
       <el-alert v-if="resultMessage" class="upload-view__alert" type="success" :title="resultMessage" :closable="false" show-icon />
       <el-tag v-if="fileId" type="success">文件 ID：{{ fileId }}</el-tag>
+
+      <el-divider>资料信息</el-divider>
+      <el-form :model="metadata" label-position="top">
+        <el-form-item label="标题"><el-input v-model="metadata.title" /></el-form-item>
+        <el-form-item label="简介"><el-input v-model="metadata.description" type="textarea" /></el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="12"><el-form-item label="分类"><el-select v-model="metadata.categoryId" class="upload-view__control"><el-option v-for="item in categories" :key="item.categoryId" :label="item.categoryName" :value="item.categoryId" /></el-select></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="课程"><el-input v-model="metadata.courseName" /></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="类型"><el-select v-model="metadata.resourceType" class="upload-view__control"><el-option v-for="type in [1, 2, 3, 4, 5, 99]" :key="type" :label="getResourceTypeLabel(type)" :value="type" /></el-select></el-form-item></el-col>
+          <el-col :span="12"><el-form-item label="标签"><el-input v-model="metadata.tags" placeholder="逗号分隔" /></el-form-item></el-col>
+        </el-row>
+        <el-button data-test="metadata-submit" type="primary" :disabled="!fileId">提交资料（下一步启用）</el-button>
+      </el-form>
     </el-card>
   </section>
 </template>

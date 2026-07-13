@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T14` |
-| 已完成任务 | 13 |
+| 当前任务 | `T26` |
+| 已完成任务 | 25 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -178,8 +178,8 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | --- | --- | --- | --- | --- |
 | T23 | DONE | 实现 MD5 工具和文件 API | `package.json`、`file-md5.ts`、`files.ts`、文件类型及测试 | 分片 MD5 稳定；预检 query 和 FormData 上传正确 |
 | T24 | DONE | 实现上传页文件选择、预检和上传 | `UploadView.vue` 及测试、Router、默认 Layout | 显示 MD5 进度；命中秒传不上传；获得 `fileId` |
-| T25 | IN_PROGRESS | 增加资料元数据表单 | 上传页及测试，复用分类和资料 API | 标题、简介、分类、课程、类型、标签可填写；无 `fileId` 禁止提交 |
-| T26 | TODO | 完成资料创建和结果跳转 | 上传页及测试 | 创建后显示资料 ID 和待审核状态；失败保留表单 |
+| T25 | DONE | 增加资料元数据表单 | 上传页及测试，复用分类和资料 API | 标题、简介、分类、课程、类型、标签可填写；无 `fileId` 禁止提交 |
+| T26 | IN_PROGRESS | 完成资料创建和结果跳转 | 上传页及测试 | 创建后显示资料 ID 和待审核状态；失败保留表单 |
 
 ### 第六阶段：普通用户个人列表
 
@@ -625,7 +625,19 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 核心实现 | 选择文件后计算 MD5、预检秒传；命中时跳过上传，否则上传并取得 fileId。 |
 | 测试结果 | 上传页测试 1/1 和生产构建通过。 |
 | Git commit message | `feat(frontend): add file upload step` |
-| 实际 commit id |  |
+| 实际 commit id | `95b714f8c6b3b66023a0a9c2e85e96448e0ee5ec` |
+| 推送分支 | `origin/dev` |
+
+### T25
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 修改文件 | `frontend/src/views/UploadView.vue`、`frontend/src/views/UploadView.test.ts`、`frontend/src/styles/index.css` 和前端进度文档 |
+| 核心实现 | 在既有文件预检/上传步骤后加入标题、简介、分类、课程、类型和标签表单；分类复用公开分类接口；没有 `fileId` 时资料提交按钮保持禁用。 |
+| 测试结果 | 上传页组件测试 2/2 和生产构建通过。 |
+| Git commit message | `feat(frontend): add resource metadata form` |
+| 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |
 
 ---

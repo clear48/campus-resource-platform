@@ -29,7 +29,8 @@
 - 用户已授权后，T23 新增 `spark-md5@3.0.2` 并通过 MD5/文件 API 测试 3/3、`npm audit` 与生产构建。
 - 当前执行 T24：上传页文件选择、预检和上传。
 - T24 已通过 `npm run test:unit -- src/views/UploadView.test.ts`（1/1）和 `npm run build`；秒传命中不会重复上传。
-- 当前执行 T25：资料元数据表单。
+- T25 已通过 `npm run test:unit -- src/views/UploadView.test.ts`（2/2）和 `npm run build`；标题、简介、分类、课程、类型、标签可填写，未取得 `fileId` 时不能提交资料。
+- 当前执行 T26：资料创建提交和结果跳转。
 
 ## 2. 进度状态说明
 

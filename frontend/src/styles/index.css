@@ -146,6 +146,10 @@ body {
   margin-top: 20px;
 }
 
+.upload-view__control {
+  width: 100%;
+}
+
 .ranking-card__header {
   display: flex;
   align-items: center;
