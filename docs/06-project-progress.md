@@ -40,6 +40,8 @@
 - 前端第六阶段（T27-T32，三类个人中心列表）已完成；本轮按“每次最多三个阶段”的约束暂停在第七阶段 T33 前。
 - T33 已通过 `npm run test:unit -- src/api/admin/resources.test.ts`（2/2）和 `npm run build`；已验证管理员待审核列表和审核流水 API 的 Token、query 与路径。
 - 当前执行 T34：只读待审核列表页面。
+- T34 已通过 `npm run test:unit -- src/views/admin/ReviewManagementView.test.ts`（1/1）和 `npm run build`；已验证只读列表与审核流水查看。
+- 当前执行 T35：审核通过和拒绝 API。
 
 ## 2. 进度状态说明
 

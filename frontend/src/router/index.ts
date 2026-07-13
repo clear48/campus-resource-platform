@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import DefaultLayout from '../layouts/DefaultLayout.vue'
+import AdminLayout from '../layouts/AdminLayout.vue'
 import HomeView from '../views/HomeView.vue'
 import LoginView from '../views/LoginView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
@@ -57,6 +58,17 @@ const routes: RouteRecordRaw[] = [
         path: 'upload',
         name: 'upload',
         component: UploadView,
+      },
+    ],
+  },
+  {
+    path: '/admin',
+    component: AdminLayout,
+    children: [
+      {
+        path: 'reviews',
+        name: 'admin-reviews',
+        component: () => import('../views/admin/ReviewManagementView.vue'),
       },
     ],
   },

@@ -47,6 +47,26 @@ body {
   place-items: center;
 }
 
+.admin-layout {
+  min-height: 100vh;
+}
+
+.admin-layout__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admin-layout__main {
+  display: grid;
+  padding: 24px;
+  background: #f5f7fa;
+  place-items: center;
+}
+
 .home-view {
   width: min(1200px, 100%);
 }
@@ -206,6 +226,30 @@ body {
 }
 
 .my-downloads-view__pagination {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.review-management-view {
+  width: min(1280px, 100%);
+}
+
+.review-management-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.review-management-view__alert {
+  margin-bottom: 16px;
+}
+
+.review-management-view__tag {
+  margin-right: 4px;
+}
+
+.review-management-view__pagination {
   justify-content: flex-end;
   margin-top: 20px;
 }
