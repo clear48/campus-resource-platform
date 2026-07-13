@@ -137,6 +137,15 @@ body {
   color: #64748b;
 }
 
+.upload-view {
+  width: min(720px, 100%);
+}
+
+.upload-view__progress,
+.upload-view__alert {
+  margin-top: 20px;
+}
+
 .ranking-card__header {
   display: flex;
   align-items: center;
