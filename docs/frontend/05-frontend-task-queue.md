@@ -601,7 +601,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 核心实现 | 创建下载记录后才请求文件流；保存时使用响应头文件名，展示 counted 结果和后端限流错误。 |
 | 测试结果 | 资料详情页测试 3/3 和生产构建通过。 |
 | Git commit message | `feat(frontend): add resource download flow` |
-| 实际 commit id |  |
+| 实际 commit id | `0cba471b6689bc161a1ef84cfeef54de2ba84d8f` |
 | 推送分支 | `origin/dev` |
 
 ---
