@@ -36,3 +36,21 @@ export interface CreateResourceResult {
   statusName: string
   message: string
 }
+
+/** “我的上传”接口支持的筛选与分页参数。 */
+export interface MyResourceQuery {
+  status?: number
+  pageNo?: number
+  pageSize?: number
+}
+
+/** “我的上传”分页 records 中由接口文档明确的字段。 */
+export interface MyResourceItem {
+  resourceId: number
+  title: string
+  courseName: string
+  status: number
+  rejectReason: string | null
+  offlineReason: string | null
+  createdAt: string
+}

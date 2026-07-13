@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T27` |
-| 已完成任务 | 26 |
+| 当前任务 | `T28` |
+| 已完成任务 | 27 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -185,8 +185,8 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
-| T27 | IN_PROGRESS | 实现“我的上传”API | `users.ts`、资料类型、用户 API 测试 | 状态和分页参数正确；响应只声明文档字段 |
-| T28 | TODO | 实现“我的上传”页面 | `MyUploadsView.vue` 及测试、Router、导航 | 可筛选状态、分页、显示拒绝/下架原因；无编辑删除 |
+| T27 | DONE | 实现“我的上传”API | `users.ts`、资料类型、用户 API 测试 | 状态和分页参数正确；响应只声明文档字段 |
+| T28 | IN_PROGRESS | 实现“我的上传”页面 | `MyUploadsView.vue` 及测试、Router、导航 | 可筛选状态、分页、显示拒绝/下架原因；无编辑删除 |
 | T29 | TODO | 实现“我的收藏”API | `users.ts`、收藏类型、用户 API 测试 | 收藏列表分页参数和 records 类型正确 |
 | T30 | TODO | 实现“我的收藏”页面 | `MyFavoritesView.vue` 及测试、Router、导航 | 可分页、跳详情和取消收藏；不做收藏夹分组 |
 | T31 | TODO | 实现“我的下载”API | `users.ts`、下载类型、用户 API 测试 | 下载记录只包含文档字段；分页参数正确 |
@@ -649,6 +649,18 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 核心实现 | 复用 `POST /resources` 提交已上传的 `fileId` 与元数据；标签按逗号转换为数组；成功展示资料 ID 和待审核状态，失败保留字段并展示后端消息。 |
 | 测试结果 | 上传页组件测试 3/3 和生产构建通过。 |
 | Git commit message | `feat(frontend): complete resource submission flow` |
+| 实际 commit id | `83c197014158bf154178ddab06a444c6e383b91a` |
+| 推送分支 | `origin/dev` |
+
+### T27
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 修改文件 | `frontend/src/types/resource.ts`、`frontend/src/api/users.ts`、`frontend/src/api/users.test.ts` 和前端进度文档 |
+| 核心实现 | 声明我的上传查询和 records 类型；通过 `/users/me/resources` 传递状态、页码和每页数量，依赖请求层自动注入 Token。 |
+| 测试结果 | 用户 API 测试 3/3 和生产构建通过。 |
+| Git commit message | `feat(frontend): add my resources api` |
 | 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |
 
