@@ -7,8 +7,8 @@
 | 项目名称 | 校园资料共享与智能检索平台 |
 | 当前分支 | `dev` |
 | 当前后端状态 | 认证、分类、文件、资料、审核、搜索、下载、收藏、排行榜与定时任务均已完成首版 |
-| 当前前端状态 | 已完成 T01-T39：基础、普通用户演示和管理员审核/下架闭环；正在执行 T40：管理员总榜重建 API |
-| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T40` |
+| 当前前端状态 | 已完成 T01-T40：基础、普通用户演示、管理员审核/下架和总榜重建 API；正在执行 T41：排行榜运维页面 |
+| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T41` |
 
 ## 当前工作
 
@@ -22,8 +22,8 @@
 | --- | --- |
 | 允许范围 | `frontend/` 前端代码、前端测试、前端运行说明，以及队列要求的前端进度文档 |
 | 不允许范围 | 后端 Java、SQL、数据库、Redis、接口路径和其他业务模块 |
-| 当前任务 | `T40`：实现管理员总榜重建 API |
-| 后续任务 | `T41`：实现排行榜运维页面 |
+| 当前任务 | `T41`：实现排行榜运维页面 |
+| 后续任务 | `T42`：收口登录和管理员路由守卫 |
 | 停止条件 | 见 `docs/frontend/05-frontend-task-queue.md` 的“停止条件” |
 
 ## 已知事项
@@ -65,7 +65,8 @@
 | 前端 T37 | `npm run test:unit -- src/views/admin/PublishedResourcesView.test.ts`；`npm run build` | 发布资料页面测试 1/1 通过；仅渲染公开搜索返回的已通过资料 |
 | 前端 T38 | `npm run test:unit -- src/api/admin/resources.test.ts`；`npm run build` | 管理员资料 API 测试 5/5 通过；下架请求正确 |
 | 前端 T39 | `npm run test:unit -- src/views/admin/PublishedResourcesView.test.ts`；`npm run build` | 发布资料页面测试 2/2 通过；下架和审核流水正确 |
+| 前端 T40 | `npm run test:unit -- src/api/admin/rankings.test.ts`；`npm run build` | 管理员排行榜 API 测试 1/1 通过；无参数和 null 响应正确 |
 
 ## 下一步
 
-按前端任务队列继续执行 `T40`，仅实现管理员总榜重建 API。
+按前端任务队列继续执行 `T41`，仅实现排行榜运维页面。

@@ -52,6 +52,8 @@
 - 当前执行 T39：下架和审核流水页面操作。
 - T39 已通过 `npm run test:unit -- src/views/admin/PublishedResourcesView.test.ts`（2/2）和 `npm run build`；已验证审核流水、下架原因校验、确认和下架后刷新。
 - 前端第七阶段（T33-T39，管理员审核与下架）已完成；当前执行第八阶段 T40。
+- T40 已通过 `npm run test:unit -- src/api/admin/rankings.test.ts`（1/1）和 `npm run build`；已验证管理员 Token、无业务参数与 `data=null` 响应。
+- 当前执行 T41：排行榜运维页面。
 
 ## 2. 进度状态说明
 
