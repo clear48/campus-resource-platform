@@ -167,8 +167,8 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
-| T19 | TODO | 实现收藏 API | `favorites.ts`、收藏类型及测试 | 收藏、取消和状态方法正确；均携带 Token |
-| T20 | TODO | 在详情页接入收藏操作 | 详情页及测试；必要时小型收藏按钮组件 | 能查询、收藏、取消；游客跳登录；按钮防重复提交 |
+| T19 | DONE | 实现收藏 API | `favorites.ts`、收藏类型及测试 | 收藏、取消和状态方法正确；均携带 Token |
+| T20 | IN_PROGRESS | 在详情页接入收藏操作 | 详情页及测试；必要时小型收藏按钮组件 | 能查询、收藏、取消；游客跳登录；按钮防重复提交 |
 | T21 | TODO | 实现下载 API 和文件流工具 | `downloads.ts`、下载类型、文件下载工具及测试 | 两步下载方法分离；中文文件名和 JSON 错误可处理 |
 | T22 | TODO | 在详情页接入两步下载 | 详情页及测试 | 严格“创建记录→文件流”；展示 `counted`；429 提示正确 |
 
@@ -546,9 +546,27 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | 资料详情页组件测试 1/1 通过；生产构建通过。 |
 | 文档更新 | 已更新开发计划、当前状态、分支交接、项目进度与任务队列。 |
 | Git commit message | `feat(frontend): add read-only resource detail` |
-| 实际 commit id |  |
+| 实际 commit id | `81942a657d108d894c4a66d46ea5b4f81ab34761` |
 | 推送分支 | `origin/dev` |
 | 备注 | 本轮已完成第三阶段（T13-T18），遵循用户“每次最多三个阶段”限制，不自动启动 T19。 |
+
+### T19
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 完成时间 | 2026-07-13 |
+| 开始前 commit | `81942a657d108d894c4a66d46ea5b4f81ab34761` |
+| 修改文件 | `frontend/src/types/favorite.ts`、`frontend/src/api/favorites.ts`、`frontend/src/api/favorites.test.ts`、本队列和前端进度文档 |
+| 核心实现 | 封装收藏、取消收藏和收藏状态三个受保护接口；复用请求层自动注入 Token；将 `hotScoreDelta` 保留为兼容字段但不用于前端热度计算。 |
+| 测试命令 | `npm run test:unit -- src/api/favorites.test.ts`；`npm run build` |
+| 测试结果 | 收藏 API 测试 3/3 通过；生产构建通过。 |
+| 文档更新 | 已更新开发计划、当前状态、分支交接、项目进度与任务队列。 |
+| Git commit message | `feat(frontend): add favorite api client` |
+| 实际 commit id |  |
+| 推送分支 | `origin/dev` |
+| 备注 | 首次组合测试命令挂起但无错误输出，拆分后专项测试和构建均通过；未修改后端或接口定义。 |
 
 ---
 
