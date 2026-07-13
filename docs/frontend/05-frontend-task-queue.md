@@ -7,12 +7,12 @@
 | 模块名称 | 前端演示模块 |
 | 模块定位 | 只服务于当前 Java 后端项目功能演示 |
 | 当前分支 | `dev` |
-| 当前状态 | 开发中 |
+| 当前状态 | 暂停：等待真实后端联调环境 |
 | 任务执行模式 | 自动推进，遇到停止条件暂停 |
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T44` |
+| 当前任务 | `T44`（BLOCKED） |
 | 已完成任务 | 43 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
@@ -216,7 +216,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
-| T44 | TODO | 验证认证和上传审核闭环 | 仅缺陷文件、`tests/manual/auth-upload-review.md` | 注册、登录、秒传、创建、审核、退出黑名单均验证 |
+| T44 | BLOCKED | 验证认证和上传审核闭环 | 仅缺陷文件、`tests/manual/auth-upload-review.md` | 注册、登录、秒传、创建、审核、退出黑名单均验证 |
 | T45 | TODO | 验证搜索收藏下载闭环 | 仅缺陷文件、`tests/manual/resource-consumption.md` | 搜索隔离、收藏、两步下载、去重和限流均验证 |
 | T46 | TODO | 验证排行榜和管理员下架闭环 | 仅缺陷文件、`tests/manual/ranking-admin.md` | 热度、重建、下架、角色拒绝均验证 |
 | T47 | TODO | 整理启动说明和最终验证记录 | `frontend/README.md`、开发计划和必要进度文档 | 干净环境安装、测试、构建、启动通过；不记录真实密钥 |
@@ -852,6 +852,20 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 核心实现 | 固定导航按登录态和管理员角色显示入口；管理员端可返回前台；首页两个排行榜失败后可单独重新加载，不引入动态菜单、Pinia 或复杂 UI。 |
 | 测试结果 | Layout 与首页专项测试 6/6、全量前端测试 65/65 和生产构建通过。 |
 | Git commit message | `fix(frontend): complete page states and navigation` |
+| 实际 commit id | `dcae57fdb3447be5858d4f0a794c41e4c9e445b0` |
+| 推送分支 | `origin/dev` |
+
+### T44
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | BLOCKED |
+| 修改文件 | 无前端业务代码；仅更新前端进度文档与阻塞记录。 |
+| 核心实现 | 本任务要求真实后端闭环，不能用 Mock 测试或伪造人工结果替代。 |
+| 验证结果 | `Test-NetConnection 127.0.0.1:8080` 返回 `TcpTestSucceeded=False`；`GET /api/v1/health` 无法连接。 |
+| 停止条件 | 已命中：后端环境不可用，无法完成计划内真实联调。 |
+| 恢复条件 | 启动后端、MySQL 和 Redis 后，确认 `http://127.0.0.1:8080/api/v1/health` 可访问，再从 T44 继续。 |
+| Git commit message | `docs(frontend): record integration validation blocker` |
 | 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |
 
