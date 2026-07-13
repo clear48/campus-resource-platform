@@ -169,8 +169,8 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | --- | --- | --- | --- | --- |
 | T19 | DONE | 实现收藏 API | `favorites.ts`、收藏类型及测试 | 收藏、取消和状态方法正确；均携带 Token |
 | T20 | DONE | 在详情页接入收藏操作 | 详情页及测试；必要时小型收藏按钮组件 | 能查询、收藏、取消；游客跳登录；按钮防重复提交 |
-| T21 | IN_PROGRESS | 实现下载 API 和文件流工具 | `downloads.ts`、下载类型、文件下载工具及测试 | 两步下载方法分离；中文文件名和 JSON 错误可处理 |
-| T22 | TODO | 在详情页接入两步下载 | 详情页及测试 | 严格“创建记录→文件流”；展示 `counted`；429 提示正确 |
+| T21 | DONE | 实现下载 API 和文件流工具 | `downloads.ts`、下载类型、文件下载工具及测试 | 两步下载方法分离；中文文件名和 JSON 错误可处理 |
+| T22 | IN_PROGRESS | 在详情页接入两步下载 | 详情页及测试 | 严格“创建记录→文件流”；展示 `counted`；429 提示正确 |
 
 ### 第五阶段：文件上传与资料创建
 
@@ -577,6 +577,18 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 核心实现 | 登录用户读取并切换收藏状态；游客跳登录；操作中禁用按钮，后端返回收藏数回显。 |
 | 测试结果 | `ResourceDetailView` 测试 2/2 和生产构建通过。 |
 | Git commit message | `feat(frontend): add resource favorite actions` |
+| 实际 commit id | `dfbd9e64705f36081c5afa3c1143521966822d6a` |
+| 推送分支 | `origin/dev` |
+
+### T21
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 修改文件 | `downloads.ts`、`download.ts`、`file-download.ts`、对应测试和前端进度文档 |
+| 核心实现 | 创建记录与文件流下载分离；解析 RFC 5987 中文文件名和 JSON Blob 错误。 |
+| 测试结果 | 下载 API/工具测试 4/4 和生产构建通过。 |
+| Git commit message | `feat(frontend): add download api client` |
 | 实际 commit id |  |
 | 推送分支 | `origin/dev` |
 

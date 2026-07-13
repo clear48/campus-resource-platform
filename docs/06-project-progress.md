@@ -21,6 +21,8 @@
 - 当前执行 T20：详情页收藏操作；真实接口联调仍待后端 8080 服务可用后执行。
 - T20 已通过 `npm run test:unit -- src/views/ResourceDetailView.test.ts`（2/2）和 `npm run build`；游客跳登录，登录用户可收藏或取消收藏。
 - 当前执行 T21：下载 API 和文件流工具。
+- T21 已通过 `npm run test:unit -- src/api/downloads.test.ts src/utils/file-download.test.ts`（4/4）和 `npm run build`。
+- 当前执行 T22：详情页两步下载。
 
 ## 2. 进度状态说明
 
