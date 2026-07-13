@@ -7,8 +7,8 @@
 | 项目名称 | 校园资料共享与智能检索平台 |
 | 当前分支 | `dev` |
 | 当前后端状态 | 认证、分类、文件、资料、审核、搜索、下载、收藏、排行榜与定时任务均已完成首版 |
-| 当前前端状态 | 已完成 T01-T09：第一阶段基础能力、认证 API 与登录页；正在执行 T10：注册页面 |
-| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T10` |
+| 当前前端状态 | 已完成 T01-T10：第一阶段基础能力、认证 API、登录与注册页；正在执行 T11：当前用户 API 和简单会话状态 |
+| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T11` |
 
 ## 当前工作
 
@@ -22,8 +22,8 @@
 | --- | --- |
 | 允许范围 | `frontend/` 前端代码、前端测试、前端运行说明，以及队列要求的前端进度文档 |
 | 不允许范围 | 后端 Java、SQL、数据库、Redis、接口路径和其他业务模块 |
-| 当前任务 | `T10`：实现注册页面 |
-| 后续任务 | `T11`：当前用户 API 和简单会话状态 |
+| 当前任务 | `T11`：当前用户 API 和简单会话状态 |
+| 后续任务 | `T12`：个人信息与后端退出 |
 | 停止条件 | 见 `docs/frontend/05-frontend-task-queue.md` 的“停止条件” |
 
 ## 已知事项
@@ -46,6 +46,7 @@
 | 前端 T07 | `npm run test:unit -- src/utils/format.test.ts`；`npm run build` | 枚举和格式化测试 4/4 通过；构建通过 |
 | 前端 T08 | `npm run test:unit -- src/api/auth.test.ts`；`npm run build` | 认证 API 测试 3/3 通过；构建通过 |
 | 前端 T09 | `npm run test:unit -- src/views/LoginView.test.ts`；`npm run build` | 登录页组件测试 1/1 通过；后端未启动，真实登录待联调 |
+| 前端 T10 | `npm run test:unit -- src/views/RegisterView.test.ts`；`npm run build` | 注册页组件测试 1/1 通过；后端未启动，真实注册待联调 |
 
 ## 下一步
 

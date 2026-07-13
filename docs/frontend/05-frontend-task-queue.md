@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T10` |
-| 已完成任务 | 9 |
+| 当前任务 | `T11` |
+| 已完成任务 | 10 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -148,7 +148,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | --- | --- | --- | --- | --- |
 | T08 | DONE | 实现认证 API 方法 | `src/api/auth.ts`、`src/types/auth.ts` 及测试 | 认证 API 专项测试 3/3 通过；生产构建通过 |
 | T09 | DONE | 实现登录页面 | `LoginView.vue` 及测试、Router、默认 Layout | 登录页组件测试通过；生产构建通过；真实登录联调待后端启动 |
-| T10 | TODO | 实现注册页面 | `RegisterView.vue` 及测试、Router | 字段和校验与 API 文档一致；成功跳登录 |
+| T10 | DONE | 实现注册页面 | `RegisterView.vue` 及测试、Router | 注册页组件测试通过；生产构建通过；真实注册联调待后端启动 |
 | T11 | TODO | 实现当前用户 API 和简单会话状态 | `users.ts`、用户类型、`state/session.ts`、请求层及测试 | 可恢复当前用户；401/40102 清理会话；不引入 Pinia |
 | T12 | TODO | 实现个人信息和后端退出 | `ProfileView.vue` 及测试、Router、默认 Layout | 展示真实用户字段；退出调用后端；管理员入口可见 |
 
@@ -384,9 +384,27 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | 登录页组件测试 1/1 通过；生产构建通过；后端 8080 未启动，未执行真实登录 |
 | 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
 | Git commit message | `feat(frontend): add login page` |
+| 实际 commit id | `0a9529d694fa5fb75df4676834dc58ab0374fa87` |
+| 推送分支 | `origin/dev` |
+| 备注 | 已完成并推送 |
+
+### T10
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 完成时间 | 2026-07-13 |
+| 开始前 commit | `0a9529d694fa5fb75df4676834dc58ab0374fa87` |
+| 修改文件 | `frontend/src/views/RegisterView.vue`、`frontend/src/views/RegisterView.test.ts`、`frontend/src/router/index.ts`、本队列和前端进度文档 |
+| 核心实现 | 注册表单校验必填、密码长度、邮箱和手机号；可选字段为空时不提交；注册成功后跳转登录 |
+| 测试命令 | `npm run test:unit -- src/views/RegisterView.test.ts`；`npm run build` |
+| 测试结果 | 注册页组件测试 1/1 通过；生产构建通过；后端 8080 未启动，未执行真实注册 |
+| 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
+| Git commit message | `feat(frontend): add register page` |
 | 实际 commit id |  |
 | 推送分支 |  |
-| 备注 | 当前只有 `/login`；`/register` 链接将在 T10 落地 |
+| 备注 | 会话恢复和 Token 注入在 T11 统一实现 |
 
 ---
 
