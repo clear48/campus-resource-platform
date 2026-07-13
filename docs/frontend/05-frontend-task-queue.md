@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T04` |
-| 已完成任务 | 3 |
+| 当前任务 | `T05` |
+| 已完成任务 | 4 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -137,7 +137,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | T01 | DONE | 创建 Vue 3 + Vite + TypeScript 空工程 | `frontend/package.json`、`index.html`、Vite/TS 配置、`src/main.ts`、`src/App.vue` | `npm run build` 通过；开发服务返回 HTTP 200 |
 | T02 | DONE | 接入 Element Plus 和基础样式 | `frontend/package.json`、`src/main.ts`、`src/App.vue`、`src/styles/index.css` | Element Plus 组件可渲染；生产构建和开发服务验证通过 |
 | T03 | DONE | 接入 Vue Router 和最小页面壳 | Router、默认 Layout、首页占位、`App.vue`、`main.ts` | `/` 与未知路径均返回 SPA 入口；客户端配置 404 兜底 |
-| T04 | TODO | 配置环境变量和后端代理 | `vite.config.ts`、`.env.example`、`.env.development`、必要时 `.gitignore` | API 地址可配置；代理不包含敏感信息 |
+| T04 | DONE | 配置环境变量和后端代理 | `vite.config.ts`、`.env.example`、`.env.development`、必要时 `.gitignore` | API 地址可配置；Vite 配置构建成功；后端未启动，真实代理请求待后续联调 |
 | T05 | TODO | 创建通用 API 类型和 Axios 请求实例 | `src/types/api.ts`、`src/utils/request.ts` | 统一响应、分页、错误消息和 `traceId` 可处理 |
 | T06 | TODO | 建立最小单元测试环境 | `package.json`、`vite.config.ts`、`tests/setup.ts`、请求层测试 | Vitest 和 Axios Mock 测试通过；生产构建通过 |
 | T07 | TODO | 添加枚举和格式化工具 | `src/types/enums.ts`、`src/utils/format.ts` 及测试 | 角色、状态、类型、时间可稳定格式化；未知值有兜底 |
@@ -276,9 +276,27 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | 依赖安装成功；构建通过；首页和未知路径均返回 HTTP 200 SPA 入口 |
 | 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
 | Git commit message | `feat(frontend): add router and base layout` |
+| 实际 commit id | `7e79072e9bf7e81722259c83b40afa02e5d5bd6e` |
+| 推送分支 | `origin/dev` |
+| 备注 | 已完成并推送 |
+
+### T04
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 完成时间 | 2026-07-13 |
+| 开始前 commit | `7e79072e9bf7e81722259c83b40afa02e5d5bd6e` |
+| 修改文件 | `frontend/vite.config.ts`、`frontend/.env.example`、`frontend/.env.development`、本队列和前端进度文档 |
+| 核心实现 | 使用 `VITE_API_BASE_URL` 与 `VITE_API_PROXY_TARGET` 配置相对 API 地址和 `/api` 开发代理；不存放敏感信息 |
+| 测试命令 | `npm run build`；启动 Vite 后请求首页；`Test-NetConnection 127.0.0.1:8080` |
+| 测试结果 | 构建通过；开发服务返回 HTTP 200；本机 8080 端口未监听，未执行真实健康检查代理联调 |
+| 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
+| Git commit message | `chore(frontend): configure api proxy` |
 | 实际 commit id |  |
 | 推送分支 |  |
-| 备注 | 实际 commit id 和推送结果在提交完成后记录到任务完成摘要 |
+| 备注 | 后端未启动不阻塞本步；真实代理联调在后端可用时补充 |
 
 ---
 

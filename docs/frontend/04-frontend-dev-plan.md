@@ -20,6 +20,7 @@
 | F01 | T01 | 已完成 | `npm install` 成功；`npm run build` 通过；Vite 开发服务返回 HTTP 200 | F02 / T02：接入 Element Plus |
 | F02 | T02 | 已完成 | `npm install element-plus` 成功；`npm run build` 通过；Vite 开发服务返回 HTTP 200 | F03 / T03：接入 Vue Router |
 | F03 | T03 | 已完成 | `npm install vue-router` 成功；`npm run build` 通过；首页和未知路径均返回 HTTP 200 SPA 入口 | F04 / T04：配置环境变量和后端代理 |
+| F04 | T04 | 已完成 | 环境变量与 `/api` 代理配置通过构建和 Vite 启动验证；本机后端 8080 端口未监听，健康检查代理联调待补 | F05 / T05：创建 Axios 请求实例 |
 
 ## 2. 技术栈与开发边界
 
