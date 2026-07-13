@@ -7,13 +7,13 @@
 | 模块名称 | 前端演示模块 |
 | 模块定位 | 只服务于当前 Java 后端项目功能演示 |
 | 当前分支 | `dev` |
-| 当前状态 | 开发中：真实后端联调验证 |
+| 当前状态 | 已完成：前端演示与真实后端联调验证 |
 | 任务执行模式 | 自动推进，遇到停止条件暂停 |
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T47` |
-| 已完成任务 | 46 |
+| 当前任务 | 无（队列已完成） |
+| 已完成任务 | 47 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -219,7 +219,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | T44 | DONE | 验证认证和上传审核闭环 | 仅缺陷文件、`tests/manual/auth-upload-review.md` | 注册、登录、秒传、创建、审核、退出黑名单均验证 |
 | T45 | DONE | 验证搜索收藏下载闭环 | 仅缺陷文件、`tests/manual/resource-consumption.md` | 搜索隔离、收藏、两步下载、去重和限流均验证 |
 | T46 | DONE | 验证排行榜和管理员下架闭环 | 仅缺陷文件、`tests/manual/ranking-admin.md` | 热度、重建、下架、角色拒绝均验证 |
-| T47 | TODO | 整理启动说明和最终验证记录 | `frontend/README.md`、开发计划和必要进度文档 | 干净环境安装、测试、构建、启动通过；不记录真实密钥 |
+| T47 | DONE | 整理启动说明和最终验证记录 | `frontend/README.md`、开发计划和必要进度文档 | 干净环境安装、测试、构建、启动通过；不记录真实密钥 |
 
 ---
 
@@ -874,7 +874,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 停止条件 | 未命中。 |
 | Git commit message | `test(frontend): verify auth upload audit flow` |
 | 上次阻塞记录 commit | `3516620` |
-| 实际 commit id | 待本次提交后回填 |
+| 实际 commit id | `723eeef` |
 | 推送分支 | `origin/dev` |
 
 ### T46
@@ -892,6 +892,24 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | `npm run test:unit`（31 个文件、65 个用例）通过；`npm run build` 通过；`git diff --check` 通过。 |
 | 停止条件 | 未命中。 |
 | Git commit message | `test(frontend): verify ranking admin flow` |
+| 实际 commit id | `67c5405` |
+| 推送分支 | `origin/dev` |
+
+### T47
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 起始 commit | `67c5405` |
+| 完成时间 | 2026-07-13 |
+| 修改文件 | `frontend/README.md` 与前端进度文档；未修改前端业务页面。 |
+| 核心实现 | 基于当前锁定依赖整理安装、环境变量、启动、测试、构建、演示准备和最终验证记录。 |
+| 安全约束 | 不写入真实账号密码、Authorization Token、数据库连接信息、Redis 地址或绝对上传路径。 |
+| 已通过验证 | `npm ci` 成功，审计结果为 0 个漏洞；`npm run test:unit` 通过 31 个文件、65 个用例；`npm run build` 通过；临时 Vite 服务首页返回 HTTP 200 后已关闭。 |
+| 测试结果 | `npm ci`（审计 0 漏洞）、`npm run test:unit`（31 个文件、65 个用例）、`npm run build`、临时 Vite 首页 HTTP 200 和 `git diff --check` 均通过。 |
+| 停止条件 | 未命中。 |
+| Git commit message | `docs(frontend): add frontend runbook` |
 | 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |
 
@@ -909,7 +927,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | `npm run test:unit`（31 个文件、65 个用例）通过；`npm run build` 通过；`git diff --check` 通过。 |
 | 停止条件 | 未命中。 |
 | Git commit message | `test(frontend): verify resource consumption flow` |
-| 实际 commit id | 待本次提交后回填 |
+| 实际 commit id | `f25066a` |
 | 推送分支 | `origin/dev` |
 
 ---
