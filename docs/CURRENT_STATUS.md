@@ -7,7 +7,7 @@
 | 项目名称 | 校园资料共享与智能检索平台 |
 | 当前分支 | `dev` |
 | 当前后端状态 | 认证、分类、文件、资料、审核、搜索、下载、收藏、排行榜与定时任务均已完成首版 |
-| 当前前端状态 | 已完成 T01-T43：基础、普通用户演示、管理员功能、路由守卫和页面状态收口；T44 因真实后端未启动而阻塞 |
+| 当前前端状态 | 已完成 T01-T43：基础、普通用户演示、管理员功能、路由守卫和页面状态收口；T44 因演示业务数据缺失而阻塞 |
 | 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前任务为 `T44`（BLOCKED） |
 
 ## 当前工作
@@ -23,7 +23,7 @@
 | 允许范围 | `frontend/` 前端代码、前端测试、前端运行说明，以及队列要求的前端进度文档 |
 | 不允许范围 | 后端 Java、SQL、数据库、Redis、接口路径和其他业务模块 |
 | 当前任务 | `T44`：验证认证和上传审核闭环（BLOCKED） |
-| 后续任务 | 后端、MySQL 和 Redis 环境就绪后从 `T44` 恢复 |
+| 后续任务 | 授权并完成演示分类、管理员账号初始化后，从 `T44` 恢复 |
 | 停止条件 | 见 `docs/frontend/05-frontend-task-queue.md` 的“停止条件” |
 
 ## 已知事项
@@ -69,8 +69,8 @@
 | 前端 T41 | `npm run test:unit -- src/views/admin/RankingManagementView.test.ts`；`npm run build` | 排行榜运维页面测试 1/1 通过；榜单周期和重建确认正确 |
 | 前端 T42 | `npm run test:unit -- src/router/index.test.ts`；`npm run build` | 路由守卫测试 3/3 通过；游客、普通用户和管理员跳转正确 |
 | 前端 T43 | `npm run test:unit -- src/layouts/DefaultLayout.test.ts src/layouts/AdminLayout.test.ts src/views/HomeView.test.ts`；`npm run test:unit`；`npm run build` | 专项测试 6/6、全量测试 65/65 与构建通过；固定导航和排行榜失败重试正确 |
-| 前端 T44 | `Test-NetConnection 127.0.0.1 -Port 8080`；`GET /api/v1/health` | 端口未监听、健康检查无法连接；按真实联调停止条件阻塞，未伪造验收结果 |
+| 前端 T44 | 真实 HTTP 联调 | 健康检查、注册、登录、MD5 预检、首次上传、同文件秒传、403 权限边界和退出后 Token 401 均通过；分类为空、活动管理员数为 0，无法继续创建资料与审核 |
 
 ## 下一步
 
-当前自动推进已暂停。启动后端、MySQL 和 Redis 并确认 `http://127.0.0.1:8080/api/v1/health` 可访问后，从 `T44` 恢复真实联调。
+当前自动推进已暂停。请通过授权的初始化流程准备至少一个启用分类和一个可登录管理员账号后，从 `T44` 继续真实资料创建与审核验证。

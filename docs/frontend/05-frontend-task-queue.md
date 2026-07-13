@@ -7,7 +7,7 @@
 | 模块名称 | 前端演示模块 |
 | 模块定位 | 只服务于当前 Java 后端项目功能演示 |
 | 当前分支 | `dev` |
-| 当前状态 | 暂停：等待真实后端联调环境 |
+| 当前状态 | 暂停：等待演示业务数据初始化 |
 | 任务执行模式 | 自动推进，遇到停止条件暂停 |
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
@@ -860,12 +860,16 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 项目 | 记录 |
 | --- | --- |
 | 状态 | BLOCKED |
-| 修改文件 | 无前端业务代码；仅更新前端进度文档与阻塞记录。 |
+| 开始时间 | 2026-07-13 |
+| 起始 commit | `3516620` |
+| 修改文件 | `frontend/tests/manual/auth-upload-review.md` 与前端进度文档；未修改前端业务代码。 |
 | 核心实现 | 本任务要求真实后端闭环，不能用 Mock 测试或伪造人工结果替代。 |
-| 验证结果 | `Test-NetConnection 127.0.0.1:8080` 返回 `TcpTestSucceeded=False`；`GET /api/v1/health` 无法连接。 |
-| 停止条件 | 已命中：后端环境不可用，无法完成计划内真实联调。 |
-| 恢复条件 | 启动后端、MySQL 和 Redis 后，确认 `http://127.0.0.1:8080/api/v1/health` 可访问，再从 T44 继续。 |
-| Git commit message | `docs(frontend): record integration validation blocker` |
+| 环境验证 | `127.0.0.1:8080` 已监听；`GET /api/v1/health` 返回 HTTP 200；应用已连接 MySQL 与虚拟机 Redis。 |
+| 已通过验证 | 真实注册、登录、当前用户、MD5 预检、首次上传、上传后预检、同文件秒传、普通用户管理员接口 HTTP 403、退出后旧 Token HTTP 401。 |
+| 停止条件 | 已命中：`GET /categories?parentId=0` 返回空数组，数据库没有启用分类；活动管理员账号数为 0。创建资料和真实审核需初始化业务数据，当前任务不允许直写数据库或修改后端。 |
+| 恢复条件 | 用户授权并通过既定初始化流程准备至少一个启用分类和一个可登录管理员账号后，从创建资料、管理员审核和公开详情继续。 |
+| Git commit message | `test(frontend): record auth upload validation blocker` |
+| 上次阻塞记录 commit | `3516620` |
 | 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |
 

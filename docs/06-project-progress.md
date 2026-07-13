@@ -58,7 +58,7 @@
 - 当前执行 T42：登录和管理员路由守卫。
 - T42 已通过 `npm run test:unit -- src/router/index.test.ts`（3/3）和 `npm run build`；已验证游客、普通用户和管理员的页面跳转。
 - T43 已通过 `npm run test:unit -- src/layouts/DefaultLayout.test.ts src/layouts/AdminLayout.test.ts src/views/HomeView.test.ts`（6/6）、全量前端测试（31 个文件、65 个测试）和 `npm run build`；固定导航、管理员入口与排行榜失败重试均已验证。
-- 前端第八阶段（T40-T43，排行榜运维、路由守卫和页面状态收口）已完成；T44 真实后端认证、上传和审核联调因本机 `127.0.0.1:8080` 未监听、健康检查无法连接而暂停，待后端、MySQL 和 Redis 环境就绪后恢复。
+- 前端第八阶段（T40-T43，排行榜运维、路由守卫和页面状态收口）已完成；T44 真实后端联调已验证健康检查、注册/登录、文件 MD5 预检和同文件秒传、权限边界以及退出 Token 黑名单。后端连接 MySQL 与虚拟机 Redis 正常，但分类表没有启用分类且没有活动管理员账号，创建资料和审核链路按停止条件暂停，待授权初始化演示业务数据后恢复。
 
 ## 2. 进度状态说明
 
