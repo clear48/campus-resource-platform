@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T08` |
-| 已完成任务 | 7 |
+| 当前任务 | `T09` |
+| 已完成任务 | 8 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -146,7 +146,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
-| T08 | TODO | 实现认证 API 方法 | `src/api/auth.ts`、`src/types/auth.ts` 及测试 | 注册、登录、退出方法的路径、body 和 Token 规则正确 |
+| T08 | DONE | 实现认证 API 方法 | `src/api/auth.ts`、`src/types/auth.ts` 及测试 | 认证 API 专项测试 3/3 通过；生产构建通过 |
 | T09 | TODO | 实现登录页面 | `LoginView.vue` 及测试、Router、默认 Layout | 可提交登录、保存 Token、跳转并展示错误；无其他新页面 |
 | T10 | TODO | 实现注册页面 | `RegisterView.vue` 及测试、Router | 字段和校验与 API 文档一致；成功跳登录 |
 | T11 | TODO | 实现当前用户 API 和简单会话状态 | `users.ts`、用户类型、`state/session.ts`、请求层及测试 | 可恢复当前用户；401/40102 清理会话；不引入 Pinia |
@@ -348,9 +348,27 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | 枚举与格式化专项测试 4/4 通过；生产构建通过 |
 | 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
 | Git commit message | `feat(frontend): add display enums and formatters` |
+| 实际 commit id | `20af4571faeee4f82025ee70a5522cdb53e6f0de` |
+| 推送分支 | `origin/dev` |
+| 备注 | 已完成并推送 |
+
+### T08
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 完成时间 | 2026-07-13 |
+| 开始前 commit | `20af4571faeee4f82025ee70a5522cdb53e6f0de` |
+| 修改文件 | `frontend/src/types/auth.ts`、`frontend/src/api/auth.ts`、`frontend/src/api/auth.test.ts`、本队列和前端进度文档 |
+| 核心实现 | 按 API 映射实现注册、登录和退出请求；退出 Token 注入留待会话任务统一实现 |
+| 测试命令 | `npm run test:unit -- src/api/auth.test.ts`；`npm run build` |
+| 测试结果 | 认证 API 专项测试 3/3 通过；生产构建通过 |
+| 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
+| Git commit message | `feat(frontend): add auth api client` |
 | 实际 commit id |  |
 | 推送分支 |  |
-| 备注 | 工具只服务展示，不改变后端业务枚举 |
+| 备注 | 登录、注册和个人信息页面均由后续任务单独实现 |
 
 ---
 

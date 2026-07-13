@@ -7,8 +7,8 @@
 | 项目名称 | 校园资料共享与智能检索平台 |
 | 当前分支 | `dev` |
 | 当前后端状态 | 认证、分类、文件、资料、审核、搜索、下载、收藏、排行榜与定时任务均已完成首版 |
-| 当前前端状态 | 已完成第一阶段 T01-T07：工程骨架、请求基础与展示工具；正在执行第二阶段 T08：认证 API |
-| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T08` |
+| 当前前端状态 | 已完成 T01-T08：第一阶段基础能力和认证 API；正在执行 T09：登录页面 |
+| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T09` |
 
 ## 当前工作
 
@@ -22,8 +22,8 @@
 | --- | --- |
 | 允许范围 | `frontend/` 前端代码、前端测试、前端运行说明，以及队列要求的前端进度文档 |
 | 不允许范围 | 后端 Java、SQL、数据库、Redis、接口路径和其他业务模块 |
-| 当前任务 | `T08`：实现认证 API 方法 |
-| 后续任务 | `T09`：实现登录页面 |
+| 当前任务 | `T09`：实现登录页面 |
+| 后续任务 | `T10`：实现注册页面 |
 | 停止条件 | 见 `docs/frontend/05-frontend-task-queue.md` 的“停止条件” |
 
 ## 已知事项
@@ -44,6 +44,7 @@
 | 前端 T05 | `npm run build` | Axios 请求层构建通过；专项 Mock 测试待 T06 建立 |
 | 前端 T06 | `npm run test:unit -- src/utils/request.test.ts`；`npm run build` | 请求层测试 3/3 通过；构建通过 |
 | 前端 T07 | `npm run test:unit -- src/utils/format.test.ts`；`npm run build` | 枚举和格式化测试 4/4 通过；构建通过 |
+| 前端 T08 | `npm run test:unit -- src/api/auth.test.ts`；`npm run build` | 认证 API 测试 3/3 通过；构建通过 |
 
 ## 下一步
 

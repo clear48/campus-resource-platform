@@ -24,6 +24,7 @@
 | F05 | T05 | 已完成 | `npm install axios` 成功；请求层和通用响应类型通过 `npm run build` 验证 | F06 / T06：建立最小单元测试环境 |
 | F06 | T06 | 已完成 | 请求层 Vitest + Axios Mock 专项测试 3/3 通过；`npm run build` 通过 | F07 / T07：添加枚举和格式化工具 |
 | F07 | T07 | 已完成 | 枚举与格式化专项测试 4/4 通过；`npm run build` 通过 | F08 / T08：实现认证 API 方法 |
+| F08 | T08 | 已完成 | 认证 API 专项测试 3/3 通过；`npm run build` 通过 | F09 / T09：实现登录页面 |
 
 ## 2. 技术栈与开发边界
 
