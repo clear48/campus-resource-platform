@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T07` |
-| 已完成任务 | 6 |
+| 当前任务 | `T08` |
+| 已完成任务 | 7 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -140,7 +140,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | T04 | DONE | 配置环境变量和后端代理 | `vite.config.ts`、`.env.example`、`.env.development`、必要时 `.gitignore` | API 地址可配置；Vite 配置构建成功；后端未启动，真实代理请求待后续联调 |
 | T05 | DONE | 创建通用 API 类型和 Axios 请求实例 | `src/types/api.ts`、`src/utils/request.ts` | 统一响应、分页、错误消息和 `traceId` 可处理；生产构建通过 |
 | T06 | DONE | 建立最小单元测试环境 | `package.json`、`vite.config.ts`、`tests/setup.ts`、请求层测试 | Vitest 和 Axios Mock 测试 3/3 通过；生产构建通过 |
-| T07 | TODO | 添加枚举和格式化工具 | `src/types/enums.ts`、`src/utils/format.ts` 及测试 | 角色、状态、类型、时间可稳定格式化；未知值有兜底 |
+| T07 | DONE | 添加枚举和格式化工具 | `src/types/enums.ts`、`src/utils/format.ts` 及测试 | 枚举与格式化专项测试 4/4 通过；生产构建通过 |
 
 ### 第二阶段：认证闭环
 
@@ -330,9 +330,27 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | 请求层专项测试 3/3 通过；生产构建通过；修复断言泛型与 TypeScript 6 的兼容问题 |
 | 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
 | Git commit message | `test(frontend): add minimal unit test setup` |
+| 实际 commit id | `791b23034674132b973f6362a942c2950f2f5c78` |
+| 推送分支 | `origin/dev` |
+| 备注 | 已完成并推送；页面组件测试环境已准备 |
+
+### T07
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 完成时间 | 2026-07-13 |
+| 开始前 commit | `791b23034674132b973f6362a942c2950f2f5c78` |
+| 修改文件 | `frontend/src/types/enums.ts`、`frontend/src/utils/format.ts`、`frontend/src/utils/format.test.ts`、本队列和前端进度文档 |
+| 核心实现 | 集中转换用户角色、资料状态和资料类型，并为未知值、空值、非法时间和非法数值提供页面级兜底 |
+| 测试命令 | `npm run test:unit -- src/utils/format.test.ts`；`npm run build` |
+| 测试结果 | 枚举与格式化专项测试 4/4 通过；生产构建通过 |
+| 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
+| Git commit message | `feat(frontend): add display enums and formatters` |
 | 实际 commit id |  |
 | 推送分支 |  |
-| 备注 | 页面组件测试环境已准备，后续按页面任务逐步增加 |
+| 备注 | 工具只服务展示，不改变后端业务枚举 |
 
 ---
 
