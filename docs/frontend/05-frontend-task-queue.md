@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T42` |
-| 已完成任务 | 41 |
+| 当前任务 | `T43` |
+| 已完成任务 | 42 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -209,8 +209,8 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | --- | --- | --- | --- | --- |
 | T40 | DONE | 实现管理员总榜重建 API | `api/admin/rankings.ts` 及测试 | 无业务参数；携带管理员 Token；正确处理 `data=null` |
 | T41 | DONE | 实现排行榜运维页面 | `RankingManagementView.vue`、Router、管理员菜单及测试 | 表格展示两类榜；周期正确；重建有确认，无虚构进度 |
-| T42 | IN_PROGRESS | 收口登录和管理员路由守卫 | Router、会话状态、Layout 及路由测试 | 游客、普通用户、管理员跳转正确；后端仍为最终鉴权边界 |
-| T43 | TODO | 收口固定导航和页面通用状态 | 两个 Layout、确有缺失的页面状态及测试 | 页面均可达；加载、空、错、重试完整；无复杂视觉重构 |
+| T42 | DONE | 收口登录和管理员路由守卫 | Router、会话状态、Layout 及路由测试 | 游客、普通用户、管理员跳转正确；后端仍为最终鉴权边界 |
+| T43 | IN_PROGRESS | 收口固定导航和页面通用状态 | 两个 Layout、确有缺失的页面状态及测试 | 页面均可达；加载、空、错、重试完整；无复杂视觉重构 |
 
 ### 第九阶段：后端演示验收
 
@@ -828,6 +828,18 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 核心实现 | 表格展示热门资料与热门搜索词；总榜重建经二次确认后刷新 all 榜，页面不展示不存在的进度。 |
 | 测试结果 | 排行榜运维页面组件测试 1/1 和生产构建通过。 |
 | Git commit message | `feat(frontend): add ranking management page` |
+| 实际 commit id | `6a7e8a8486c8e9d00b3b796ea59b5ef71f516e3d` |
+| 推送分支 | `origin/dev` |
+
+### T42
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 修改文件 | `frontend/src/router/index.ts`、路由测试和前端进度文档 |
+| 核心实现 | 基于路由 meta 收口游客、已登录用户和管理员入口；普通用户访问管理端提示并返回首页，后端继续执行最终鉴权。 |
+| 测试结果 | 路由守卫测试 3/3 和生产构建通过。 |
+| Git commit message | `feat(frontend): finalize route guards` |
 | 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |
 

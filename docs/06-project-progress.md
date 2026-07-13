@@ -56,6 +56,8 @@
 - 当前执行 T41：排行榜运维页面。
 - T41 已通过 `npm run test:unit -- src/views/admin/RankingManagementView.test.ts`（1/1）和 `npm run build`；已验证两类榜单周期、总榜重建确认和无虚构进度。
 - 当前执行 T42：登录和管理员路由守卫。
+- T42 已通过 `npm run test:unit -- src/router/index.test.ts`（3/3）和 `npm run build`；已验证游客、普通用户和管理员的页面跳转。
+- 当前执行 T43：固定导航和页面通用状态收口。
 
 ## 2. 进度状态说明
 
