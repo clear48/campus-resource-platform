@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# 示例配置不含密钥，应随前端工程分发；真实 .env.* 仍由根目录规则忽略。
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

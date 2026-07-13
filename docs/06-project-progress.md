@@ -391,3 +391,9 @@ docs(favorite): sync favorite module documentation
 - update project progress and README with the completed favorite module
 - recommend ranking and scheduled-task module as the next stage
 ```
+
+## 13. 前端 API 前缀修复与浏览器验收（2026-07-13）
+
+- 浏览器验收发现前端开发配置使用 `/api`，而后端接口统一在 `/api/v1` 下，导致公开搜索和分类请求返回服务端异常。
+- 已将 `frontend/.env.example`、本地开发配置和请求层缺省值统一为 `/api/v1`，并通过单元测试锁定该默认值。
+- 真实浏览器已验证游客搜索、普通用户收藏/下载和管理员榜单重建、已发布资料、待审核资料页面；UML PDF 保持公开演示可用。

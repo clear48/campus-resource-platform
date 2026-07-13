@@ -34,8 +34,8 @@ Copy-Item .env.example .env.development
 
 | 变量 | 默认值 | 用途 |
 | --- | --- | --- |
-| `VITE_API_BASE_URL` | `/api` | 浏览器请求的 API 前缀，保持相对路径以使用开发代理。 |
-| `VITE_API_PROXY_TARGET` | `http://127.0.0.1:8080` | Vite 开发服务器转发 `/api` 请求的后端地址。 |
+| `VITE_API_BASE_URL` | `/api/v1` | 浏览器请求的版本化 API 前缀，保持相对路径以使用开发代理。 |
+| `VITE_API_PROXY_TARGET` | `http://127.0.0.1:8080` | Vite 开发服务器转发 `/api/v1` 请求的后端地址。 |
 
 不要在任何 `.env` 文件中写入数据库密码、JWT 密钥、Redis 地址、真实账号密码或 Authorization Token。
 
@@ -47,7 +47,7 @@ Copy-Item .env.example .env.development
 npm run dev
 ```
 
-终端出现 Vite 地址后，在浏览器打开 `http://127.0.0.1:5173/`。开发服务器会把 `/api` 请求转发给 `VITE_API_PROXY_TARGET`。
+终端出现 Vite 地址后，在浏览器打开 `http://127.0.0.1:5173/`。开发服务器会把 `/api/v1` 请求转发给 `VITE_API_PROXY_TARGET`。
 
 ## 验证命令
 
@@ -56,7 +56,7 @@ npm run test:unit
 npm run build
 ```
 
-当前最终回归基线为 31 个测试文件、65 个用例。构建产物写入 `dist/`，该目录不提交到 Git。
+当前最终回归基线为 31 个测试文件、66 个用例。构建产物写入 `dist/`，该目录不提交到 Git。
 
 ## 演示准备
 
@@ -72,7 +72,7 @@ npm run build
 
 | 现象 | 检查方式 |
 | --- | --- |
-| 页面请求失败 | 确认后端已启动，并核对 `VITE_API_PROXY_TARGET`。 |
+| 页面请求失败 | 确认后端已启动，并核对 `VITE_API_BASE_URL=/api/v1` 与 `VITE_API_PROXY_TARGET`。 |
 | 401 或跳转登录页 | 重新登录；后端退出登录后旧 Token 会进入黑名单。 |
 | 403 管理员接口 | 使用管理员账号；前端入口提示不替代后端最终鉴权。 |
 | 上传后无法公开搜索 | 资料仍处于待审核、被拒绝或已下架状态时属于正常后端规则。 |

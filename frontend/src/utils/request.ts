@@ -17,8 +17,8 @@ export class ApiBusinessError extends Error {
   }
 }
 
-// 浏览器侧只请求相对 API 地址，开发环境由 Vite 代理转发到后端。
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+// 后端接口固定带 /api/v1 版本前缀；环境变量缺失时也必须保持该前缀，避免页面请求到不存在的 /api 路径。
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
 export const httpClient = axios.create({
   baseURL: apiBaseUrl,

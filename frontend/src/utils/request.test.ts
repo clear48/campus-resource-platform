@@ -5,6 +5,10 @@ import { httpClient, request } from './request'
 describe('request', () => {
   let mock: MockAdapter
 
+  it('默认请求前缀应与后端版本化路径一致', () => {
+    expect(httpClient.defaults.baseURL).toBe('/api/v1')
+  })
+
   beforeEach(() => {
     // 直接挂载到同一个 Axios 实例，验证页面后续复用的真实请求编排。
     mock = new MockAdapter(httpClient)
