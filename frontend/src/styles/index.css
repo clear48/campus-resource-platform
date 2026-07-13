@@ -150,6 +150,26 @@ body {
   width: 100%;
 }
 
+.my-uploads-view {
+  width: min(1200px, 100%);
+}
+
+.my-uploads-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.my-uploads-view__alert {
+  margin-bottom: 16px;
+}
+
+.my-uploads-view__pagination {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
 .ranking-card__header {
   display: flex;
   align-items: center;

@@ -4,6 +4,7 @@ import HomeView from '../views/HomeView.vue'
 import LoginView from '../views/LoginView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import ProfileView from '../views/user/ProfileView.vue'
+import MyUploadsView from '../views/user/MyUploadsView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import ResourceDetailView from '../views/ResourceDetailView.vue'
 import SearchView from '../views/SearchView.vue'
@@ -24,6 +25,11 @@ const routes: RouteRecordRaw[] = [
         path: 'me/profile',
         name: 'profile',
         component: ProfileView,
+      },
+      {
+        path: 'me/uploads',
+        name: 'my-uploads',
+        component: MyUploadsView,
       },
       {
         path: 'search',
