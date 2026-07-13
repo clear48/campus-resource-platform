@@ -910,7 +910,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | `npm ci`（审计 0 漏洞）、`npm run test:unit`（31 个文件、65 个用例）、`npm run build`、临时 Vite 首页 HTTP 200 和 `git diff --check` 均通过。 |
 | 停止条件 | 未命中。 |
 | Git commit message | `docs(frontend): add frontend runbook` |
-| 实际 commit id | 待本次提交后回填 |
+| 实际 commit id | `0ab5fe8` |
 | 推送分支 | `origin/dev` |
 
 ### T45
