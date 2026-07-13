@@ -7,13 +7,13 @@
 | 模块名称 | 前端演示模块 |
 | 模块定位 | 只服务于当前 Java 后端项目功能演示 |
 | 当前分支 | `dev` |
-| 当前状态 | 暂停：等待演示业务数据初始化 |
+| 当前状态 | 开发中：真实后端联调验证 |
 | 任务执行模式 | 自动推进，遇到停止条件暂停 |
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T44`（BLOCKED） |
-| 已完成任务 | 43 |
+| 当前任务 | `T45` |
+| 已完成任务 | 44 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -216,7 +216,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
-| T44 | BLOCKED | 验证认证和上传审核闭环 | 仅缺陷文件、`tests/manual/auth-upload-review.md` | 注册、登录、秒传、创建、审核、退出黑名单均验证 |
+| T44 | DONE | 验证认证和上传审核闭环 | 仅缺陷文件、`tests/manual/auth-upload-review.md` | 注册、登录、秒传、创建、审核、退出黑名单均验证 |
 | T45 | TODO | 验证搜索收藏下载闭环 | 仅缺陷文件、`tests/manual/resource-consumption.md` | 搜索隔离、收藏、两步下载、去重和限流均验证 |
 | T46 | TODO | 验证排行榜和管理员下架闭环 | 仅缺陷文件、`tests/manual/ranking-admin.md` | 热度、重建、下架、角色拒绝均验证 |
 | T47 | TODO | 整理启动说明和最终验证记录 | `frontend/README.md`、开发计划和必要进度文档 | 干净环境安装、测试、构建、启动通过；不记录真实密钥 |
@@ -859,16 +859,20 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 
 | 项目 | 记录 |
 | --- | --- |
-| 状态 | BLOCKED |
+| 状态 | DONE |
 | 开始时间 | 2026-07-13 |
 | 起始 commit | `3516620` |
-| 修改文件 | `frontend/tests/manual/auth-upload-review.md` 与前端进度文档；未修改前端业务代码。 |
-| 核心实现 | 本任务要求真实后端闭环，不能用 Mock 测试或伪造人工结果替代。 |
+| 完成时间 | 2026-07-13 |
+| 修改文件 | `application.yaml`、根 `.gitignore`、`README.md`、`frontend/tests/manual/auth-upload-review.md` 与前端进度文档；未修改前端业务页面。 |
+| 核心实现 | 默认上传目录改为 `data/user-uploads`，并迁移既有联调文件及其 `file_info.storage_path`；真实接口闭环不使用 Mock 或伪造响应。 |
 | 环境验证 | `127.0.0.1:8080` 已监听；`GET /api/v1/health` 返回 HTTP 200；应用已连接 MySQL 与虚拟机 Redis。 |
 | 已通过验证 | 真实注册、登录、当前用户、MD5 预检、首次上传、上传后预检、同文件秒传、普通用户管理员接口 HTTP 403、退出后旧 Token HTTP 401。 |
-| 停止条件 | 已命中：`GET /categories?parentId=0` 返回空数组，数据库没有启用分类；活动管理员账号数为 0。创建资料和真实审核需初始化业务数据，当前任务不允许直写数据库或修改后端。 |
-| 恢复条件 | 用户授权并通过既定初始化流程准备至少一个启用分类和一个可登录管理员账号后，从创建资料、管理员审核和公开详情继续。 |
-| Git commit message | `test(frontend): record auth upload validation blocker` |
+| 数据初始化授权 | 用户已明确授权初始化一条启用分类和一个可登录管理员账号，仅用于继续本次真实联调。 |
+| 已通过验证 | 真实注册、登录、当前用户、MD5 预检、首次上传、上传后预检、同文件秒传、普通用户管理员接口 HTTP 403、退出后旧 Token HTTP 401；资料创建为待审核、管理员审核通过、审核记录查询与游客公开详情均通过。 |
+| PDF 演示资料 | 用户提供的 `UML七类图画法_结合手写笔记.pdf` 已上传至 `data/user-uploads`、创建资料并审核为 `APPROVED`；UTF-8 字节和 Node JSON 解析均验证公开标题正确。 |
+| 测试结果 | 前端全量单元测试 31 个文件、65 个用例通过；`npm run build` 通过；后端 `mvnw.cmd -DskipTests compile` 通过。 |
+| 停止条件 | 未命中。 |
+| Git commit message | `test(frontend): verify auth upload audit flow` |
 | 上次阻塞记录 commit | `3516620` |
 | 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |

@@ -59,6 +59,7 @@ $env:REDIS_HOST="localhost"
 $env:REDIS_PORT="6379"
 $env:REDIS_PASSWORD=""
 $env:JWT_SECRET="campus-resource-platform-dev-secret-change-me"
+$env:APP_UPLOAD_STORAGE_PATH=".\data\user-uploads"
 ```
 
 启动项目：
@@ -72,6 +73,8 @@ $env:JWT_SECRET="campus-resource-platform-dev-secret-change-me"
 ```text
 GET http://localhost:8080/api/v1/health
 ```
+
+用户上传文件默认保存到 `campus-resource-platform/data/user-uploads/`，该运行时目录不纳入 Git；可通过 `APP_UPLOAD_STORAGE_PATH` 覆盖。
 
 ## 编译验证
 

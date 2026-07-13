@@ -36,7 +36,8 @@ app:
     secret: ${JWT_SECRET:campus-resource-platform-dev-secret-change-me}
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:7200}
   upload:
-    storage-path: ${APP_UPLOAD_STORAGE_PATH:./data/uploads}
+    # 用户上传文件与源码、构建产物分离，默认落在专用运行时目录，仍可通过环境变量覆盖。
+    storage-path: ${APP_UPLOAD_STORAGE_PATH:./data/user-uploads}
 
 rank:
   sync:

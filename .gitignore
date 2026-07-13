@@ -40,6 +40,9 @@ logs/
 tmp/
 temp/
 
+# 用户上传的运行时文件由文件服务和数据库记录管理，不纳入版本控制。
+campus-resource-platform/data/
+
 # Agent/tool generated local state
 .agents/
 .git-backups/
