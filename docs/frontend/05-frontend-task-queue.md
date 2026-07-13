@@ -721,7 +721,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 核心实现 | 分页展示下载记录和资料详情入口；再次下载严格执行“创建下载记录 → 请求文件流 → 使用响应头文件名保存”，并展示后端 counted 结果。 |
 | 测试结果 | 我的下载页面组件测试 1/1、全量前端测试 45/45 和生产构建通过。 |
 | Git commit message | `feat(frontend): add my downloads page` |
-| 实际 commit id | 待本次提交后回填 |
+| 实际 commit id | `875358dae771f8eea3fd30bc669276707ac07f95` |
 | 推送分支 | `origin/dev` |
 
 ---
