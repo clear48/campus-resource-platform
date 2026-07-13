@@ -22,6 +22,7 @@
 | F03 | T03 | 已完成 | `npm install vue-router` 成功；`npm run build` 通过；首页和未知路径均返回 HTTP 200 SPA 入口 | F04 / T04：配置环境变量和后端代理 |
 | F04 | T04 | 已完成 | 环境变量与 `/api` 代理配置通过构建和 Vite 启动验证；本机后端 8080 端口未监听，健康检查代理联调待补 | F05 / T05：创建 Axios 请求实例 |
 | F05 | T05 | 已完成 | `npm install axios` 成功；请求层和通用响应类型通过 `npm run build` 验证 | F06 / T06：建立最小单元测试环境 |
+| F06 | T06 | 已完成 | 请求层 Vitest + Axios Mock 专项测试 3/3 通过；`npm run build` 通过 | F07 / T07：添加枚举和格式化工具 |
 
 ## 2. 技术栈与开发边界
 

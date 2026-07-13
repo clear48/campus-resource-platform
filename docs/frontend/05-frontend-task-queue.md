@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T06` |
-| 已完成任务 | 5 |
+| 当前任务 | `T07` |
+| 已完成任务 | 6 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -139,7 +139,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | T03 | DONE | 接入 Vue Router 和最小页面壳 | Router、默认 Layout、首页占位、`App.vue`、`main.ts` | `/` 与未知路径均返回 SPA 入口；客户端配置 404 兜底 |
 | T04 | DONE | 配置环境变量和后端代理 | `vite.config.ts`、`.env.example`、`.env.development`、必要时 `.gitignore` | API 地址可配置；Vite 配置构建成功；后端未启动，真实代理请求待后续联调 |
 | T05 | DONE | 创建通用 API 类型和 Axios 请求实例 | `src/types/api.ts`、`src/utils/request.ts` | 统一响应、分页、错误消息和 `traceId` 可处理；生产构建通过 |
-| T06 | TODO | 建立最小单元测试环境 | `package.json`、`vite.config.ts`、`tests/setup.ts`、请求层测试 | Vitest 和 Axios Mock 测试通过；生产构建通过 |
+| T06 | DONE | 建立最小单元测试环境 | `package.json`、`vite.config.ts`、`tests/setup.ts`、请求层测试 | Vitest 和 Axios Mock 测试 3/3 通过；生产构建通过 |
 | T07 | TODO | 添加枚举和格式化工具 | `src/types/enums.ts`、`src/utils/format.ts` 及测试 | 角色、状态、类型、时间可稳定格式化；未知值有兜底 |
 
 ### 第二阶段：认证闭环
@@ -312,9 +312,27 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | Axios 安装成功；构建通过；构建期间修复 TypeScript 6 不支持构造参数属性的问题 |
 | 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
 | Git commit message | `feat(frontend): add axios request client` |
+| 实际 commit id | `6d2978ff0161a10561020d54266222941c76f403` |
+| 推送分支 | `origin/dev` |
+| 备注 | 已完成并推送；请求层专项 Mock 测试在 T06 建立 Vitest 后补充 |
+
+### T06
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 完成时间 | 2026-07-13 |
+| 开始前 commit | `6d2978ff0161a10561020d54266222941c76f403` |
+| 修改文件 | `frontend/package.json`、`frontend/package-lock.json`、`frontend/vite.config.ts`、`frontend/tests/setup.ts`、`frontend/src/utils/request.test.ts`、本队列和前端进度文档 |
+| 核心实现 | 接入 Vitest、Happy DOM、Vue Test Utils、Axios Mock Adapter；为请求层覆盖成功、业务错误和非 2xx JSON 错误 |
+| 测试命令 | `npm install -D vitest @vue/test-utils happy-dom axios-mock-adapter`；`npm run test:unit -- src/utils/request.test.ts`；`npm run build` |
+| 测试结果 | 请求层专项测试 3/3 通过；生产构建通过；修复断言泛型与 TypeScript 6 的兼容问题 |
+| 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
+| Git commit message | `test(frontend): add minimal unit test setup` |
 | 实际 commit id |  |
 | 推送分支 |  |
-| 备注 | 请求层专项 Mock 测试在 T06 建立 Vitest 后补充 |
+| 备注 | 页面组件测试环境已准备，后续按页面任务逐步增加 |
 
 ---
 

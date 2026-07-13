@@ -7,8 +7,8 @@
 | 项目名称 | 校园资料共享与智能检索平台 |
 | 当前分支 | `dev` |
 | 当前后端状态 | 认证、分类、文件、资料、审核、搜索、下载、收藏、排行榜与定时任务均已完成首版 |
-| 当前前端状态 | 已完成 T01-T05：工程骨架、Element Plus、固定 Router、环境变量与代理、Axios 请求层；正在执行 T06：最小单元测试环境 |
-| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T06` |
+| 当前前端状态 | 已完成 T01-T06：工程骨架、Element Plus、固定 Router、环境变量与代理、Axios 请求层、最小单元测试环境；正在执行 T07：枚举与格式化工具 |
+| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T07` |
 
 ## 当前工作
 
@@ -22,8 +22,8 @@
 | --- | --- |
 | 允许范围 | `frontend/` 前端代码、前端测试、前端运行说明，以及队列要求的前端进度文档 |
 | 不允许范围 | 后端 Java、SQL、数据库、Redis、接口路径和其他业务模块 |
-| 当前任务 | `T06`：建立最小单元测试环境 |
-| 后续任务 | `T07`：添加通用枚举和格式化工具 |
+| 当前任务 | `T07`：添加通用枚举和格式化工具 |
+| 后续任务 | `T08`：实现认证 API 方法 |
 | 停止条件 | 见 `docs/frontend/05-frontend-task-queue.md` 的“停止条件” |
 
 ## 已知事项
@@ -42,6 +42,7 @@
 | 前端 T03 | `npm run build`；Vite 首页和未知路径请求 | 构建通过；两条路径均返回 HTTP 200 SPA 入口 |
 | 前端 T04 | `npm run build`；Vite 首页请求；8080 端口探测 | 构建与 Vite 启动通过；后端端口未监听，真实代理联调待补 |
 | 前端 T05 | `npm run build` | Axios 请求层构建通过；专项 Mock 测试待 T06 建立 |
+| 前端 T06 | `npm run test:unit -- src/utils/request.test.ts`；`npm run build` | 请求层测试 3/3 通过；构建通过 |
 
 ## 下一步
 

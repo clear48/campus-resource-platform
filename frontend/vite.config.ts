@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
@@ -16,6 +17,12 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
         },
       },
+    },
+    test: {
+      environment: 'happy-dom',
+      setupFiles: './tests/setup.ts',
+      include: ['src/**/*.test.ts'],
+      clearMocks: true,
     },
   }
 })
