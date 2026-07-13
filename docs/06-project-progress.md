@@ -15,7 +15,8 @@
 - T15 已通过 `npm run test:unit -- src/api/categories.test.ts src/api/search.test.ts`（2/2）和 `npm run build`；未调用后端尚未实现的搜索建议接口。
 - T16 已通过 `npm run test:unit -- src/views/SearchView.test.ts`（1/1）和 `npm run build`；页面支持公开资料筛选、排序、分页和 URL 关键词回填。
 - T17 已通过 `npm run test:unit -- src/api/resources.test.ts`（2/2）和 `npm run build`；已覆盖公开详情路径与创建资料 JSON 请求体。
-- 当前执行 T18：只读资料详情页；本机后端 8080 端口未监听，真实接口联调仍待补充。
+- T18 已通过 `npm run test:unit -- src/views/ResourceDetailView.test.ts`（1/1）和 `npm run build`；游客可访问只读公开详情，未接入收藏和下载操作。
+- 本轮已完成三个开发阶段，队列暂停在 T19 收藏 API 前；本机后端 8080 端口未监听，真实接口联调仍待补充。
 
 ## 2. 进度状态说明
 

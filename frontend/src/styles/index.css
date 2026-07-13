@@ -98,6 +98,41 @@ body {
   margin-top: 20px;
 }
 
+.resource-detail-view {
+  width: min(920px, 100%);
+}
+
+.resource-detail-view__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.resource-detail-view__header h1 {
+  margin-bottom: 0;
+}
+
+.resource-detail-view__description {
+  margin: 0 0 24px;
+  color: #475569;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.resource-detail-view__tag {
+  margin-right: 4px;
+}
+
+.resource-detail-view__statistics {
+  margin-top: 24px;
+}
+
+.resource-detail-view__notice {
+  margin: 24px 0 16px;
+  color: #64748b;
+}
+
 .ranking-card__header {
   display: flex;
   align-items: center;

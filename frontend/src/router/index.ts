@@ -5,6 +5,7 @@ import LoginView from '../views/LoginView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import ProfileView from '../views/user/ProfileView.vue'
 import RegisterView from '../views/RegisterView.vue'
+import ResourceDetailView from '../views/ResourceDetailView.vue'
 import SearchView from '../views/SearchView.vue'
 
 // 首版保持固定路由，后续只在对应任务中逐页扩展，避免提前生成所有页面。
@@ -27,6 +28,11 @@ const routes: RouteRecordRaw[] = [
         path: 'search',
         name: 'search',
         component: SearchView,
+      },
+      {
+        path: 'resources/:resourceId',
+        name: 'resource-detail',
+        component: ResourceDetailView,
       },
     ],
   },
