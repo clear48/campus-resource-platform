@@ -48,7 +48,33 @@ body {
 }
 
 .home-view {
-  width: min(680px, 100%);
+  width: min(1200px, 100%);
+}
+
+.home-view__intro {
+  margin-bottom: 20px;
+}
+
+.home-view__keyword-column {
+  margin-top: 20px;
+}
+
+.ranking-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.ranking-card__alert {
+  margin-bottom: 16px;
+}
+
+@media (min-width: 1200px) {
+  .home-view__keyword-column {
+    margin-top: 0;
+  }
 }
 
 .welcome-card {

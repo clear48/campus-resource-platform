@@ -157,8 +157,8 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
 | T13 | DONE | 实现公开排行榜 API | `rankings.ts`、排行榜类型及测试 | 排行榜 API 专项测试 2/2 通过；生产构建通过 |
-| T14 | TODO | 将首页改为排行榜首页 | `HomeView.vue` 及测试 | 两类榜单可切换周期并展示空/错/加载状态；无图表 |
-| T15 | TODO | 实现分类和搜索 API | `categories.ts`、`search.ts`、相关类型及测试 | 分类与搜索 query、分页、响应字段正确；不调用搜索建议 |
+| T14 | DONE | 将首页改为排行榜首页 | `HomeView.vue` 及测试 | 两类榜单可切换周期并展示空/错/加载状态；无图表 |
+| T15 | IN_PROGRESS | 实现分类和搜索 API | `categories.ts`、`search.ts`、相关类型及测试 | 分类与搜索 query、分页、响应字段正确；不调用搜索建议 |
 | T16 | TODO | 实现资料搜索页面 | `SearchView.vue` 及测试、Router、默认 Layout | 筛选、排序、分页和 URL 关键词可用；只展示公开资料 |
 | T17 | TODO | 实现资料详情和创建资料 API | `resources.ts`、资料类型及测试 | 详情和创建方法正确；本任务不创建页面 |
 | T18 | TODO | 实现只读资料详情页 | `ResourceDetailView.vue` 及测试、Router | 展示详情真实字段；游客可访问；不接收藏和下载 |
@@ -456,9 +456,27 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | 排行榜 API 专项测试 2/2 通过；生产构建通过 |
 | 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
 | Git commit message | `feat(frontend): add ranking api client` |
+| 实际 commit id | `aae55dd5debd3ae42cc11941e6f93a29b4e95d27` |
+| 推送分支 | `origin/dev` |
+| 备注 | 已完成并推送；首页展示在 T14 单独实现 |
+
+### T14
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 完成时间 | 2026-07-13 |
+| 开始前 commit | `aae55dd5debd3ae42cc11941e6f93a29b4e95d27` |
+| 修改文件 | `frontend/src/views/HomeView.vue`、`frontend/src/views/HomeView.test.ts`、`frontend/src/styles/index.css`、本队列和前端进度文档 |
+| 核心实现 | 首页并行加载热门资料榜和热门搜索词榜；资料榜支持日/周/月/总榜，热词榜限制日/周/月；接口错误展示提示，Redis 降级空数组展示空态，不引入图表。 |
+| 测试命令 | `npm run test:unit -- src/views/HomeView.test.ts`；`npm run build` |
+| 测试结果 | 首页组件测试 1/1 通过；生产构建通过。 |
+| 文档更新 | 已更新开发计划、当前状态、分支交接、项目进度与任务队列。 |
+| Git commit message | `feat(frontend): show rankings on home page` |
 | 实际 commit id |  |
-| 推送分支 |  |
-| 备注 | 首页展示在 T14 单独实现 |
+| 推送分支 | `origin/dev` |
+| 备注 | Vite 报告 Element Plus 产物大于 500 kB 的体积告警，构建成功，不在本演示前端任务内拆分。 |
 
 ---
 
