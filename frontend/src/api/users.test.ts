@@ -1,6 +1,6 @@
 import MockAdapter from 'axios-mock-adapter'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { getCurrentUser, getMyResources } from './users'
+import { getCurrentUser, getMyFavorites, getMyResources } from './users'
 import { session } from '../state/session'
 import { httpClient } from '../utils/request'
 
@@ -110,6 +110,49 @@ describe('users api and session', () => {
     await expect(getMyResources(params)).resolves.toMatchObject({
       total: 1,
       records: [{ resourceId: 20002, title: '操作系统实验报告模板', status: 0 }],
+    })
+  })
+
+  it('应携带 Token 并按分页参数查询我的收藏', async () => {
+    session.setSession('favorite-list-token', {
+      userId: 10001,
+      username: '20260001',
+      nickname: '张三',
+      email: null,
+      role: 1,
+      status: 1,
+    })
+    const params = { pageNo: 1, pageSize: 10 }
+
+    mock.onGet('/users/me/favorites').reply((config) => {
+      expect(config.headers?.Authorization).toBe('Bearer favorite-list-token')
+      expect(config.params).toEqual(params)
+
+      return [200, {
+        code: 0,
+        message: 'success',
+        data: {
+          records: [{
+            resourceId: 20001,
+            title: '数据结构期末复习提纲',
+            courseName: '数据结构',
+            downloadCount: 128,
+            favoriteCount: 35,
+            createdAt: '2026-07-02T10:00:00',
+            favoriteAt: '2026-07-02T13:00:00',
+          }],
+          pageNo: 1,
+          pageSize: 10,
+          total: 1,
+          pages: 1,
+        },
+        traceId: 'my-favorite-trace',
+      }]
+    })
+
+    await expect(getMyFavorites(params)).resolves.toMatchObject({
+      total: 1,
+      records: [{ resourceId: 20001, favoriteAt: '2026-07-02T13:00:00' }],
     })
   })
 })

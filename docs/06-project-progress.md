@@ -33,7 +33,8 @@
 - T26 已通过 `npm run test:unit -- src/views/UploadView.test.ts`（3/3）和 `npm run build`；已验证资料创建请求、待审核结果和我的上传入口。
 - T27 已通过 `npm run test:unit -- src/api/users.test.ts`（3/3）和 `npm run build`；Token、状态筛选和分页参数已由 Mock 验证。
 - T28 已通过 `npm run test:unit -- src/views/user/MyUploadsView.test.ts`（1/1）和 `npm run build`；已验证上传资料、状态和拒绝原因展示。
-- 当前执行 T29：我的收藏 API。
+- T29 已通过 `npm run test:unit -- src/api/users.test.ts`（4/4）和 `npm run build`；已验证收藏列表 Token 与分页参数。
+- 当前执行 T30：我的收藏页面。
 
 ## 2. 进度状态说明
 

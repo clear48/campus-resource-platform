@@ -24,3 +24,9 @@ export interface FavoriteResourceItem {
   createdAt: string
   favoriteAt: string
 }
+
+/** “我的收藏”接口仅接受的分页参数。 */
+export interface FavoriteListQuery {
+  pageNo?: number
+  pageSize?: number
+}
