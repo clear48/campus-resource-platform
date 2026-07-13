@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T33`（本轮阶段上限已到，待用户继续指令） |
-| 已完成任务 | 32 |
+| 当前任务 | `T34` |
+| 已完成任务 | 33 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -196,8 +196,8 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
-| T33 | TODO | 实现管理员审核只读 API | `api/admin/resources.ts`、审核类型及测试 | 待审核列表和审核记录路径、query、Token 正确 |
-| T34 | TODO | 实现待审核列表页面 | `ReviewManagementView.vue`、`AdminLayout.vue`、Router 及测试 | 只读列表、筛选、分页、审核流水可用；无写按钮 |
+| T33 | DONE | 实现管理员审核只读 API | `api/admin/resources.ts`、审核类型及测试 | 待审核列表和审核记录路径、query、Token 正确 |
+| T34 | IN_PROGRESS | 实现待审核列表页面 | `ReviewManagementView.vue`、`AdminLayout.vue`、Router 及测试 | 只读列表、筛选、分页、审核流水可用；无写按钮 |
 | T35 | TODO | 实现审核通过和拒绝 API | 管理员资料 API、审核类型及测试 | 通过/拒绝 path、body、Token 正确；拒绝原因必填 |
 | T36 | TODO | 在审核页接入通过和拒绝 | 审核管理页及测试 | 二次确认；成功后移出列表；409 状态冲突可见 |
 | T37 | TODO | 创建发布资料只读管理页 | `PublishedResourcesView.vue`、Router、管理员菜单及测试 | 只列 APPROVED 资料；支持筛选、分页和详情；无下架按钮 |
@@ -722,6 +722,18 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | 我的下载页面组件测试 1/1、全量前端测试 45/45 和生产构建通过。 |
 | Git commit message | `feat(frontend): add my downloads page` |
 | 实际 commit id | `875358dae771f8eea3fd30bc669276707ac07f95` |
+| 推送分支 | `origin/dev` |
+
+### T33
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 修改文件 | `frontend/src/types/audit.ts`、`frontend/src/api/admin/resources.ts`、对应测试和前端进度文档 |
+| 核心实现 | 只实现管理员待审核分页查询与审核流水查询；统一请求层注入 Token，管理员角色仍以后端校验为准。 |
+| 测试结果 | 管理员资料 API 测试 2/2 和生产构建通过。 |
+| Git commit message | `feat(frontend): add audit read api` |
+| 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |
 
 ---
