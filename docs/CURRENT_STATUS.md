@@ -7,8 +7,8 @@
 | 项目名称 | 校园资料共享与智能检索平台 |
 | 当前分支 | `dev` |
 | 当前后端状态 | 认证、分类、文件、资料、审核、搜索、下载、收藏、排行榜与定时任务均已完成首版 |
-| 当前前端状态 | 已完成 T01-T31：基础、认证、公开浏览、收藏下载、资料创建与三类个人列表 API；正在执行 T32：我的下载页面 |
-| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T32` |
+| 当前前端状态 | 已完成 T01-T32：基础、认证、公开浏览、收藏下载、完整资料创建和三类个人中心列表；第六阶段已完成 |
+| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，下一任务为 `T33`；本轮阶段上限已到，待用户继续指令 |
 
 ## 当前工作
 
@@ -22,8 +22,8 @@
 | --- | --- |
 | 允许范围 | `frontend/` 前端代码、前端测试、前端运行说明，以及队列要求的前端进度文档 |
 | 不允许范围 | 后端 Java、SQL、数据库、Redis、接口路径和其他业务模块 |
-| 当前任务 | `T32`：实现“我的下载”页面 |
-| 后续任务 | `T33`：实现管理员审核只读 API |
+| 当前任务 | 本轮已完成第六阶段；下一任务为 `T33`：实现管理员审核只读 API |
+| 后续任务 | `T34`：实现待审核列表页面 |
 | 停止条件 | 见 `docs/frontend/05-frontend-task-queue.md` 的“停止条件” |
 
 ## 已知事项
@@ -57,7 +57,8 @@
 | 前端 T29 | `npm run test:unit -- src/api/users.test.ts`；`npm run build` | 用户 API 测试 4/4 通过；收藏列表 Token 和分页参数正确 |
 | 前端 T30 | `npm run test:unit -- src/views/user/MyFavoritesView.test.ts`；`npm run build` | 我的收藏页面组件测试 1/1 通过；取消收藏后重新加载列表 |
 | 前端 T31 | `npm run test:unit -- src/api/users.test.ts`；`npm run build` | 用户 API 测试 5/5 通过；下载记录 Token 和分页参数正确 |
+| 前端 T32 | `npm run test:unit -- src/views/user/MyDownloadsView.test.ts`；`npm run test:unit`；`npm run build` | 页面测试 1/1、全量测试 45/45 和构建通过；再次下载两步链路正确 |
 
 ## 下一步
 
-按前端任务队列继续执行 `T32`，仅实现“我的下载”页面。
+等待用户继续指令后，按前端任务队列从 `T33` 开始执行第七阶段管理员功能。

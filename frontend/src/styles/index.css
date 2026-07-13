@@ -190,6 +190,26 @@ body {
   margin-top: 20px;
 }
 
+.my-downloads-view {
+  width: min(1200px, 100%);
+}
+
+.my-downloads-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.my-downloads-view__alert {
+  margin-bottom: 16px;
+}
+
+.my-downloads-view__pagination {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
 .ranking-card__header {
   display: flex;
   align-items: center;

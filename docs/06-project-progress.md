@@ -36,7 +36,8 @@
 - T29 已通过 `npm run test:unit -- src/api/users.test.ts`（4/4）和 `npm run build`；已验证收藏列表 Token 与分页参数。
 - T30 已通过 `npm run test:unit -- src/views/user/MyFavoritesView.test.ts`（1/1）和 `npm run build`；已验证详情入口及取消收藏后刷新列表。
 - T31 已通过 `npm run test:unit -- src/api/users.test.ts`（5/5）和 `npm run build`；已验证下载记录 Token 与分页参数。
-- 当前执行 T32：我的下载页面。
+- T32 已通过 `npm run test:unit -- src/views/user/MyDownloadsView.test.ts`（1/1）、全量前端测试（23 个文件、45 个测试）和 `npm run build`；已验证下载记录、资料详情入口及两步再次下载。
+- 前端第六阶段（T27-T32，三类个人中心列表）已完成；本轮按“每次最多三个阶段”的约束暂停在第七阶段 T33 前。
 
 ## 2. 进度状态说明
 
