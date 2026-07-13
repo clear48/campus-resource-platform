@@ -1,5 +1,6 @@
 import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import type { ApiResponse } from '../types/api'
+import { session } from '../state/session'
 
 /**
  * 统一保留后端业务码和 traceId，页面可以直接展示后端错误信息并在演示时定位请求。
@@ -22,6 +23,17 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
 export const httpClient = axios.create({
   baseURL: apiBaseUrl,
   timeout: 10_000,
+})
+
+httpClient.interceptors.request.use((config) => {
+  // 登录页可能刚写入 localStorage，先同步会话再决定是否注入 Authorization。
+  session.hydrateSession()
+
+  if (session.accessToken.value) {
+    config.headers.Authorization = `Bearer ${session.accessToken.value}`
+  }
+
+  return config
 })
 
 /** 将后端成功响应转换为页面实际需要的 data。 */
@@ -47,6 +59,11 @@ function rethrowRequestError(error: unknown): never {
     const responseBody = error.response?.data
 
     if (responseBody && typeof responseBody.code === 'number') {
+      if (responseBody.code === 40101 || responseBody.code === 40102) {
+        // Token 无效或已进入黑名单时，清理前端缓存，避免继续携带失效凭据。
+        session.clearSession()
+      }
+
       throw new ApiBusinessError(responseBody.code, responseBody.message, responseBody.traceId)
     }
 
