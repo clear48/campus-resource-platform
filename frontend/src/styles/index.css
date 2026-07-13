@@ -83,3 +83,33 @@ h1 {
   min-height: 100vh;
   place-items: center;
 }
+
+.auth-page {
+  display: grid;
+  min-height: 100vh;
+  padding: 24px;
+  background: #f5f7fa;
+  place-items: center;
+}
+
+.auth-card {
+  width: min(420px, 100%);
+}
+
+.auth-card__description,
+.auth-card__link {
+  color: #64748b;
+}
+
+.auth-card__alert {
+  margin: 20px 0;
+}
+
+.auth-card__submit {
+  width: 100%;
+}
+
+.auth-card__link {
+  margin: 20px 0 0;
+  text-align: center;
+}

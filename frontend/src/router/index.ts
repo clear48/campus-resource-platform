@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import DefaultLayout from '../layouts/DefaultLayout.vue'
 import HomeView from '../views/HomeView.vue'
+import LoginView from '../views/LoginView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 
 // 首版保持固定路由，后续只在对应任务中逐页扩展，避免提前生成所有页面。
@@ -15,6 +16,11 @@ const routes: RouteRecordRaw[] = [
         component: HomeView,
       },
     ],
+  },
+  {
+    path: '/login',
+    name: 'login',
+    component: LoginView,
   },
   // 兜底路由避免未知地址渲染空白页面。
   {
