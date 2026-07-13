@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T13` |
-| 已完成任务 | 12 |
+| 当前任务 | `T14` |
+| 已完成任务 | 13 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -156,7 +156,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
-| T13 | TODO | 实现公开排行榜 API | `rankings.ts`、排行榜类型及测试 | 两个榜单 query 正确；资料榜和热词榜周期范围正确 |
+| T13 | DONE | 实现公开排行榜 API | `rankings.ts`、排行榜类型及测试 | 排行榜 API 专项测试 2/2 通过；生产构建通过 |
 | T14 | TODO | 将首页改为排行榜首页 | `HomeView.vue` 及测试 | 两类榜单可切换周期并展示空/错/加载状态；无图表 |
 | T15 | TODO | 实现分类和搜索 API | `categories.ts`、`search.ts`、相关类型及测试 | 分类与搜索 query、分页、响应字段正确；不调用搜索建议 |
 | T16 | TODO | 实现资料搜索页面 | `SearchView.vue` 及测试、Router、默认 Layout | 筛选、排序、分页和 URL 关键词可用；只展示公开资料 |
@@ -438,9 +438,27 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | 个人信息页组件测试 1/1 通过；生产构建通过；后端 8080 未启动，未执行真实退出 |
 | 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
 | Git commit message | `feat(frontend): add profile and logout flow` |
+| 实际 commit id | `a65019315368e7d9a20157e6a8e6e28c36a2f84e` |
+| 推送分支 | `origin/dev` |
+| 备注 | 已完成并推送；管理员审核路由将在后续管理员阶段实现 |
+
+### T13
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 完成时间 | 2026-07-13 |
+| 开始前 commit | `a65019315368e7d9a20157e6a8e6e28c36a2f84e` |
+| 修改文件 | `frontend/src/types/ranking.ts`、`frontend/src/api/rankings.ts`、`frontend/src/api/rankings.test.ts`、本队列和前端进度文档 |
+| 核心实现 | 热门资料榜使用四周期 query；热门搜索词榜限制日/周/月，避免发送后端不支持的 all 周期 |
+| 测试命令 | `npm run test:unit -- src/api/rankings.test.ts`；`npm run build` |
+| 测试结果 | 排行榜 API 专项测试 2/2 通过；生产构建通过 |
+| 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
+| Git commit message | `feat(frontend): add ranking api client` |
 | 实际 commit id |  |
 | 推送分支 |  |
-| 备注 | 管理员审核路由将在后续管理员阶段实现 |
+| 备注 | 首页展示在 T14 单独实现 |
 
 ---
 

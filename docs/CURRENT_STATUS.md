@@ -7,8 +7,8 @@
 | 项目名称 | 校园资料共享与智能检索平台 |
 | 当前分支 | `dev` |
 | 当前后端状态 | 认证、分类、文件、资料、审核、搜索、下载、收藏、排行榜与定时任务均已完成首版 |
-| 当前前端状态 | 已完成第二阶段 T08-T12：认证 API、登录、注册、会话恢复和个人信息；正在执行第三阶段 T13：公开排行榜 API |
-| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T13` |
+| 当前前端状态 | 已完成 T01-T13：基础、认证和公开排行榜 API；正在执行 T14：排行榜首页 |
+| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T14` |
 
 ## 当前工作
 
@@ -22,8 +22,8 @@
 | --- | --- |
 | 允许范围 | `frontend/` 前端代码、前端测试、前端运行说明，以及队列要求的前端进度文档 |
 | 不允许范围 | 后端 Java、SQL、数据库、Redis、接口路径和其他业务模块 |
-| 当前任务 | `T13`：公开排行榜 API |
-| 后续任务 | `T14`：排行榜首页 |
+| 当前任务 | `T14`：排行榜首页 |
+| 后续任务 | `T15`：分类和搜索 API |
 | 停止条件 | 见 `docs/frontend/05-frontend-task-queue.md` 的“停止条件” |
 
 ## 已知事项
@@ -49,6 +49,7 @@
 | 前端 T10 | `npm run test:unit -- src/views/RegisterView.test.ts`；`npm run build` | 注册页组件测试 1/1 通过；后端未启动，真实注册待联调 |
 | 前端 T11 | `npm run test:unit -- src/api/users.test.ts`；`npm run build` | 会话与当前用户 API 测试 2/2 通过；构建通过 |
 | 前端 T12 | `npm run test:unit -- src/views/user/ProfileView.test.ts`；`npm run build` | 个人信息页组件测试 1/1 通过；真实退出待后端启动后联调 |
+| 前端 T13 | `npm run test:unit -- src/api/rankings.test.ts`；`npm run build` | 排行榜 API 测试 2/2 通过；构建通过 |
 
 ## 下一步
 
