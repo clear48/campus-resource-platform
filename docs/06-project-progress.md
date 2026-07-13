@@ -25,6 +25,7 @@
 - 当前执行 T22：详情页两步下载。
 - T22 已通过 `npm run test:unit -- src/views/ResourceDetailView.test.ts`（3/3）和 `npm run build`；页面严格执行两步下载并展示 counted。
 - 当前执行 T23：MD5 工具和文件 API。
+- T23 暂停：浏览器原生 Web Crypto 不支持 MD5，项目未安装 MD5 实现；按前端队列停止条件等待用户授权新增轻量 MD5 依赖后继续。
 
 ## 2. 进度状态说明
 
