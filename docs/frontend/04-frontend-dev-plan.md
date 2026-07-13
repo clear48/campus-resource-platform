@@ -46,6 +46,7 @@
 | F27 | T27 | 已完成 | 用户 API 测试 3/3 通过；`npm run build` 通过；Token、状态和分页 query 经 Mock 验证 | F28 / T28：我的上传页面 |
 | F28 | T28 | 已完成 | 我的上传页面测试 1/1 通过；`npm run build` 通过；拒绝原因展示由 Mock 验证 | F29 / T29：我的收藏 API |
 | F29 | T29 | 已完成 | 用户 API 测试 4/4 通过；`npm run build` 通过；Token 与分页 query 经 Mock 验证 | F30 / T30：我的收藏页面 |
+| F30 | T30 | 已完成 | 我的收藏页面测试 1/1 通过；`npm run build` 通过；取消收藏后刷新列表由 Mock 验证 | F31 / T31：我的下载 API |
 
 ## 2. 技术栈与开发边界
 

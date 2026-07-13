@@ -5,6 +5,7 @@ import LoginView from '../views/LoginView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import ProfileView from '../views/user/ProfileView.vue'
 import MyUploadsView from '../views/user/MyUploadsView.vue'
+import MyFavoritesView from '../views/user/MyFavoritesView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import ResourceDetailView from '../views/ResourceDetailView.vue'
 import SearchView from '../views/SearchView.vue'
@@ -30,6 +31,11 @@ const routes: RouteRecordRaw[] = [
         path: 'me/uploads',
         name: 'my-uploads',
         component: MyUploadsView,
+      },
+      {
+        path: 'me/favorites',
+        name: 'my-favorites',
+        component: MyFavoritesView,
       },
       {
         path: 'search',

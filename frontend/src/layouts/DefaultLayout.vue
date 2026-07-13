@@ -6,6 +6,7 @@
         <RouterLink class="header-link" to="/search">资料搜索</RouterLink>
         <RouterLink class="header-link" to="/upload">上传资料</RouterLink>
         <RouterLink class="header-link" to="/me/uploads">我的上传</RouterLink>
+        <RouterLink class="header-link" to="/me/favorites">我的收藏</RouterLink>
         <RouterLink class="header-link" to="/me/profile">个人信息</RouterLink>
         <el-tag type="info" effect="plain">前端演示</el-tag>
       </el-space>

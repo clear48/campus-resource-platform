@@ -170,6 +170,26 @@ body {
   margin-top: 20px;
 }
 
+.my-favorites-view {
+  width: min(1200px, 100%);
+}
+
+.my-favorites-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.my-favorites-view__alert {
+  margin-bottom: 16px;
+}
+
+.my-favorites-view__pagination {
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
 .ranking-card__header {
   display: flex;
   align-items: center;

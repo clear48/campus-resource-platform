@@ -7,8 +7,8 @@
 | 项目名称 | 校园资料共享与智能检索平台 |
 | 当前分支 | `dev` |
 | 当前后端状态 | 认证、分类、文件、资料、审核、搜索、下载、收藏、排行榜与定时任务均已完成首版 |
-| 当前前端状态 | 已完成 T01-T29：基础、认证、公开浏览、收藏下载、资料创建、我的上传与收藏 API；正在执行 T30：我的收藏页面 |
-| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T30` |
+| 当前前端状态 | 已完成 T01-T30：基础、认证、公开浏览、收藏下载、资料创建、我的上传和我的收藏页面；正在执行 T31：我的下载 API |
+| 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，当前执行任务为 `T31` |
 
 ## 当前工作
 
@@ -22,8 +22,8 @@
 | --- | --- |
 | 允许范围 | `frontend/` 前端代码、前端测试、前端运行说明，以及队列要求的前端进度文档 |
 | 不允许范围 | 后端 Java、SQL、数据库、Redis、接口路径和其他业务模块 |
-| 当前任务 | `T30`：实现“我的收藏”页面 |
-| 后续任务 | `T31`：实现“我的下载”API |
+| 当前任务 | `T31`：实现“我的下载”API |
+| 后续任务 | `T32`：实现“我的下载”页面 |
 | 停止条件 | 见 `docs/frontend/05-frontend-task-queue.md` 的“停止条件” |
 
 ## 已知事项
@@ -55,7 +55,8 @@
 | 前端 T27 | `npm run test:unit -- src/api/users.test.ts`；`npm run build` | 用户 API 测试 3/3 通过；Token、状态和分页 query 正确 |
 | 前端 T28 | `npm run test:unit -- src/views/user/MyUploadsView.test.ts`；`npm run build` | 我的上传页面组件测试 1/1 通过；资料状态和拒绝原因正确展示 |
 | 前端 T29 | `npm run test:unit -- src/api/users.test.ts`；`npm run build` | 用户 API 测试 4/4 通过；收藏列表 Token 和分页参数正确 |
+| 前端 T30 | `npm run test:unit -- src/views/user/MyFavoritesView.test.ts`；`npm run build` | 我的收藏页面组件测试 1/1 通过；取消收藏后重新加载列表 |
 
 ## 下一步
 
-按前端任务队列继续执行 `T30`，仅实现“我的收藏”页面。
+按前端任务队列继续执行 `T31`，仅实现“我的下载”API。
