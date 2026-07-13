@@ -30,7 +30,8 @@
 - 当前执行 T24：上传页文件选择、预检和上传。
 - T24 已通过 `npm run test:unit -- src/views/UploadView.test.ts`（1/1）和 `npm run build`；秒传命中不会重复上传。
 - T25 已通过 `npm run test:unit -- src/views/UploadView.test.ts`（2/2）和 `npm run build`；标题、简介、分类、课程、类型、标签可填写，未取得 `fileId` 时不能提交资料。
-- 当前执行 T26：资料创建提交和结果跳转。
+- T26 已通过 `npm run test:unit -- src/views/UploadView.test.ts`（3/3）和 `npm run build`；已验证资料创建请求、待审核结果和我的上传入口。
+- 当前执行 T27：我的上传 API。
 
 ## 2. 进度状态说明
 

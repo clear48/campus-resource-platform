@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T26` |
-| 已完成任务 | 25 |
+| 当前任务 | `T27` |
+| 已完成任务 | 26 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -179,13 +179,13 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | T23 | DONE | 实现 MD5 工具和文件 API | `package.json`、`file-md5.ts`、`files.ts`、文件类型及测试 | 分片 MD5 稳定；预检 query 和 FormData 上传正确 |
 | T24 | DONE | 实现上传页文件选择、预检和上传 | `UploadView.vue` 及测试、Router、默认 Layout | 显示 MD5 进度；命中秒传不上传；获得 `fileId` |
 | T25 | DONE | 增加资料元数据表单 | 上传页及测试，复用分类和资料 API | 标题、简介、分类、课程、类型、标签可填写；无 `fileId` 禁止提交 |
-| T26 | IN_PROGRESS | 完成资料创建和结果跳转 | 上传页及测试 | 创建后显示资料 ID 和待审核状态；失败保留表单 |
+| T26 | DONE | 完成资料创建和结果跳转 | 上传页及测试 | 创建后显示资料 ID 和待审核状态；失败保留表单 |
 
 ### 第六阶段：普通用户个人列表
 
 | 编号 | 状态 | 任务 | 涉及文件 | 验收标准 |
 | --- | --- | --- | --- | --- |
-| T27 | TODO | 实现“我的上传”API | `users.ts`、资料类型、用户 API 测试 | 状态和分页参数正确；响应只声明文档字段 |
+| T27 | IN_PROGRESS | 实现“我的上传”API | `users.ts`、资料类型、用户 API 测试 | 状态和分页参数正确；响应只声明文档字段 |
 | T28 | TODO | 实现“我的上传”页面 | `MyUploadsView.vue` 及测试、Router、导航 | 可筛选状态、分页、显示拒绝/下架原因；无编辑删除 |
 | T29 | TODO | 实现“我的收藏”API | `users.ts`、收藏类型、用户 API 测试 | 收藏列表分页参数和 records 类型正确 |
 | T30 | TODO | 实现“我的收藏”页面 | `MyFavoritesView.vue` 及测试、Router、导航 | 可分页、跳详情和取消收藏；不做收藏夹分组 |
@@ -637,6 +637,18 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 核心实现 | 在既有文件预检/上传步骤后加入标题、简介、分类、课程、类型和标签表单；分类复用公开分类接口；没有 `fileId` 时资料提交按钮保持禁用。 |
 | 测试结果 | 上传页组件测试 2/2 和生产构建通过。 |
 | Git commit message | `feat(frontend): add resource metadata form` |
+| 实际 commit id | `1a57fce717045466366fd4b5e0dffa20cf5135b4` |
+| 推送分支 | `origin/dev` |
+
+### T26
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 修改文件 | `frontend/src/views/UploadView.vue`、`frontend/src/views/UploadView.test.ts` 和前端进度文档 |
+| 核心实现 | 复用 `POST /resources` 提交已上传的 `fileId` 与元数据；标签按逗号转换为数组；成功展示资料 ID 和待审核状态，失败保留字段并展示后端消息。 |
+| 测试结果 | 上传页组件测试 3/3 和生产构建通过。 |
+| Git commit message | `feat(frontend): complete resource submission flow` |
 | 实际 commit id | 待本次提交后回填 |
 | 推送分支 | `origin/dev` |
 
