@@ -12,8 +12,8 @@
 | 开发计划 | `docs/frontend/04-frontend-dev-plan.md` |
 | 接口映射 | `docs/frontend/03-api-mapping.md` |
 | 任务总数 | 47 |
-| 当前任务 | `T12` |
-| 已完成任务 | 11 |
+| 当前任务 | `T13` |
+| 已完成任务 | 12 |
 | `docs/CURRENT_STATUS.md` | 已创建；每个前端子任务完成后必须更新 |
 | `docs/BRANCH_HANDOFF.md` | 已创建；每个前端子任务完成后必须更新 |
 
@@ -150,7 +150,7 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | T09 | DONE | 实现登录页面 | `LoginView.vue` 及测试、Router、默认 Layout | 登录页组件测试通过；生产构建通过；真实登录联调待后端启动 |
 | T10 | DONE | 实现注册页面 | `RegisterView.vue` 及测试、Router | 注册页组件测试通过；生产构建通过；真实注册联调待后端启动 |
 | T11 | DONE | 实现当前用户 API 和简单会话状态 | `users.ts`、用户类型、`state/session.ts`、请求层及测试 | 会话专项测试 2/2 通过；生产构建通过 |
-| T12 | TODO | 实现个人信息和后端退出 | `ProfileView.vue` 及测试、Router、默认 Layout | 展示真实用户字段；退出调用后端；管理员入口可见 |
+| T12 | DONE | 实现个人信息和后端退出 | `ProfileView.vue` 及测试、Router、默认 Layout | 个人信息页组件测试通过；生产构建通过；真实退出联调待后端启动 |
 
 ### 第三阶段：公开浏览、排行榜与搜索
 
@@ -420,9 +420,27 @@ Codex 在以下情况必须停止，不允许继续自动执行下一个任务�
 | 测试结果 | 会话专项测试 2/2 通过；生产构建通过；修复 Axios 请求配置头可选性的测试类型问题 |
 | 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
 | Git commit message | `feat(frontend): add user session recovery` |
+| 实际 commit id | `d6e1146c2d0057bf6720a8308038587f315f3b4a` |
+| 推送分支 | `origin/dev` |
+| 备注 | 已完成并推送；个人信息页与后端退出在 T12 实现 |
+
+### T12
+
+| 项目 | 记录 |
+| --- | --- |
+| 状态 | DONE |
+| 开始时间 | 2026-07-13 |
+| 完成时间 | 2026-07-13 |
+| 开始前 commit | `d6e1146c2d0057bf6720a8308038587f315f3b4a` |
+| 修改文件 | `frontend/src/views/user/ProfileView.vue`、`frontend/src/views/user/ProfileView.test.ts`、`frontend/src/router/index.ts`、`frontend/src/layouts/DefaultLayout.vue`、`frontend/src/styles/index.css`、本队列和前端进度文档 |
+| 核心实现 | 个人信息页加载当前用户、管理员入口占位、后端退出后清理会话并跳转登录 |
+| 测试命令 | `npm run test:unit -- src/views/user/ProfileView.test.ts`；`npm run build` |
+| 测试结果 | 个人信息页组件测试 1/1 通过；生产构建通过；后端 8080 未启动，未执行真实退出 |
+| 文档更新 | 已同步开发计划、任务队列、当前状态、分支交接和项目进度 |
+| Git commit message | `feat(frontend): add profile and logout flow` |
 | 实际 commit id |  |
 | 推送分支 |  |
-| 备注 | 个人信息页与后端退出在 T12 实现 |
+| 备注 | 管理员审核路由将在后续管理员阶段实现 |
 
 ---
 

@@ -35,6 +35,11 @@ body {
   text-decoration: none;
 }
 
+.header-link {
+  color: #475569;
+  text-decoration: none;
+}
+
 .default-layout__main {
   display: grid;
   padding: 24px;
@@ -99,6 +104,25 @@ h1 {
 .auth-card__description,
 .auth-card__link {
   color: #64748b;
+}
+
+.profile-view {
+  width: min(720px, 100%);
+}
+
+.profile-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.profile-view__alert {
+  margin-bottom: 20px;
+}
+
+.profile-view__actions {
+  margin-top: 24px;
 }
 
 .auth-card__alert {
