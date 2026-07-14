@@ -12,6 +12,7 @@
 | `modules/` | 后端业务模块 | 认证、分类、文件、资料、审核、搜索、下载、收藏、排行榜的开发过程记录 |
 | `06-project-progress.md` | 项目总体协作 | 已实现能力、测试记录和进度 |
 | `07-project-runbook.md` | 项目运行维护 | 前后端启动、联调、验收与排查 |
+| `08-multi-agent-collaboration.md` | Codex 协作配置 | 项目级 Subagent 角色、调度流程、权限、验证与排查 |
 | `CURRENT_STATUS.md`、`BRANCH_HANDOFF.md` | 当前协作状态 | 当前分支、任务边界与交接信息 |
 | `AGENTS.md` | 项目协作规范 | 开发、测试、文档与提交要求 |
 

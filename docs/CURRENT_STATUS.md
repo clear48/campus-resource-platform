@@ -1,5 +1,13 @@
 # 当前项目状态
 
+## Codex 多 Agent 协作配置（2026-07-14）
+
+- 新增项目级 `.codex/config.toml`，限制最多 4 个 Agent 线程和 1 层派生深度。
+- 新增 `architect`、`implementer`、`tester`、`reviewer` 四个自定义 Agent，采用并行只读分析、单写者实现、测试与审查并行、主 Agent 集成的流程。
+- 根 `AGENTS.md` 与 `docs/AGENTS.md` 已补充触发条件、文件所有权、停止条件和协作输出要求。
+- 完整启用、提示词、权限注意事项、Worktree 边界与排查步骤见 `docs/08-multi-agent-collaboration.md`。
+- 本次只涉及 Codex 配置和项目文档，不修改 Java、Vue、接口、数据库或 Redis 业务实现。
+
 ## 工作目录整理（2026-07-14）
 
 - 数据库设计文档已归入 `docs/database/database-design.md`；接口参考与 Postman 手工验收资料已归入 `docs/api/`。

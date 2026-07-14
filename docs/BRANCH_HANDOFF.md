@@ -1,5 +1,13 @@
 # 分支交接记录
 
+## 2026-07-14 Codex 多 Agent 协作配置
+
+- 项目级 Agent 配置位于外层仓库 `.codex/`，不要放到内层 Spring Boot 工程。
+- 已配置 `architect`（只读分析）、`implementer`（单写者实现）、`tester`（测试）和 `reviewer`（只读审查）。
+- 默认最多 4 个 Agent 线程，只允许主 Agent 创建一级子 Agent；角色模型继承父会话，不锁定具体模型名称。
+- 新任务应重新加载项目配置，并按 `docs/08-multi-agent-collaboration.md` 中的只读提示词验证角色是否可用。
+- Subagent 共享同一工作区；提交时必须显式暂存本任务文件，保留工作区中的其他未提交改动。
+
 ## 2026-07-14 工作目录整理
 
 - 文档入口改为 `docs/README.md`：数据库资料在 `docs/database/`，接口参考和 Postman 集合在 `docs/api/`，前后端业务模块映射在 `docs/modules/README.md`。
