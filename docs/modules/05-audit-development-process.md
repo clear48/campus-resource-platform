@@ -61,7 +61,7 @@
 
 ## 5. 涉及接口
 
-> 以下接口已在 `AuditController` 中实现，并已同步到 `docs/04-api-doc.md`。
+> 以下接口已在 `AuditController` 中实现，并已同步到 `docs/api/api-reference.md`。
 
 ### 5.1 获取待审核资料列表
 
@@ -429,7 +429,7 @@ resource.status = 1(APPROVED)
 - 已实现 `AuditController`，提供 5 个管理员审核接口。
 - 已确认 `/api/v1/admin/resources/**` 不在公开排除列表中，未登录返回 `40101`，普通用户返回 `40301`。
 - 已补充 `AuditControllerTest` 和 `AuditServiceDatabaseIntegrationTest`。
-- 已同步 `docs/04-api-doc.md`、`docs/database/database-change-log.md`、`docs/06-project-progress.md`、`README.md` 和本模块开发流程文档。
+- 已同步 `docs/api/api-reference.md`、`docs/database/database-change-log.md`、`docs/06-project-progress.md`、`README.md` 和本模块开发流程文档。
 
 ---
 
@@ -529,7 +529,7 @@ resource.status = 1(APPROVED)
 | `campus-resource-platform/src/test/java/com/john/campus/controller/AuditControllerTest.java` | 新增/补充审核 Controller 测试 |
 | `campus-resource-platform/src/test/java/com/john/campus/service/AuditServiceDatabaseIntegrationTest.java` | 新增/补充审核数据库集成测试 |
 | `campus-resource-platform/src/test/resources/sql/resource-db-test-schema.sql` | 补充审核记录测试表结构 |
-| `docs/04-api-doc.md` | 同步审核模块接口文档 |
+| `docs/api/api-reference.md` | 同步审核模块接口文档 |
 | `docs/database/database-change-log.md` | 记录审核模块复用已有生产表结构 |
 | `docs/06-project-progress.md` | 更新审核模块完成状态和测试结果 |
 | `README.md` | 更新当前完成内容和测试说明 |
@@ -851,13 +851,13 @@ docs(audit): sync audit module documentation
 请同步审核模块相关文档，但不要修改业务代码。
 
 本步目标：
-- 根据当前真实代码更新 `docs/04-api-doc.md` 中审核模块接口说明。
+- 根据当前真实代码更新 `docs/api/api-reference.md` 中审核模块接口说明。
 - 根据当前真实代码更新 `docs/database/database-change-log.md`，说明审核模块是否新增数据库结构；若没有新增结构，写明复用 `resource` 和 `audit_record` 表。
 - 根据当前真实代码更新 `docs/06-project-progress.md` 中审核模块状态、已实现接口、涉及表和待办项。
 - 如 README 的当前完成内容已落后，同步更新 README。
 
 涉及文件：
-- `docs/04-api-doc.md`
+- `docs/api/api-reference.md`
 - `docs/database/database-change-log.md`
 - `docs/06-project-progress.md`
 - `README.md`

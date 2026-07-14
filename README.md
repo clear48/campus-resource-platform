@@ -2,7 +2,7 @@
 
 ## 运行手册
 
-完整的前后端启动、联调、验收与排查步骤见 [docs/07-project-runbook.md](docs/07-project-runbook.md)。
+完整的前后端启动、联调、验收与排查步骤见 [docs/07-project-runbook.md](docs/07-project-runbook.md)；文档归属与入口见 [docs/README.md](docs/README.md)。
 
 这是一个面向 Java 后端实习项目的校园资料共享与智能检索平台后端工程，配套需求、流程、数据库、接口、Redis 和模块开发文档放在 `docs/` 目录下。
 
@@ -10,9 +10,14 @@
 
 ```text
 campus-resource-platform/
-  docs/                         需求、流程、数据库、接口、Redis 设计文档
-  sql/init.sql                  MySQL 8.x 初始化脚本
-  campus-resource-platform/     Spring Boot 后端工程
+  campus-resource-platform/     Spring Boot 后端工程（Maven Wrapper 与 Java 源码）
+  frontend/                     Vue 3 演示前端（页面、API 封装和前端测试）
+  sql/                          MySQL 初始化脚本
+  docs/                         项目文档入口，详见 docs/README.md
+    api/                        API 参考与 Postman 调试资料
+    database/                   数据库设计与变更记录
+    frontend/                   前端演示需求、设计和任务队列
+    modules/                    按业务模块划分的开发过程文档
 ```
 
 后端基础分层：

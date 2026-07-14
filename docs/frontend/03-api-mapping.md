@@ -2,7 +2,7 @@
 
 ## 1. 文档目标
 
-本文档逐项读取 `docs/04-api-doc.md` 中第 3 至第 10 节的全部 27 个接口，为前端设计 API 文件、方法名、使用页面、Authorization Token 要求、请求参数和响应字段。
+本文档逐项读取 `docs/api/api-reference.md` 中第 3 至第 10 节的全部 27 个接口，为前端设计 API 文件、方法名、使用页面、Authorization Token 要求、请求参数和响应字段。
 
 本文档只做前端调用映射，不修改后端接口。接口文档未明确、存在歧义或仍处于规划状态的内容统一标记为“文档缺失/待确认”，不通过前端设计补造字段或规则。
 
@@ -95,7 +95,7 @@
 | 26 | `GET /api/v1/search/resources` | `src/api/search.ts` | `searchResources` | `/search`、`/admin/resources` | 否 | 已实现 |
 | 27 | `GET /api/v1/search/suggestions` | `src/api/search.ts` | `getSearchSuggestions` | 首版页面不调用；未来可用于 `/search` | 否 | **未实现，仅预留** |
 
-> `docs/04-api-doc.md` 第 3 至第 10 节共包含 27 个带请求方法和 URL 的接口，其中 26 个已实现，搜索建议接口尚未实现。
+> `docs/api/api-reference.md` 第 3 至第 10 节共包含 27 个带请求方法和 URL 的接口，其中 26 个已实现，搜索建议接口尚未实现。
 
 ## 5. 认证与当前用户接口
 
@@ -836,7 +836,7 @@
 | 19 | 搜索 | GET 示例写为 JSON；分页默认值/上限和字符串长度上限不完整 | 按 query 发送，基础校验后以后端错误为准 |
 | 20 | 搜索限流 | `42901` 是设计预留，当前未实现 | 不展示搜索限流能力 |
 | 21 | 搜索建议 | 整个接口尚未实现，多项规则未确定 | 首版不调用，仅保留方法命名设计 |
-| 22 | 健康检查 | `GET /api/v1/health` 未收录在 `docs/04-api-doc.md` 的接口章节 | 本文不为其设计正式 API 映射；如需使用应先补齐 API 文档 |
+| 22 | 健康检查 | `GET /api/v1/health` 未收录在 `docs/api/api-reference.md` 的接口章节 | 本文不为其设计正式 API 映射；如需使用应先补齐 API 文档 |
 
 ## 13. 前端实现边界
 
@@ -850,4 +850,4 @@
 | 未实现接口 | `getSearchSuggestions` 不进入首版页面调用链 |
 | 错误处理 | 展示后端 `message`，开发演示时可附带 `traceId` |
 | 权限 | 前端只控制入口显示，后端仍是最终鉴权边界 |
-| 文档缺失 | 不通过猜测补齐；联调发现真实结构后先更新 `docs/04-api-doc.md` 和本文 |
+| 文档缺失 | 不通过猜测补齐；联调发现真实结构后先更新 `docs/api/api-reference.md` 和本文 |

@@ -123,7 +123,7 @@ sql
 2. `docs/PROJECT\_CONTEXT.md`
 3. `docs/CURRENT\_STATUS.md`
 4. `docs/BRANCH\_HANDOFF.md`
-5. `docs/04-api-doc.md`
+5. `docs/api/api-reference.md`
 6. `docs/05-redis-design.md`
 7. 当前模块对应的 `docs/modules/xx-module.md`
 
@@ -140,14 +140,18 @@ docs/
 ├── DECISIONS.md
 ├── 01-requirements.md
 ├── 02-business-flow.md
-├── 03-database-design.md
-├── 04-api-doc.md
+├── api/
+│   ├── api-reference.md
+│   └── postman/
+├── database/
+│   ├── database-design.md
+│   └── database-change-log.md
 ├── 05-redis-design.md
 ├── 06-test-cases.md
 ├── 07-interview-summary.md
+├── frontend/
 ├── modules/
 ├── branches/
-├── database/
 ├── redis/
 └── test/
 ```
@@ -308,7 +312,7 @@ Mapper 只负责数据库操作。
 新增接口时必须更新：
 
 ```text
-docs/04-api-doc.md
+docs/api/api-reference.md
 ```
 
 接口文档必须包含：
@@ -330,7 +334,7 @@ docs/04-api-doc.md
 
 涉及数据库变更时，必须更新：
 
-* `docs/03-database-design.md`
+* `docs/database/database-design.md`
 * `docs/database/database-change-log.md`
 * `sql/init.sql` 或对应迁移 SQL
 

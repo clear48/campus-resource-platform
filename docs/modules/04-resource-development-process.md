@@ -60,7 +60,7 @@
 
 ## 5. 涉及接口
 
-> 以下为当前 `ResourceController` 已实现的资料模块接口，已同步到 `docs/04-api-doc.md`。
+> 以下为当前 `ResourceController` 已实现的资料模块接口，已同步到 `docs/api/api-reference.md`。
 
 ### 5.1 创建资料
 
@@ -324,7 +324,7 @@ FileUploadVO.fileId
 6. 实现 `ResourceController`。
 7. 更新 `WebMvcConfig`，仅开放 `GET /api/v1/resources/{resourceId}` 所需的路径模式。
 8. 补充接口测试、数据库集成测试和 Postman 示例。
-9. 更新 `docs/04-api-doc.md`、`docs/database/database-change-log.md`、`docs/06-project-progress.md` 和 `README.md`。
+9. 更新 `docs/api/api-reference.md`、`docs/database/database-change-log.md`、`docs/06-project-progress.md` 和 `README.md`。
 10. 校准本模块开发流程文档。
 
 ---
@@ -355,7 +355,7 @@ FileUploadVO.fileId
 - 步骤 6 已完成：在 `ResourceService` 和 `ResourceServiceImpl` 中实现公开资料详情查询和我的上传资料分页查询。
 - 步骤 7 已完成：创建 `ResourceController`，实现资料创建、公开详情、我的上传列表三个入口，并在 `WebMvcConfig` 中仅放行 `/api/v1/resources/*` 公开详情路径。
 - 步骤 8 已完成：新增 `ResourceControllerTest` 覆盖资料接口层和鉴权路径，新增 `ResourceDatabaseIntegrationTest` 覆盖真实 Mapper SQL 与 Service 数据库读写链路，更新 Postman 集合补充资料模块请求示例，并记录验证命令。
-- 步骤 9 已完成：同步 `docs/04-api-doc.md`、`docs/database/database-change-log.md`、`docs/06-project-progress.md` 和 `README.md`，资料模块已从规划状态更新为首版完成状态。
+- 步骤 9 已完成：同步 `docs/api/api-reference.md`、`docs/database/database-change-log.md`、`docs/06-project-progress.md` 和 `README.md`，资料模块已从规划状态更新为首版完成状态。
 - 步骤 10 已完成：根据当前真实代码校准本模块开发流程文档，补全状态、测试、文件清单、后续优化和下一阶段建议。
 
 ---
@@ -432,7 +432,7 @@ FileUploadVO.fileId
 
 ### 20.6 Postman 手工测试说明
 
-`postman/campus-resource-platform.postman_collection.json` 已新增 `03 Resource Module` 分组。运行前建议准备以下环境变量：
+`docs/api/postman/campus-resource-platform.postman_collection.json` 已新增 `03 Resource Module` 分组。运行前建议准备以下环境变量：
 
 | 变量 | 说明 |
 | --- | --- |
@@ -483,10 +483,10 @@ FileUploadVO.fileId
 | `campus-resource-platform/src/test/java/com/john/campus/controller/ResourceControllerTest.java` | 新增资料 Controller 层 MockMvc 测试，覆盖核心接口、鉴权路径和异常映射 |
 | `campus-resource-platform/src/test/java/com/john/campus/service/ResourceDatabaseIntegrationTest.java` | 新增资料数据库集成测试，覆盖真实 SQL 写入、读取、分页、重复提交和关联校验 |
 | `campus-resource-platform/src/test/resources/sql/resource-db-test-schema.sql` | 新增资料模块测试用最小表结构，供 H2 MySQL 模式初始化数据库 |
-| `postman/campus-resource-platform.postman_collection.json` | 新增资料模块 Postman 分组，覆盖创建、公开详情、我的上传列表和异常场景 |
+| `docs/api/postman/campus-resource-platform.postman_collection.json` | 新增资料模块 Postman 分组，覆盖创建、公开详情、我的上传列表和异常场景 |
 | `docs/modules/04-resource-development-process.md` | 记录资料模块完整开发流程、接口、表、测试、文件清单和后续方向 |
 | `docs/06-project-progress.md` | 同步资料模块首版完成状态，并将审核模块列为下一阶段建议 |
-| `docs/04-api-doc.md` | 按真实 Controller、DTO、VO 和错误码校准资料模块接口说明 |
+| `docs/api/api-reference.md` | 按真实 Controller、DTO、VO 和错误码校准资料模块接口说明 |
 | `README.md` | 同步资料模块首版完成状态、测试命令和下一阶段建议 |
 | `docs/database/database-change-log.md` | 记录资料模块复用 `resource`、`file_info`、`category` 表，无生产库结构变更 |
 
@@ -802,7 +802,7 @@ feat(resource): complete resource module MVP
 - 测试至少覆盖成功、未登录、文件不存在、分类不存在、重复提交、公开详情状态不可见、我的上传分页、非法分页参数。
 
 涉及文件或类：
-- `postman/campus-resource-platform.postman_collection.json`
+- `docs/api/postman/campus-resource-platform.postman_collection.json`
 - `docs/modules/04-resource-development-process.md`
 - `campus-resource-platform/src/test/java/...`（如新增自动化测试）
 
@@ -825,13 +825,13 @@ feat(resource): complete resource module MVP
 请同步资料模块相关文档，但不要修改业务代码。
 
 本步目标：
-- 根据当前真实代码更新 `docs/04-api-doc.md` 中资料模块接口说明。
+- 根据当前真实代码更新 `docs/api/api-reference.md` 中资料模块接口说明。
 - 根据当前真实代码更新 `docs/database/database-change-log.md`，说明资料模块是否新增数据库结构；若没有新增结构，写明复用 `resource`、`file_info`、`category` 表。
 - 根据当前真实代码更新 `docs/06-project-progress.md` 中资料模块状态、已实现接口、涉及表和待办项。
 - 如 README 的当前完成内容已落后，同步更新 README。
 
 涉及文件：
-- `docs/04-api-doc.md`
+- `docs/api/api-reference.md`
 - `docs/database/database-change-log.md`
 - `docs/06-project-progress.md`
 - `README.md`

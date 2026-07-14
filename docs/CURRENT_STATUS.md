@@ -1,5 +1,12 @@
 # 当前项目状态
 
+## 工作目录整理（2026-07-14）
+
+- 数据库设计文档已归入 `docs/database/database-design.md`；接口参考与 Postman 手工验收资料已归入 `docs/api/`。
+- 新增 `docs/README.md` 说明文档归属，新增 `docs/modules/README.md` 建立业务模块、后端入口与前端演示入口的对应关系。
+- 后端工程目录、前端工程目录、`sql/` 与运行时用户上传资料未移动；本次不修改 Java 代码、接口、数据库结构或 Redis 配置。
+- 已通过 Markdown 本地链接检查、`npm run test:unit`（31 文件、66 用例）、`npm run build` 与 `mvnw.cmd -DskipTests compile` 验证。
+
 ## 基本信息
 
 | 项目 | 当前状态 |

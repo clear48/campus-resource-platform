@@ -439,8 +439,8 @@ HTTP 状态码由 `GlobalExceptionHandler.resolveHttpStatus` 统一转换：
 
 Postman 测试集合：
 
-- `postman/campus-resource-platform.postman_collection.json`
-- `postman/campus-local.postman_environment.json`
+- `docs/api/postman/campus-resource-platform.postman_collection.json`
+- `docs/api/postman/campus-local.postman_environment.json`
 
 本模块暂未涉及自动化单元测试和集成测试，后续建议使用 `@SpringBootTest`、`MockMvc`、Testcontainers MySQL/Redis 补齐认证链路测试。
 

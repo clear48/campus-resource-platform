@@ -67,7 +67,7 @@
 
 ## 5. 涉及接口
 
-> 以下接口设计来源于 `docs/04-api-doc.md` 第 8 节；**当前三个接口均已实现**，与真实代码一致。`docs/04-api-doc.md` 已同步更新。
+> 以下接口设计来源于 `docs/api/api-reference.md` 第 8 节；**当前三个接口均已实现**，与真实代码一致。`docs/api/api-reference.md` 已同步更新。
 
 ### 5.1 创建下载记录并获取下载地址
 
@@ -417,7 +417,7 @@ DELETED(4)        不可下载 → 40901
 8. 实现 `DownloadController` 三个接口。
 9. 确认 `WebMvcConfig` 下载路径需要登录（不放行）。
 10. 补充测试（Controller 测试、Service/Mapper 数据库集成测试、限流与去重测试）。
-11. 同步 `docs/04-api-doc.md`、`docs/05-redis-design.md`、`docs/06-project-progress.md`、`README.md`。
+11. 同步 `docs/api/api-reference.md`、`docs/05-redis-design.md`、`docs/06-project-progress.md`、`README.md`。
 12. 更新本模块开发流程文档。
 
 ---
@@ -445,7 +445,7 @@ DELETED(4)        不可下载 → 40901
 
 - 已阅读 `AGENTS.md` 与 `docs/AGENTS.md`，确认模块开发流程文档规范（第 14、24 节）。
 - 已阅读 `docs/06-project-progress.md`，确认下载模块是当前推荐开发模块。
-- 已阅读 `docs/04-api-doc.md` 第 8 节下载模块接口设计，确认三大接口路径与响应结构。
+- 已阅读 `docs/api/api-reference.md` 第 8 节下载模块接口设计，确认三大接口路径与响应结构。
 - 已阅读 `docs/05-redis-design.md` 第 7、8 节，确认下载限流、去重、下载量增量的 Key、数据结构、TTL 与一致性策略。
 - 已核对 `sql/init.sql`，确认 `download_record`、`resource`、`file_info` 三表结构与索引真实存在。
 - 已核对 `ErrorCode`，确认下载模块所需错误码全部已存在，无需新增。
@@ -458,7 +458,7 @@ DELETED(4)        不可下载 → 40901
 - 【步骤 5】已创建 `DownloadTicketVO`(record) 和 `MyDownloadRecordVO`(record)。
 - 【步骤 6】已在 `FileStorageService` 接口补充 `loadAsResource` 方法 + `FileResource` record，并在 `FileStorageServiceImpl` 实现（路径穿越防护 + 文件存在/可读校验）。
 - 【步骤 8】已创建 `DownloadController` 三接口（POST 创建下载记录、GET 文件二进制流、GET 我的下载记录），并在 `DownloadService` 补充 `loadFile` 方法 + `DownloadFileInfo` record。
-- 【步骤 10】已同步 `docs/04-api-doc.md` 第 8 节（三接口真实响应字段、文件流二进制返回说明、错误码）、`docs/05-redis-design.md`（第 7.8 节限流和去重实现状态、第 8.8 节增量统计实现状态）、`docs/06-project-progress.md`（新增第 6.7 节、更新第 8.1/9/10/11 节）、`README.md`（新增下载模块首版条目）。
+- 【步骤 10】已同步 `docs/api/api-reference.md` 第 8 节（三接口真实响应字段、文件流二进制返回说明、错误码）、`docs/05-redis-design.md`（第 7.8 节限流和去重实现状态、第 8.8 节增量统计实现状态）、`docs/06-project-progress.md`（新增第 6.7 节、更新第 8.1/9/10/11 节）、`README.md`（新增下载模块首版条目）。
 - 【步骤 11】已更新本模块开发流程文档（当前条目）。
 - 明确热度 ZSet 联动不纳入下载模块首版，归排行榜与定时任务模块。
 - 明确下载量 Redis→MySQL 定时同步归排行榜与定时任务模块。
@@ -551,7 +551,7 @@ DELETED(4)        不可下载 → 40901
 | `.../service/FileStorageService.java` | 【步骤 6】新增 `loadAsResource` 方法 + `FileResource` record |
 | `.../service/impl/FileStorageServiceImpl.java` | 【步骤 6】实现 `loadAsResource`，路径穿越防护 + 文件校验 |
 | `.../controller/DownloadController.java` | 【步骤 8】三接口入口，文件流返回二进制 |
-| `docs/04-api-doc.md` | 【步骤 10】第 8 节三接口按真实代码同步 |
+| `docs/api/api-reference.md` | 【步骤 10】第 8 节三接口按真实代码同步 |
 | `docs/05-redis-design.md` | 【步骤 10】第 7.8/8.8 节下载限流和增量统计实现状态 |
 | `docs/06-project-progress.md` | 【步骤 10】新增 6.7 节，更新 8.1/9/10/11 节 |
 | `README.md` | 【步骤 10】新增下载模块首版条目，更新下一阶段建议 |
@@ -817,7 +817,7 @@ DELETED(4)        不可下载 → 40901
 - `dto/PageQuery.java`（只参考，不修改）
 
 完成标准：
-- VO 字段与 `docs/04-api-doc.md` 第 8 节响应示例一致。
+- VO 字段与 `docs/api/api-reference.md` 第 8 节响应示例一致。
 - 不返回内部 storage_path、stored_name。
 - 完成后更新本文档「修改文件记录」和「已完成事项」。
 
@@ -850,7 +850,7 @@ DELETED(4)        不可下载 → 40901
 
 完成标准：
 - Controller 不直接访问 Mapper，不写复杂业务逻辑。
-- 接口路径与 `docs/04-api-doc.md` 第 8 节一致。
+- 接口路径与 `docs/api/api-reference.md` 第 8 节一致。
 - 确认下载路径需要登录（不加入 WebMvcConfig 放行列表）。
 - 完成后更新本文档「已完成事项」。
 
@@ -897,13 +897,13 @@ DELETED(4)        不可下载 → 40901
 请根据当前真实代码同步下载模块相关文档。
 
 本步目标：
-- 更新 `docs/04-api-doc.md` 第 8 节，确保下载三接口的请求参数、响应字段、错误码与真实代码一致。
+- 更新 `docs/api/api-reference.md` 第 8 节，确保下载三接口的请求参数、响应字段、错误码与真实代码一致。
 - 更新 `docs/05-redis-design.md`，标注下载限流、去重、下载量增量的真实实现状态（已实现 / 仍为设计）。
 - 更新 `docs/06-project-progress.md`：把下载模块从「待开发」更新为已完成项，记录接口、涉及表、Redis Key 和测试结果。
 - 同步 `README.md` 当前完成模块与测试命令。
 
 涉及文件：
-- `docs/04-api-doc.md`
+- `docs/api/api-reference.md`
 - `docs/05-redis-design.md`
 - `docs/06-project-progress.md`
 - `README.md`

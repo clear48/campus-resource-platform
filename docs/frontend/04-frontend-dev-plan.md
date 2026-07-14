@@ -7,7 +7,7 @@
 - `docs/frontend/01-frontend-requirements.md`
 - `docs/frontend/02-page-design.md`
 - `docs/frontend/03-api-mapping.md`
-- `docs/04-api-doc.md`
+- `docs/api/api-reference.md`
 
 前端只用于演示当前后端项目的业务闭环和技术亮点，不作为独立商业产品建设。开发重点是让 JWT、文件 MD5 去重、审核状态流转、搜索、收藏、下载限流、Redis 排行榜和管理员运维能力可以通过简单页面被操作和讲解。
 

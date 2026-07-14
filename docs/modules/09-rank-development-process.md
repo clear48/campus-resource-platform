@@ -74,7 +74,7 @@
 
 ## 5. 涉及接口
 
-> 以下接口来自 `docs/04-api-doc.md` 第 9 节，当前均为设计接口，代码尚未实现。实际开发时如调整参数或返回结构，必须同步更新 API 文档和本文档。
+> 以下接口来自 `docs/api/api-reference.md` 第 9 节，当前均为设计接口，代码尚未实现。实际开发时如调整参数或返回结构，必须同步更新 API 文档和本文档。
 
 ### 5.1 获取热门资料排行榜
 
@@ -522,8 +522,8 @@ MySQL 查询 APPROVED 资料
 - 已阅读根目录 `AGENTS.md` 和 `docs/AGENTS.md`。
 - 已读取 `docs/06-project-progress.md`，确认排行榜与定时任务是当前推荐开发模块。
 - 已核对 `docs/01-requirements.md`、`docs/02-business-flow.md` 中的排行榜业务目标。
-- 已核对 `docs/03-database-design.md` 与 `sql/init.sql`，确认 `resource` 已具备统计和热度字段及兜底索引。
-- 已核对 `docs/04-api-doc.md` 第 9 节，确认两个排行榜设计接口。
+- 已核对 `docs/database/database-design.md` 与 `sql/init.sql`，确认 `resource` 已具备统计和热度字段及兜底索引。
+- 已核对 `docs/api/api-reference.md` 第 9 节，确认两个排行榜设计接口。
 - 已核对 `docs/05-redis-design.md`，确认热门资料、热门搜索词、下载增量、TTL 与一致性策略。
 - 已核对真实代码：搜索热词写入和下载增量写入已实现；热门资料榜、查询接口、定时同步和分布式锁尚未实现。
 - 已核对 `WebMvcConfig` 已放行 `/api/v1/rankings/**`，启动类尚未启用调度。
@@ -574,7 +574,7 @@ MySQL 查询 APPROVED 资料
 ## 19. 待完成事项
 
 - 排行榜 Mapper 集成测试按步骤 10 的用户要求跳过；如后续恢复该任务，应覆盖游标分页、`status = 1` 过滤和 `hot_score` 更新 SQL。
-- 在实现前统一 `docs/04-api-doc.md` 中 Redis Key 示例的旧前缀写法，最终以 `crp:` 规范和 `RedisKeyConstants` 为准。
+- 在实现前统一 `docs/api/api-reference.md` 中 Redis Key 示例的旧前缀写法，最终以 `crp:` 规范和 `RedisKeyConstants` 为准。
 - 当前同步采用“优先不丢数据”的至少一次语义：若 MySQL 事务已提交但随后 Redis `HDEL` 失败，遗留字段可能被重复累加；后续可通过持久化批次记录或幂等流水进一步收敛这一边界。
 - 确定热门搜索词 Redis 故障时“返回空列表”与 API 文档 `50001` 描述的最终口径。
 
@@ -697,7 +697,7 @@ cd campus-resource-platform
 | `campus-resource-platform/src/test/java/com/john/campus/controller/AdminRankingControllerTest.java` | 新增 | 覆盖认证、管理员拒绝和成功路由 |
 | `campus-resource-platform/src/test/java/com/john/campus/service/AdminRankingServiceImplTest.java` | 新增 | 覆盖未登录、普通用户和管理员权限边界 |
 | `docs/modules/09-rank-development-process.md` | 新增 | 排行榜与定时任务模块开发流程文档初稿 |
-| `docs/04-api-doc.md` | 修改 | 校准排行榜查询 Redis Key 与降级口径，并同步下载、收藏热度联动说明 |
+| `docs/api/api-reference.md` | 修改 | 校准排行榜查询 Redis Key 与降级口径，并同步下载、收藏热度联动说明 |
 | `docs/05-redis-design.md` | 修改 | 记录总榜重建临时 Key、维护锁、批次策略与真实热度快照流程 |
 | `docs/06-project-progress.md` | 修改 | 更新排行榜模块完成状态、依赖、测试和后续事项 |
 | `README.md` | 修改 | 更新排行榜与定时任务能力、全量测试数量和下一阶段建议 |
@@ -886,7 +886,7 @@ cd campus-resource-platform
 
 完成标准：
 - DTO 只接收请求参数，VO 不暴露 Entity。
-- 字段与 `docs/04-api-doc.md` 第 9 节一致。
+- 字段与 `docs/api/api-reference.md` 第 9 节一致。
 - 默认值和 period 业务白名单留给 Service 兜底处理。
 - 编译/测试通过后提交并推送，并更新流程文档。
 
@@ -1065,7 +1065,7 @@ cd campus-resource-platform
 请根据当前真实代码同步排行榜与定时任务相关文档。
 
 本步目标：
-- 更新 `docs/04-api-doc.md`，校准两个排行榜接口和错误降级口径。
+- 更新 `docs/api/api-reference.md`，校准两个排行榜接口和错误降级口径。
 - 更新 `docs/05-redis-design.md`，记录真实 Key、TTL、锁、syncing 批次和实现状态。
 - 更新 `docs/06-project-progress.md`，记录已完成能力、测试结果和剩余事项。
 - 更新 `README.md`、`docs/database/database-change-log.md`；若没有表结构变化，要明确“复用现有 resource 表，无数据库结构变更”。

@@ -63,7 +63,7 @@
 
 ## 5. 涉及接口
 
-> 5.1 搜索资料接口已由 `SearchController` 实现（`GET /api/v1/search/resources`）；5.2 搜索建议接口仍为后续任务，尚未实现。`docs/04-api-doc.md` 待按真实代码同步校准。
+> 5.1 搜索资料接口已由 `SearchController` 实现（`GET /api/v1/search/resources`）；5.2 搜索建议接口仍为后续任务，尚未实现。`docs/api/api-reference.md` 待按真实代码同步校准。
 
 ### 5.1 搜索资料
 
@@ -337,7 +337,7 @@ DELETED(4)        不进入搜索结果
 5. 实现 `SearchService` 与 `SearchServiceImpl`。
 6. 实现 `SearchController` 的 `GET /api/v1/search/resources`。
 7. 补充 Controller 测试和数据库集成测试。
-8. 同步 `docs/04-api-doc.md`、`docs/05-redis-design.md`、`docs/06-project-progress.md` 和 README。
+8. 同步 `docs/api/api-reference.md`、`docs/05-redis-design.md`、`docs/06-project-progress.md` 和 README。
 9. 更新本模块开发流程文档。
 
 ---
@@ -361,7 +361,7 @@ DELETED(4)        不进入搜索结果
 
 - 已阅读 `AGENTS.md` 和 `docs/AGENTS.md`，确认模块开发流程文档规范。
 - 已阅读 `docs/06-project-progress.md`，确认搜索模块是下一阶段推荐开发模块。
-- 已阅读 `docs/04-api-doc.md` 搜索模块设计，确认首版主接口为 `GET /api/v1/search/resources`。
+- 已阅读 `docs/api/api-reference.md` 搜索模块设计，确认首版主接口为 `GET /api/v1/search/resources`。
 - 已阅读 `docs/05-redis-design.md` 热门搜索词设计，确认 Redis Key 为 `crp:rank:search:keyword:{period}`。
 - 已阅读 `docs/02-business-flow.md` 搜索流程，确认普通搜索必须固定过滤 `APPROVED`。
 - 已确认 `WebMvcConfig` 已放行 `/api/v1/search/**`。
@@ -380,7 +380,7 @@ DELETED(4)        不进入搜索结果
 - 已实现热词统计降级：空/空白关键词不写入，Redis 异常仅记录日志、不阻断搜索主流程。
 - 已创建 `SearchController`，实现 `GET /api/v1/search/resources`，通过 `@Valid SearchResourceQueryDTO` 绑定查询参数，返回 `ApiResponse<PageResult<SearchResourceVO>>`。
 - 已确认 `WebMvcConfig` 放行 `/api/v1/search/**`，接口匿名可访问，可见性由 Service 层固定 `APPROVED` 过滤保证。
-- 已同步 `docs/04-api-doc.md`：搜索资料接口标注为已实现，`42901` 标注为设计预留错误码。
+- 已同步 `docs/api/api-reference.md`：搜索资料接口标注为已实现，`42901` 标注为设计预留错误码。
 - 已同步 `docs/05-redis-design.md`：新增 6.8 节记录搜索热词 Key、三周期 ZSet 写入、TTL 和降级策略的真实实现状态。
 - 已同步 `docs/06-project-progress.md`：新增 6.6 搜索模块完成项，更新阶段结论、文档状态、未实现清单和下一阶段建议（下载模块）。
 - 已同步 `README.md`：新增搜索模块首版能力说明、测试覆盖和下一阶段建议。
@@ -482,7 +482,7 @@ DELETED(4)        不进入搜索结果
 | 文件 | 说明 |
 | --- | --- |
 | `campus-resource-platform/src/test/java/com/john/campus/controller/SearchControllerTest.java` | 搜索 Controller 测试 |
-| `docs/04-api-doc.md` | 搜索接口按真实代码同步 |
+| `docs/api/api-reference.md` | 搜索接口按真实代码同步 |
 | `docs/05-redis-design.md` | 搜索热词实现状态同步 |
 | `docs/06-project-progress.md` | 搜索模块进度同步 |
 | `README.md` | 当前完成模块和测试命令同步 |
@@ -577,7 +577,7 @@ docs(search): add search module development process
 - `dto/PageQuery.java`（只参考分页限制，不修改）
 
 完成标准：
-- DTO 参数能覆盖 `docs/04-api-doc.md` 中 `GET /api/v1/search/resources` 的查询参数。
+- DTO 参数能覆盖 `docs/api/api-reference.md` 中 `GET /api/v1/search/resources` 的查询参数。
 - VO 不直接暴露 `Resource` Entity。
 - 分页字段默认值与现有 `PageQuery` 保持一致：`pageNo=1`、`pageSize=10`、最大 100。
 
@@ -741,7 +741,7 @@ docs(search): add search module development process
 完成标准：
 - Controller 不直接访问 Mapper。
 - Controller 不写复杂业务逻辑。
-- 接口路径与 `docs/04-api-doc.md` 保持一致。
+- 接口路径与 `docs/api/api-reference.md` 保持一致。
 - `/api/v1/search/**` 已在 `WebMvcConfig` 放行，无需新增登录要求。
 
 本步不做什么：
@@ -789,13 +789,13 @@ docs(search): add search module development process
 请根据当前真实代码同步搜索模块相关文档。
 
 本步目标：
-- 更新 `docs/04-api-doc.md` 中搜索模块接口说明，确保请求参数、响应字段、错误码与真实代码一致。
+- 更新 `docs/api/api-reference.md` 中搜索模块接口说明，确保请求参数、响应字段、错误码与真实代码一致。
 - 更新 `docs/05-redis-design.md` 中热门搜索词实现状态，确认 Key、数据结构、TTL、降级策略。
 - 更新 `docs/06-project-progress.md`，记录搜索模块已完成能力、测试结果和后续任务。
 - 如 README 当前完成模块已落后，同步更新 README。
 
 涉及文件：
-- `docs/04-api-doc.md`
+- `docs/api/api-reference.md`
 - `docs/05-redis-design.md`
 - `docs/06-project-progress.md`
 - `README.md`

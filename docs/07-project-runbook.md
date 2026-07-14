@@ -19,7 +19,7 @@ Redis 6+ ──┘                          │
 | `sql/init.sql` | MySQL 初始化脚本 |
 | `campus-resource-platform/` | Spring Boot 后端，含 `mvnw.cmd` |
 | `frontend/` | Vue 3 + Vite 演示前端 |
-| `docs/04-api-doc.md` | 后端接口文档 |
+| `docs/api/api-reference.md` | 后端接口文档 |
 | `docs/05-redis-design.md` | Redis 设计与 Key 说明 |
 
 ## 2. 环境要求
@@ -335,4 +335,4 @@ npm run build
 Remove-Item Env:MYSQL_PASSWORD, Env:REDIS_PASSWORD, Env:JWT_SECRET -ErrorAction SilentlyContinue
 ```
 
-相关文档：[接口文档](04-api-doc.md)、[Redis 设计](05-redis-design.md)、[前端运行说明](../frontend/README.md)、[前端接口映射](frontend/03-api-mapping.md)。
+相关文档：[接口文档](api/api-reference.md)、[Redis 设计](05-redis-design.md)、[前端运行说明](../frontend/README.md)、[前端接口映射](frontend/03-api-mapping.md)。

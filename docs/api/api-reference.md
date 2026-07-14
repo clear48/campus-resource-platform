@@ -2,7 +2,7 @@
 
 ## 1. 文档说明
 
-本文基于 `docs/01-requirements.md`、`docs/02-business-flow.md` 和 `docs/03-database-design.md` 设计 RESTful API。
+本文基于 `docs/01-requirements.md`、`docs/02-business-flow.md` 和 `docs/database/database-design.md` 设计 RESTful API。
 
 接口设计重点突出以下非 CRUD 能力：
 

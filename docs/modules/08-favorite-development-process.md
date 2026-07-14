@@ -66,7 +66,7 @@
 
 ## 5. 涉及接口
 
-> 以下接口设计来源于 `docs/04-api-doc.md` 第 7 节，当前均未实现。接口路径、请求参数和响应字段以 API 文档设计为准，实现时如有调整需同步更新本文档和 API 文档。
+> 以下接口设计来源于 `docs/api/api-reference.md` 第 7 节，当前均未实现。接口路径、请求参数和响应字段以 API 文档设计为准，实现时如有调整需同步更新本文档和 API 文档。
 
 ### 5.1 收藏资料
 
@@ -474,7 +474,7 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 7. 实现 `FavoriteController` 四个接口。
 8. 确认 `WebMvcConfig` 收藏路径需要登录（不放行）。
 9. 补充测试（Controller 测试、Service/Mapper 数据库集成测试、幂等与并发测试）。
-10. 同步 `docs/04-api-doc.md`、`docs/05-redis-design.md`、`docs/06-project-progress.md`、`README.md`。
+10. 同步 `docs/api/api-reference.md`、`docs/05-redis-design.md`、`docs/06-project-progress.md`、`README.md`。
 11. 更新本模块开发流程文档。
 
 ---
@@ -500,7 +500,7 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 
 - 已阅读 `AGENTS.md` 与 `docs/AGENTS.md`，确认模块开发流程文档规范（第 14、24 节）。
 - 已阅读 `docs/06-project-progress.md`，确认收藏模块是当前推荐开发模块。
-- 已阅读 `docs/04-api-doc.md` 第 7 节收藏模块接口设计，确认四大接口路径与响应结构。
+- 已阅读 `docs/api/api-reference.md` 第 7 节收藏模块接口设计，确认四大接口路径与响应结构。
 - 已阅读 `docs/05-redis-design.md` 第 11 节，确认用户收藏集合的 Key、数据结构、TTL 与一致性策略。
 - 已核对 `sql/init.sql`，确认 `favorite` 表结构与索引（含唯一索引 `uk_favorite_user_resource`）真实存在。
 - 已核对 `ErrorCode`，确认收藏模块所需错误码全部已存在（`FAVORITE_DUPLICATE(40902)`），无需新增。
@@ -512,7 +512,7 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 - 【步骤 5】已实现 `FavoriteService` 与 `FavoriteServiceImpl`，覆盖收藏、取消、状态查询、分页列表、MySQL 幂等与 Redis Set 缓存同步。
 - 【步骤 6】已新增 `FavoriteController` 四接口；收藏路径未加入公开放行列表，继续由 JWT 拦截器保护。
 - 【步骤 7】收藏模块专项 Controller/数据库/并发测试按用户明确要求跳过，未新增测试代码。
-- 【步骤 8】已同步 `docs/04-api-doc.md`、`docs/05-redis-design.md`、`docs/06-project-progress.md` 和 `README.md`。
+- 【步骤 8】已同步 `docs/api/api-reference.md`、`docs/05-redis-design.md`、`docs/06-project-progress.md` 和 `README.md`。
 - 【步骤 9】已根据当前真实代码更新本流程文档，记录实际实现、测试跳过原因和后续优化方向。
 
 ---
@@ -596,7 +596,7 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 | `.../service/FavoriteService.java` | 已新增收藏业务接口 |
 | `.../service/impl/FavoriteServiceImpl.java` | 已新增收藏业务实现，负责事务、幂等、缓存和分页编排 |
 | `.../controller/FavoriteController.java` | 已新增收藏四接口入口，统一委托 FavoriteService |
-| `docs/04-api-doc.md` | 已按真实 Controller 与 Service 行为同步收藏四接口 |
+| `docs/api/api-reference.md` | 已按真实 Controller 与 Service 行为同步收藏四接口 |
 | `docs/05-redis-design.md` | 已标注用户收藏 Set 的真实实现、TTL 和一致性策略 |
 | `docs/06-project-progress.md` | 已将收藏模块更新为首版完成，并记录专项测试跳过 |
 | `README.md` | 已新增收藏模块首版说明和下一阶段建议 |
@@ -759,7 +759,7 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 - `dto/PageQuery.java`（只参考，不修改）
 
 完成标准：
-- VO 字段与 `docs/04-api-doc.md` 第 7 节响应示例一致。
+- VO 字段与 `docs/api/api-reference.md` 第 7 节响应示例一致。
 - 使用 Java 17 record 类型（与项目现有 VO 风格一致）。
 - 不返回内部 user_id、status 等非必要字段给前端。
 - 完成后更新本文档「修改文件记录」和「已完成事项」。
@@ -832,7 +832,7 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 
 完成标准：
 - Controller 不直接访问 Mapper，不写复杂业务逻辑。
-- 接口路径与 `docs/04-api-doc.md` 第 7 节一致。
+- 接口路径与 `docs/api/api-reference.md` 第 7 节一致。
 - 确认收藏路径需要登录（不加入 WebMvcConfig 放行列表）。
 - 完成后更新本文档「已完成事项」。
 
@@ -877,13 +877,13 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 请根据当前真实代码同步收藏模块相关文档。
 
 本步目标：
-- 更新 `docs/04-api-doc.md` 第 7 节，确保收藏四接口的请求参数、响应字段、错误码与真实代码一致。
+- 更新 `docs/api/api-reference.md` 第 7 节，确保收藏四接口的请求参数、响应字段、错误码与真实代码一致。
 - 更新 `docs/05-redis-design.md`，标注用户收藏集合的真实实现状态（已实现 / 仍为设计）。
 - 更新 `docs/06-project-progress.md`：把收藏模块从「待开发」更新为已完成项，记录接口、涉及表、Redis Key 和测试结果。
 - 同步 `README.md` 当前完成模块与测试命令。
 
 涉及文件：
-- `docs/04-api-doc.md`
+- `docs/api/api-reference.md`
 - `docs/05-redis-design.md`
 - `docs/06-project-progress.md`
 - `README.md`

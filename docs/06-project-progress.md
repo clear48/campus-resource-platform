@@ -80,8 +80,8 @@
 | --- | --- | --- |
 | `docs/01-requirements.md` | 已完成 | 项目背景、用户角色、功能需求、非功能需求、项目亮点 |
 | `docs/02-business-flow.md` | 已完成 | 上传、审核、搜索、下载、收藏等核心业务流程和状态流转 |
-| `docs/03-database-design.md` | 已完成 | MySQL 表结构、字段说明、索引、设计理由和知识点 |
-| `docs/04-api-doc.md` | 已同步 | 认证、分类、文件上传、资料、审核、搜索、下载、收藏和两个排行榜查询接口均已按当前代码校准 |
+| `docs/database/database-design.md` | 已完成 | MySQL 表结构、字段说明、索引、设计理由和知识点 |
+| `docs/api/api-reference.md` | 已同步 | 认证、分类、文件上传、资料、审核、搜索、下载、收藏和两个排行榜查询接口均已按当前代码校准 |
 | `docs/05-redis-design.md` | 已同步 | Redis Key、热度 ZSet、下载增量批次、Redisson 锁、all 榜重建与快照策略均已按真实实现记录 |
 | `docs/modules/01-auth-development-process.md` | 已完成 | 用户认证模块开发记录 |
 | `docs/modules/02-category-development-process.md` | 已完成 | 分类查询模块开发记录 |
@@ -265,7 +265,7 @@
 | 数据库集成测试 | 已完成 | `ResourceDatabaseIntegrationTest` 共 7 个用例，`AuditServiceDatabaseIntegrationTest` 共 9 个用例；审核数据库测试使用本机 MySQL 独立测试库 |
 | Spring 上下文测试 | 已完成 | `CampusResourcePlatformApplicationTests.contextLoads` |
 | 收藏模块专项测试 | 已跳过 | 用户明确要求跳过步骤 7；尚未新增 `FavoriteControllerTest` 与收藏数据库集成测试 |
-| Postman 集合 | 已更新 | `postman/campus-resource-platform.postman_collection.json` 已新增资料模块分组 |
+| Postman 集合 | 已更新 | `docs/api/postman/campus-resource-platform.postman_collection.json` 已新增资料模块分组 |
 
 已验证的资料模块场景：
 

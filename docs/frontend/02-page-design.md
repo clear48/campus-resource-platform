@@ -2,7 +2,7 @@
 
 ## 1. 文档目标
 
-本文档基于 `docs/frontend/01-frontend-requirements.md`、`docs/04-api-doc.md` 和当前后端 DTO/VO，进一步定义前端各页面的路由、访问角色、功能、接口、展示字段、按钮与操作。
+本文档基于 `docs/frontend/01-frontend-requirements.md`、`docs/api/api-reference.md` 和当前后端 DTO/VO，进一步定义前端各页面的路由、访问角色、功能、接口、展示字段、按钮与操作。
 
 页面设计只服务于后端功能演示和接口联调，优先保证业务链路清晰、操作结果可见、技术亮点容易讲解。首版使用简单表单、表格、列表、标签、弹窗和消息提示即可，不追求复杂 UI、复杂动画、复杂图表或商业产品级交互。
 
