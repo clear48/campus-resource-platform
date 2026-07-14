@@ -8,7 +8,10 @@ import java.util.Map;
 public interface DownloadDeltaPersistenceService {
 
     /**
-     * 在一个 MySQL 事务中原子累加本批次所有资料的下载量；任一资料更新失败时整体回滚。
+     * 在一个 MySQL 事务中先写入批次幂等记录，再原子累加下载量；任一资料更新失败时整体回滚。
      */
-    void persistDownloadDeltas(Map<Long, Long> resourceDeltas);
+    void persistDownloadDeltas(String batchId, Map<Long, Long> resourceDeltas);
+
+    /** Redis 成功确认后记录确认时间，保留幂等明细供重试识别和后续审计清理。 */
+    void markDownloadDeltasConfirmed(String batchId, java.util.Collection<Long> resourceIds);
 }

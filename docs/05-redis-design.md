@@ -48,6 +48,8 @@ crp:stats:resource:download:delta
 | IP 下载限流 | `crp:rate:download:ip:{ip}` | ZSet | 限流窗口 + 60 秒 |
 | 同资料重复下载去重 | `crp:dedup:download:{userId}:{resourceId}` | String | 10-30 分钟 |
 | 下载量临时统计 | `crp:stats:resource:download:delta` | Hash | 不主动设置 TTL |
+| 下载增量同步批次 | `crp:stats:resource:download:syncing:{batchId}` | Hash | 不主动设置 TTL；`batchId` 为 UUID，升级时兼容旧 `active` Hash |
+| 下载增量当前批次指针 | `crp:stats:resource:download:syncing:current` | String | 不主动设置 TTL；值为正在处理的 UUID 批次 ID |
 | 总榜重建临时数据 | `crp:rank:resource:hot:all:rebuild:active` | ZSet | 成功后 `RENAME` 消失；下次重建前主动清理遗留数据 |
 | 总榜维护锁 | `crp:lock:sync:hot-rank-maintenance` | Redisson RReadWriteLock | 不传 leaseTime，使用看门狗自动续期 |
 | 登录 Token 黑名单 | `crp:auth:token:blacklist:{jti}` | String | Token 剩余有效期 |
@@ -553,9 +555,9 @@ ZINCRBY crp:rank:resource:hot:all 5 {resourceId}
 定时同步流程：
 
 1. `RankingSyncTask` 使用 Redisson `RLock.tryLock()` 获取 `crp:lock:sync:download-delta`；不传 leaseTime，Redisson 看门狗会在持锁客户端存活期间自动续期，默认超时为 30 秒。
-2. 若存在 `crp:stats:resource:download:syncing:active`，优先继续处理；否则以 Redis 原子 `RENAME` 将 `delta` 隔离为该 Key，新下载继续写入新的 `delta` Hash。
-3. 从 `syncing:active` 读取合法的 `resourceId -> delta`，每轮最多处理 500 条。
-4. 在独立 MySQL 事务中批量执行：
+2. 若 `syncing:current` 指向仍存在的 `syncing:{batchId}` Hash，优先恢复该 UUID 批次；若指针已陈旧则仅通过 Lua 的“值仍等于旧 batchId”比较删除。升级前遗留的 `syncing:active` Hash 没有历史幂等记录，当前版本会保留并报错，不会自动落库；发布前必须排空该 Key，或由人工核对后处理，避免把“旧版本已提交但未 HDEL”的数据再次累计。
+3. 没有待恢复批次时，以 Lua 原子完成 `RENAME delta -> syncing:{uuid}` 和 `SET syncing:current {uuid}`；新下载会自动写入新的 `delta` Hash。
+4. 从 `syncing:{batchId}` 读取合法的 `resourceId -> delta`，每轮最多处理 500 条。在独立 MySQL 事务中先尝试写入 `download_delta_sync_item(batch_id, resource_id, delta)`，仅首次插入成功时才执行：
 
 ```sql
 UPDATE resource
@@ -563,13 +565,9 @@ SET download_count = download_count + ?
 WHERE id = ?;
 ```
 
-5. MySQL 更新成功后，只删除 `syncing:active` 中已经持久化的 Hash 字段：
-
-```text
-HDEL crp:stats:resource:download:syncing:active {resourceId}
-```
-
-6. 如果 MySQL 更新失败，不删除 `syncing:active` 字段，下一轮优先重试；任务结束时仅由当前持锁线程调用 `unlock`。
+5. 同一 `batchId + resourceId` 已有记录时必须回读并校验 delta 一致，然后跳过累加；这样 MySQL 已提交而 Redis 确认失败后的重试不会重复增加下载量。
+6. MySQL 事务成功后才 `HDEL syncing:{batchId}` 中对应字段；`HDEL` 正常返回后在幂等明细中写入 `confirmed_at`。幂等记录暂不清理，供重试识别和后续审计清理。
+7. MySQL 或 Redis 任一步失败时不提前确认字段；任务结束时仅由当前持锁线程调用 `unlock`。
 
 并发与一致性说明：
 
@@ -577,9 +575,9 @@ HDEL crp:stats:resource:download:syncing:active {resourceId}
 crp:stats:resource:download:delta -> crp:stats:resource:download:syncing:{batchId}
 ```
 
-- `RENAME` 避免“读取旧增量后，又有新下载，随后 HDEL 误删新下载”的丢数问题。
+- UUID 批次 Hash 与 current 指针由 Lua 一次完成，避免 `RENAME` 成功后进程崩溃而丢失批次身份；`RENAME` 同时避免“读取旧增量后，又有新下载，随后 HDEL 误删新下载”的丢数问题。清理陈旧指针使用 compare-and-delete Lua，失效旧锁恢复时不会误删新批次指针。
 - 看门狗替代固定锁 TTL，避免长批次因锁到期而被另一实例并发处理；客户端崩溃后看门狗停止续期，锁会自动过期。
-- Redis 与 MySQL 没有分布式事务，因此仍是至少一次语义：若 MySQL 已提交而 Redis `HDEL` 失败，遗留字段可能在重试时被重复累加。
+- Redis 与 MySQL 没有分布式事务，但 MySQL 唯一键 `(batch_id, resource_id)` 与同事务的幂等记录插入/原子累加构成最终兜底：相同 UUID 批次重试只会确认 Redis，不会再次增加 `resource.download_count`。
 
 ### 8.7 为什么选择 Hash
 
@@ -601,8 +599,8 @@ RedisKeyConstants.DOWNLOAD_DELTA           // "crp:stats:resource:download:delta
 - `DownloadServiceImpl.tryCountDownload`：首次下载（去重 Key 命中前）执行 `HINCRBY crp:stats:resource:download:delta {resourceId} 1`。
 - Hash **不设 TTL**，与本节设计一致，防止定时任务异常时统计丢失。
 - 下载失败不写增量。
-- `RankingSyncTask` → `DownloadDeltaSyncServiceImpl`：每 60 秒触发一次同步，使用 Redisson 看门狗锁、`RENAME` 批次隔离、MySQL 事务累加和提交后 `HDEL` 确认。
-- `DownloadDeltaPersistenceServiceImpl`：使用 `download_count = download_count + delta` 原子 SQL；任一资料更新失败时整批事务回滚，并保留 syncing 批次。
+- `RankingSyncTask` → `DownloadDeltaSyncServiceImpl`：每 60 秒触发一次同步，使用 Redisson 看门狗锁、UUID 批次 Lua 隔离、MySQL 事务累加和提交后 `HDEL` 确认。
+- `DownloadDeltaPersistenceServiceImpl`：使用 `download_delta_sync_item` 唯一键和 `download_count = download_count + delta` 原子 SQL；任一资料更新失败时幂等记录与增量累加整体回滚，并保留 syncing 批次。
 
 尚未实现（归排行榜与定时任务模块）：
 

@@ -1229,7 +1229,7 @@ Authorization: Bearer eyJhbG...
 - 校验资料存在且为 `APPROVED`，否则拒绝。
 - 写入 `download_record`（`download_status = 1`）。
 - 通过 Redis `SETNX` 去重 Key（TTL 10 分钟）判断是否计入下载量。
-- 下载量增量写 Redis Hash `crp:stats:resource:download:delta`，不在本接口直接 `UPDATE resource.download_count`，后续由定时任务安全同步 MySQL。
+- 下载量增量写 Redis Hash `crp:stats:resource:download:delta`，不在本接口直接 `UPDATE resource.download_count`；后续定时任务以 UUID 隔离批次和 MySQL 幂等明细安全同步，接口请求与响应不变。
 - 仅当去重与增量写入均成功时，排行榜模块对四周期热门资料 ZSet 执行 `ZINCRBY +5`；Redis 热度更新异常不影响已成功的下载记录。
 
 可能的错误码：

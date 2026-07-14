@@ -4,9 +4,11 @@
 
 > 补强 P2 计划：增加进程内任务执行监控，统一记录下载增量同步、all 榜缺失重建和热度快照三个调度入口的最近开始/结束时间、耗时及未捕获异常摘要；不新增 HTTP 接口、数据库表、Redis Key 或依赖。Service 已捕获并自行降级的可恢复异常仍以原有日志为准，监控状态只表示调度委派是否正常返回。
 
+> 补强 P3：将下载增量同步从“至少一次”收敛为同一 Redis 隔离批次内的 MySQL 幂等累加。新增 UUID 批次指针、`download_delta_sync_item` 唯一幂等明细、可重复执行迁移和 H2 集成测试；不新增 HTTP 接口或依赖。升级前遗留 `syncing:active` 缺少历史幂等记录，必须在发布前排空或人工核对，当前版本会保留并停止自动处理以避免重复计数。
+
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
 > 当前状态：**步骤 1 至步骤 9、11、12 已完成；步骤 10 按用户要求跳过**。排行榜已具备查询、行为热度联动、下载增量同步、all 总榜缺失重建、热度快照和管理员手动重建能力。
-> 补强 P1 已完成真实 Mapper 集成测试；补强 P2 已完成进程内最近任务执行快照与统一日志。当前未实现跨实例任务指标聚合、历史持久化、失败告警或数据库结构变更。
+> 补强 P1 已完成真实 Mapper 集成测试；补强 P2 已完成进程内最近任务执行快照与统一日志；补强 P3 已完成下载增量同步幂等化。当前未实现跨实例任务指标聚合、失败告警和幂等明细保留期清理。
 
 ---
 
@@ -193,6 +195,7 @@ idx_resource_hot (status, hot_score, download_count)
 ### 6.2 其他表
 
 - `download_record`：下载模块已写入下载记录，本模块首版不读取该表重算周期榜。
+- `download_delta_sync_item`：本次新增的下载增量同步幂等明细；唯一键 `(batch_id, resource_id)` 与 `resource.download_count` 原子累加处于同一事务，Redis `HDEL` 失败重试时不重复累计。
 - `favorite`：收藏关系由收藏模块维护，本模块首版不扫描该表重算历史周期榜。
 - 排行榜快照表、搜索词快照表：本模块暂未涉及。
 
@@ -216,11 +219,12 @@ idx_resource_hot (status, hot_score, download_count)
 | `crp:rank:resource:hot:monthly` | ZSet | 60 天 | 月榜 |
 | `crp:rank:resource:hot:all` | ZSet | 不设置 | 总榜 |
 | `crp:lock:sync:download-delta` | Redisson RLock | 默认 30 秒看门狗超时，持锁客户端存活时自动续期 | 下载增量同步任务互斥锁 |
-| `crp:stats:resource:download:syncing:{batchId}` | Hash | `active` 批次成功后按字段删除，失败时保留 | 与实时 delta 隔离的待同步批次 |
+| `crp:stats:resource:download:syncing:{batchId}` | Hash | UUID 批次按字段删除，失败时保留；旧 `active` 仅人工迁移 | 与实时 delta 隔离的待同步批次 |
+| `crp:stats:resource:download:syncing:current` | String | 不设置 TTL | 当前 UUID 批次指针，Hash 消失时清理陈旧值 |
 | `crp:lock:sync:hot-rank-maintenance` | Redisson RReadWriteLock | 默认 30 秒看门狗超时，持锁客户端存活时自动续期 | 重建使用写锁；快照和实时 all 榜写入使用读锁 |
 | `crp:rank:resource:hot:all:rebuild:active` | ZSet | 成功后 `RENAME` 为正式 all 榜；下次重建前清理遗留 | all 总榜原子替换前的临时构建结果 |
 
-> 步骤 2 已在 `RedisKeyConstants` 中补充热门资料榜、同步锁和 syncing 批次常量及格式化方法；步骤 8 已实际使用下载 delta、同步锁与固定的 `syncing:active` 批次。
+> 步骤 2 已在 `RedisKeyConstants` 中补充热门资料榜、同步锁和 syncing 批次常量及格式化方法；补强 P3 已将新批次改为 UUID Hash + current 指针。升级前遗留的固定 `syncing:active` 批次因状态不确定只保留告警，发布前需排空或人工核对。
 
 ### 7.3 热度权重与更新时机
 
@@ -241,7 +245,7 @@ idx_resource_hot (status, hot_score, download_count)
 - 热门资料 ZSet 是实时数据源，`resource.hot_score` 是总榜快照和 MySQL 兜底。
 - 热门搜索词只属于运营数据；Redis 丢失不影响搜索主流程。
 - 行为热度更新失败时记录日志并降级，不回滚已经成功的下载或收藏主业务。
-- 下载增量 Hash 不设置 TTL；只有 MySQL 事务成功后才允许删除对应 syncing 批次。
+- 下载增量 Hash 不设置 TTL；只有 MySQL 事务成功后才允许删除对应 syncing 字段。MySQL 中的唯一幂等记录与下载量累加同事务提交，重试同一批次只会确认 Redis。
 - 下载增量同步锁由 Redisson `RLock` 管理，获取时不指定 leaseTime 以启用看门狗自动续期；仅持锁线程可调用 `unlock`。
 
 ---
@@ -281,6 +285,7 @@ idx_resource_hot (status, hot_score, download_count)
 | mapper | `ResourceMapper` + XML | 已新增热门榜候选补齐、MySQL 兜底、下载增量和热度快照更新 SQL | 已实现 |
 | service | `DownloadDeltaSyncService` | 定义一次下载增量同步业务 | 已实现 |
 | service | `DownloadDeltaPersistenceService` | 定义独立的事务性 MySQL 下载计数持久化业务 | 已实现 |
+| mapper | `DownloadDeltaSyncItemMapper` + XML | 写入、校验并确认下载同步幂等明细 | 已实现 |
 | service/impl | `DownloadDeltaSyncServiceImpl` | 锁、批次隔离、限批、成功确认和失败保留 | 已实现 |
 | service/impl | `DownloadDeltaPersistenceServiceImpl` | 通过 Spring 代理执行 MySQL 原子累加事务 | 已实现 |
 | task | `RankingSyncTask` | 按计划触发下载增量同步，不承载锁或事务细节 | 已实现 |
@@ -294,7 +299,7 @@ idx_resource_hot (status, hot_score, download_count)
 | controller | `AdminRankingController` | `POST /api/v1/admin/rankings/resources/hot/rebuild` 管理员手动重建入口 | 已实现 |
 | config/application | 启动类、`application.yaml` 与 `RedissonConfig` | 启用 Spring Scheduling，集中配置频率、单批上限与 Redisson 看门狗超时 | 已实现 |
 | test | `RankingPeriodTest` | 校验周期 TTL、热词边界与排行榜 Key 格式 | 已实现 |
-| test | `RankingControllerTest`、`AdminRankingControllerTest`、`RankingServiceImplTest`、`AdminRankingServiceImplTest`、`DownloadDeltaSyncServiceImplTest`、`HotRankingMaintenanceServiceImplTest`、`HotScoreSnapshotPersistenceServiceImplTest`、`RankingMapperIntegrationTest`、`RankingTaskExecutionMonitorTest`、`HotRankingMaintenanceTaskTest` 等 | 已覆盖接口、管理员权限、热度行为、下载同步、总榜重建、读写锁协调、脏成员跳过、快照持久化、真实 Mapper SQL、任务委派与最近执行快照 | 已实现 |
+| test | `RankingControllerTest`、`AdminRankingControllerTest`、`RankingServiceImplTest`、`AdminRankingServiceImplTest`、`DownloadDeltaSyncServiceImplTest`、`DownloadDeltaPersistenceServiceImplTest`、`DownloadDeltaPersistenceDatabaseIntegrationTest`、`HotRankingMaintenanceServiceImplTest`、`HotScoreSnapshotPersistenceServiceImplTest`、`RankingMapperIntegrationTest`、`RankingTaskExecutionMonitorTest`、`HotRankingMaintenanceTaskTest` 等 | 已覆盖接口、管理员权限、热度行为、下载同步 UUID/旧批次兼容、HDEL 失败重试幂等、真实 Mapper SQL、总榜重建、任务委派与最近执行快照 | 已实现 |
 
 > 项目现有约定要求 Spring Service 使用“接口 + 实现”。定时任务只负责触发，带事务的同步逻辑必须放入独立 Service，由 Spring 代理调用，避免同类自调用导致事务失效。
 
@@ -477,7 +482,7 @@ MySQL 查询 APPROVED 资料
 - 单个 syncing 批次内的 MySQL 下载量累加应使用 `@Transactional(rollbackFor = Exception.class)`。
 - MySQL 更新使用 `download_count = download_count + delta`，禁止先查后改。
 - MySQL 事务提交成功后才能删除 syncing Key。
-- MySQL 事务失败时不得删除 syncing Key；下一轮任务先恢复遗留批次，再处理新 delta。
+- MySQL 事务失败时不得删除 UUID syncing Key；下一轮任务先恢复 current 指向的 UUID 批次，再处理新 delta。旧 `syncing:active` 因无法确认历史落库状态，只能发布前排空或人工核对，当前版本不得自动重试。
 - Redis 与 MySQL 不具备原子提交能力，因此必须通过批次隔离、幂等边界和失败补偿实现最终一致性。
 
 ---
@@ -574,6 +579,7 @@ MySQL 查询 APPROVED 资料
 - 【步骤 12】已基于当前真实代码更新本流程文档的状态、调用关系、事务/一致性边界、测试记录、文件记录、待办事项和提交记录；提交为 `7bdb765 docs(rank): finalize ranking process status`，已推送到 `origin/dev`。
 - 【补强 P1】已新增 `RankingMapperIntegrationTest`，在 H2 MySQL 模式执行真实 `ResourceMapper.xml`，覆盖 Redis 候选补齐的 APPROVED/分类过滤、MySQL 热度兜底固定排序、主键游标扫描与仅 APPROVED 资料可写入热度快照。
 - 【补强 P2】已新增 `RankingTaskExecutionMonitor`，以进程内不可变快照记录下载增量同步、all 榜缺失重建和热度快照三个调度入口的最近开始/结束时间、耗时与未捕获异常类型，并在任务委派正常返回或异常抛出时输出统一日志。快照仅代表调度层的委派结果；Service 自行捕获并降级的 Redis 等可恢复异常仍以原有业务日志为准。
+- 【补强 P3】已新增 `download_delta_sync_item` 表、可重复迁移、`DownloadDeltaSyncItemMapper` 和 H2 集成测试。同步任务以 Lua 原子写入 UUID batch Hash 与 current 指针；同一 `(batchId, resourceId)` 的幂等记录插入与 `resource.download_count` 累加在同一事务中，`HDEL` 失败后重试不重复累计。旧 `syncing:active` 没有历史幂等记录，当前版本将其保留并要求发布前排空或人工核对，不能伪装为可安全自动重试。
 
 ---
 
@@ -581,7 +587,7 @@ MySQL 查询 APPROVED 资料
 
 - 已具备单实例最近执行快照和统一耗时/未捕获异常日志；尚未实现跨实例指标聚合、历史持久化、管理员查询接口、失败告警和遗留 `syncing` 批次监控。
 - 在实现前统一 `docs/api/api-reference.md` 中 Redis Key 示例的旧前缀写法，最终以 `crp:` 规范和 `RedisKeyConstants` 为准。
-- 当前同步采用“优先不丢数据”的至少一次语义：若 MySQL 事务已提交但随后 Redis `HDEL` 失败，遗留字段可能被重复累加；后续可通过持久化批次记录或幂等流水进一步收敛这一边界。
+- 已实现同一 Redis 隔离批次的 MySQL 幂等累加；幂等明细本次不做自动清理，后续需要基于 `confirmed_at` 设计保留期与归档策略。
 - 确定热门搜索词 Redis 故障时“返回空列表”与 API 文档 `50001` 描述的最终口径。
 
 ---
@@ -686,6 +692,9 @@ cd campus-resource-platform
 | `.\mvnw.cmd test`（步骤 9 后） | 通过，94 个测试，0 失败、0 错误、0 跳过 |
 | `.\mvnw.cmd -Dtest=RankingMapperIntegrationTest test`（补强 P1） | 通过，3 个测试，0 失败、0 错误、0 跳过；真实 XML 已覆盖公开过滤、热度兜底、游标扫描和快照更新 SQL |
 | `.\mvnw.cmd "-Dtest=RankingTaskExecutionMonitorTest,RankingSyncTaskTest,HotRankingMaintenanceTaskTest" test`（补强 P2） | 通过，4 个测试，0 失败、0 错误、0 跳过；覆盖调度正常完成、异常记录、任务名称映射和三个调度入口的实际委派 |
+| `.\mvnw.cmd "-Dtest=DownloadDeltaPersistenceServiceImplTest,DownloadDeltaSyncServiceImplTest,DownloadDeltaPersistenceDatabaseIntegrationTest" test`（补强 P3） | 通过，13 个测试，0 失败、0 错误、0 跳过；覆盖 UUID/current 批次、陈旧指针 CAS 清理、legacy active 安全阻断、HDEL 失败同批次重试、唯一键跳过累加、delta 不一致拒绝和真实 H2 MyBatis 事务 |
+| `.\mvnw.cmd "-Dtest=DownloadDeltaPersistenceServiceImplTest,DownloadDeltaSyncServiceImplTest,DownloadDeltaPersistenceDatabaseIntegrationTest,RankingSyncTaskTest,RankingTaskExecutionMonitorTest,RankingMapperIntegrationTest" test`（排行榜关联回归） | 通过，19 个测试，0 失败、0 错误、0 跳过 |
+| `.\mvnw.cmd test`（补强 P3 完成后全量回归） | 通过，113 个测试，0 失败、0 错误、0 跳过 |
 
 ---
 
@@ -767,10 +776,22 @@ cd campus-resource-platform
 | `campus-resource-platform/src/test/java/com/john/campus/task/RankingTaskExecutionMonitorTest.java` | 新增 | 覆盖正常完成快照、异常快照和异常继续向调度框架传播 |
 | `campus-resource-platform/src/test/java/com/john/campus/task/RankingSyncTaskTest.java` | 修改 | 覆盖下载增量同步任务委派已纳入统一监控 |
 | `campus-resource-platform/src/test/java/com/john/campus/task/HotRankingMaintenanceTaskTest.java` | 修改 | 覆盖 all 榜重建与热度快照任务委派已纳入统一监控 |
+| `campus-resource-platform/src/main/java/com/john/campus/mapper/DownloadDeltaSyncItemMapper.java` | 新增 | 定义下载同步幂等明细的插入、回读和确认 Mapper 方法 |
+| `campus-resource-platform/src/main/resources/mapper/DownloadDeltaSyncItemMapper.xml` | 新增 | 实现 MySQL 幂等唯一键写入、delta 校验查询和确认时间更新 SQL |
+| `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java` | 修改 | 新增下载同步 current UUID 批次指针 Key |
+| `campus-resource-platform/src/main/java/com/john/campus/service/DownloadDeltaPersistenceService.java` | 修改 | 将 UUID batchId 与 Redis 确认记录纳入事务 Service 边界 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadDeltaPersistenceServiceImpl.java` | 修改 | 先写唯一幂等记录、后原子累加，重复批次校验 delta 后跳过累加 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadDeltaSyncServiceImpl.java` | 修改 | Lua 原子隔离 UUID 批次、恢复 current 批次、CAS 清理陈旧指针，并在 HDEL 后确认；legacy active 安全阻断 |
+| `sql/init.sql` | 修改 | 新增 `download_delta_sync_item` 表、唯一键、确认索引与正增量约束 |
+| `sql/migrations/20260714_download_delta_sync_idempotency.sql` | 新增 | 为已有数据库提供可重复执行的幂等表迁移 |
+| `campus-resource-platform/src/test/resources/sql/resource-db-test-schema.sql` | 修改 | 在 H2 MySQL 模式创建幂等明细表 |
+| `campus-resource-platform/src/test/java/com/john/campus/service/DownloadDeltaPersistenceServiceImplTest.java` | 修改 | 覆盖首次累加、重复跳过、delta 不一致和资料不存在 |
+| `campus-resource-platform/src/test/java/com/john/campus/service/DownloadDeltaSyncServiceImplTest.java` | 修改 | 覆盖 UUID/current、陈旧指针 CAS、HDEL 失败重试和 legacy active 安全阻断 |
+| `campus-resource-platform/src/test/java/com/john/campus/service/DownloadDeltaPersistenceDatabaseIntegrationTest.java` | 新增 | 使用真实 H2 Mapper 验证同批次只累加一次与 confirmed_at 回写 |
 
 ### 21.2 步骤 2、3、4、5、6、7、8 明确未修改或未涉及
 
-- `sql/**`
+- 除补强 P3 的 `sql/init.sql` 与 `sql/migrations/20260714_download_delta_sync_idempotency.sql` 外，未修改其他 SQL。
 - 数据库配置、表结构和 HTTP 接口
 - 步骤 4 未修改 `src/test/**`（用户要求）；步骤 5、6、7 均已补充对应的 Service 或 Controller 测试
 

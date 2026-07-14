@@ -17,6 +17,7 @@ Redis 6+ ──┘                          │
 | 路径 | 作用 |
 | --- | --- |
 | `sql/init.sql` | MySQL 初始化脚本 |
+| `sql/migrations/20260714_download_delta_sync_idempotency.sql` | 已有数据库的下载增量同步幂等化迁移 |
 | `campus-resource-platform/` | Spring Boot 后端，含 `mvnw.cmd` |
 | `frontend/` | Vue 3 + Vite 演示前端 |
 | `docs/api/api-reference.md` | 后端接口文档 |
@@ -45,6 +46,20 @@ Redis 6+ ──┘                          │
 ```bat
 mysql -u root -p < sql\init.sql
 ```
+
+### 3.1 已有数据库升级下载增量同步
+
+首次初始化仍执行 `sql/init.sql`。若数据库已在运行旧版本，应在部署新后端前执行以下安全步骤：
+
+1. 停止旧版本后端的下载增量定时任务，避免旧、新批次协议并行执行。
+2. 使用 Redis 客户端检查 `crp:stats:resource:download:syncing:active` 是否遗留字段；若存在，先人工核对该批次是否已经落库，再决定清理或补偿，**不得直接启用新版本自动重试**。
+3. 确认旧批次已处理后，在仓库根目录执行：
+
+```bat
+mysql -u root -p campus_resource_platform < sql\migrations\20260714_download_delta_sync_idempotency.sql
+```
+
+迁移仅创建 `download_delta_sync_item` 表及索引，可重复执行；完成后再启动新版本后端。
 
 命令会提示输入密码。不要把密码写入文档、Git、`.env.example` 或提交信息。
 

@@ -57,6 +57,11 @@ public final class RedisKeyConstants {
     public static final String DOWNLOAD_DELTA_SYNCING = "crp:stats:resource:download:syncing:%s";
 
     /**
+     * 当前正在同步的 UUID 批次指针，String 值为 batchId；实际下载增量仍保存在对应的 syncing Hash 中。
+     */
+    public static final String DOWNLOAD_DELTA_SYNCING_CURRENT = "crp:stats:resource:download:syncing:current";
+
+    /**
      * 下载增量定时同步锁，多实例部署时用于避免同一批增量被重复处理。
      */
     public static final String DOWNLOAD_DELTA_SYNC_LOCK = "crp:lock:sync:download-delta";

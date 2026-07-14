@@ -19,7 +19,8 @@
 
 - 已完成 P1：`RankingMapperIntegrationTest` 在 H2 MySQL 模式下验证 `ResourceMapper.xml` 的公开资料过滤、热度兜底排序、主键游标扫描和 APPROVED 热度快照更新。
 - 已完成 P2：`RankingTaskExecutionMonitor` 以当前应用实例内最近快照记录下载增量同步、all 榜重建和热度快照任务的开始/结束时间、耗时及未捕获异常类型；调度入口已接入统一日志，任务触发与监控单测共 4 个用例通过。
-- 后续如需继续，应单独设计跨实例指标聚合、历史持久化、管理员查询接口、失败告警和遗留 `syncing` 批次监控；不应直接复用进程内快照作为跨实例运维数据。
+- 已完成 P3：下载增量以 UUID 批次隔离，`download_delta_sync_item` 的 `(batch_id, resource_id)` 唯一键与 `resource.download_count` 累加同事务提交；Redis 确认失败后重试同批次不会重复计数。建表已写入 `sql/init.sql`，存量库执行 `sql/migrations/20260714_download_delta_sync_idempotency.sql`；P3 专项 13 个、排行榜关联 19 个及当前全量 113 个测试均通过。
+- 发布 P3 前必须先排空或人工核对旧 `crp:stats:resource:download:syncing:active` Hash；切换期间停止旧版本调度器，避免旧、新批次协议并行。后续如需继续，应单独设计跨实例指标聚合、历史持久化、管理员查询接口、失败告警和幂等明细保留期清理；不应直接复用进程内快照作为跨实例运维数据。
 
 ## 当前分支
 

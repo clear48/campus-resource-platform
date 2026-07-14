@@ -19,7 +19,8 @@
 
 - 补强 P1 已完成：新增 `RankingMapperIntegrationTest`，真实验证排行榜候选公开过滤、MySQL 兜底排序、游标扫描和热度快照写回；`mvnw.cmd -Dtest=RankingMapperIntegrationTest test` 3 个用例通过。
 - 补强 P2 已完成：新增进程内 `RankingTaskExecutionMonitor`，统一记录下载增量同步、all 榜重建、热度快照三个入口的最近开始/结束时间、耗时和未捕获异常类型；`mvnw.cmd "-Dtest=RankingTaskExecutionMonitorTest,RankingSyncTaskTest,HotRankingMaintenanceTaskTest" test` 4 个用例通过。
-- 当前未实现跨实例指标聚合、历史持久化、管理员查询接口、失败告警和遗留 `syncing` 批次监控；本次未新增依赖、接口、Redis Key 或数据库结构。
+- 补强 P3 已完成：下载增量同步改为 UUID 隔离批次，通过 `download_delta_sync_item` 的 `(batch_id, resource_id)` 唯一键与同事务下载量累加实现幂等；已提供初始化建表、可重复迁移和 H2 MyBatis 集成测试。P3 专项 13 个、排行榜关联 19 个及当前全量 113 个测试均通过。
+- 本次未新增依赖、HTTP 接口或前端改动；新增 Redis current 批次指针和幂等明细表。发布前必须排空或人工核对旧 `syncing:active` Hash，且切换窗口不得让旧、新版本调度器并行执行。
 
 ## 基本信息
 

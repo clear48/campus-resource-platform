@@ -6,7 +6,7 @@
 
 已经完成的核心能力包括：Spring Boot 后端基础骨架、统一响应与异常处理、JWT 鉴权、Redis Token 黑名单、用户注册/登录/退出登录/当前用户查询、公开分类查询、文件上传与 MD5 秒传、基于 `fileId` 创建资料、公开资料详情、我的上传资料分页查询、管理员待审核列表、审核通过、审核拒绝、下架资料、审核记录查询、公开资料搜索与热门搜索词写入、登录后下载，以及收藏/取消收藏/收藏状态查询/我的收藏列表。
 
-资料模块首版已经把 `file_info` 物理文件转换为 `resource` 业务主体，审核模块进一步把待审核资料推进到 `APPROVED`、`REJECTED`、`OFFLINE` 状态，并通过 `audit_record` 保留审计流水。搜索模块首版消费 `status = 1 APPROVED` 的公开资料，提供关键词/分类/课程/类型/标签筛选、分页排序，并把非空关键词写入 Redis 热门搜索词 ZSet。收藏模块首版以 MySQL `favorite` 表和唯一索引保证幂等，维护 `resource.favorite_count`，并以 Redis Set 加速状态查询。排行榜与定时任务模块已完成查询、行为热度联动、下载增量同步、all 总榜重建、热度快照和管理员手动重建；总榜重建与实时热度写入已通过 Redisson 读写锁协调，并新增 H2 MySQL 模式 Mapper 集成测试以及进程内任务最近执行快照和统一日志。前端演示模块已完成 T01-T47，真实浏览器验收覆盖认证、上传、审核、搜索、收藏、下载、排行榜和角色边界。排行榜后续若需继续补强，应单独设计跨实例指标聚合、历史持久化、失败告警和遗留 `syncing` 批次监控。
+资料模块首版已经把 `file_info` 物理文件转换为 `resource` 业务主体，审核模块进一步把待审核资料推进到 `APPROVED`、`REJECTED`、`OFFLINE` 状态，并通过 `audit_record` 保留审计流水。搜索模块首版消费 `status = 1 APPROVED` 的公开资料，提供关键词/分类/课程/类型/标签筛选、分页排序，并把非空关键词写入 Redis 热门搜索词 ZSet。收藏模块首版以 MySQL `favorite` 表和唯一索引保证幂等，维护 `resource.favorite_count`，并以 Redis Set 加速状态查询。排行榜与定时任务模块已完成查询、行为热度联动、下载增量同步、all 总榜重建、热度快照和管理员手动重建；下载增量同步已通过 UUID 批次和 MySQL 幂等明细防止 Redis 确认失败后的重复累计，总榜重建与实时热度写入已通过 Redisson 读写锁协调，并新增 H2 MySQL 模式 Mapper 集成测试以及进程内任务最近执行快照和统一日志。前端演示模块已完成 T01-T47，真实浏览器验收覆盖认证、上传、审核、搜索、收藏、下载、排行榜和角色边界。发布前须排空或人工核对遗留 `syncing:active` 批次，且旧、新版本调度器不得并行；后续若需继续补强，应单独设计跨实例指标聚合、历史持久化、失败告警和幂等明细保留期清理。
 
 ### 前端自动队列最新进度
 
@@ -91,7 +91,7 @@
 | `docs/modules/06-search-development-process.md` | 已完成 | 搜索模块开发流程、真实接口、排序白名单、Redis 热词统计、测试记录和后续优化 |
 | `docs/modules/08-favorite-development-process.md` | 已完成 | 收藏模块真实接口、MySQL 幂等、Redis Set、一致性策略和跳过专项测试记录 |
 | `docs/modules/09-rank-development-process.md` | 已完成 | 排行榜查询、热度联动、下载同步、all 榜重建、快照、测试和文档记录 |
-| `docs/database/database-change-log.md` | 已同步 | 记录认证、分类、文件上传、资料、审核、搜索、下载和收藏模块均复用已有生产表结构 |
+| `docs/database/database-change-log.md` | 已同步 | 记录各模块表结构复用情况，以及下载增量同步新增幂等明细表、迁移与发布前置条件 |
 | `README.md` | 已同步 | 启动说明、当前完成模块、测试命令和下一阶段建议 |
 | `docs/frontend/01-frontend-requirements.md` 至 `05-frontend-task-queue.md` | 已完成 | 前端演示需求、页面、API 映射、开发计划和自动任务队列 |
 
@@ -113,6 +113,7 @@
 | `favorite` | 已设计 | 已被收藏模块使用 |
 | `download_record` | 已设计 | 已被下载模块使用 |
 | `audit_record` | 已设计 | 已被审核模块使用 |
+| `download_delta_sync_item` | 已设计 | 已被排行榜下载增量同步用于记录 UUID 批次内已持久化的资料增量，防止重试重复累计 |
 
 ## 5. 后端基础能力
 

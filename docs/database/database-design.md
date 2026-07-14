@@ -26,6 +26,7 @@
 | `resource` | 资料表 | 保存资料业务信息和审核状态 |
 | `favorite` | 收藏表 | 保存用户收藏关系，防止重复收藏 |
 | `download_record` | 下载记录表 | 保存用户下载行为，辅助审计和统计 |
+| `download_delta_sync_item` | 下载增量同步幂等明细表 | 用唯一批次/资料组合防止 Redis 重试重复累计下载量 |
 | `audit_record` | 审核记录表 | 保存管理员审核、拒绝、下架操作记录 |
 
 ## 3. 关联关系设计
@@ -258,6 +259,23 @@
 - MySQL 中的下载记录用于用户历史、审计、防刷分析和后台报表。
 - `user_ip` 使用 `VARCHAR(45)`，因为 IPv6 最长可到 45 个字符。
 
+### 9.4 下载增量同步幂等明细表 `download_delta_sync_item`
+
+| 字段 | 类型 | 约束 | 说明 |
+| --- | --- | --- | --- |
+| `id` | BIGINT | 主键，自增 | 幂等明细 ID |
+| `batch_id` | CHAR(36) | 非空 | Redis 隔离批次 UUID；存量 `syncing:active` 使用 `legacy-active` |
+| `resource_id` | BIGINT | 非空 | 被同步下载量的资料 ID |
+| `delta` | BIGINT | 非空，`> 0` | 该批次资料增量 |
+| `confirmed_at` | DATETIME | 可空 | Redis `HDEL` 成功确认时间 |
+| `created_at` / `updated_at` | DATETIME | 非空 | 创建与最近更新时间 |
+
+索引与约束：
+
+- `uk_download_delta_sync_batch_resource (batch_id, resource_id)`：同一 Redis 批次的同一资料只能首次累加一次，是 MySQL 已提交而 Redis 确认失败时的幂等栅栏。
+- `idx_download_delta_sync_confirmed_created (confirmed_at, created_at)`：为后续按确认状态和保留期清理历史幂等记录预留。
+- 不建立物理外键：同步重试链路不能因资料已被逻辑删除或状态变化而增加跨表约束开销；资料不存在时由 Service 事务回滚并保留 Redis 批次处理。
+
 ## 10. 审核记录表 `audit_record`
 
 ### 10.1 字段说明
@@ -299,6 +317,7 @@
 | `download_count` | `resource` | Redis 下载计数定时同步 MySQL 的落库字段 |
 | `hot_score` | `resource` | Redis 热门排行榜快照字段，可做兜底排序 |
 | `uk_favorite_user_resource` | `favorite` | 防止重复收藏，体现接口幂等设计 |
+| `uk_download_delta_sync_batch_resource` | `download_delta_sync_item` | MySQL 下载同步幂等栅栏，防止确认失败重试重复累计 |
 | `idx_download_user_resource_created` | `download_record` | 支持下载防刷、短时间重复下载判断 |
 | `storage_type/storage_path` | `file_info` | 支持从本地文件迁移到对象存储 |
 

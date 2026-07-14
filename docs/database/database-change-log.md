@@ -1,5 +1,33 @@
 # 数据库变更记录
 
+## 2026-07-14 下载增量同步幂等化
+
+### 变更结论
+
+新增 `download_delta_sync_item` 表及可重复执行迁移 `sql/migrations/20260714_download_delta_sync_idempotency.sql`；不修改既有 `resource`、`download_record` 或任何接口字段。
+
+### 变更原因
+
+原同步流程在 MySQL 事务已提交、Redis `HDEL` 未执行或响应失败时会重试同一 Hash 字段，可能重复累计 `resource.download_count`。新表以 `batch_id + resource_id` 唯一键记录已成功落库的 UUID 批次资料增量；该记录与 `resource.download_count` 原子累加在同一事务中提交，重试命中唯一键后只确认 Redis，不再重复累加。
+
+### 表、索引与迁移
+
+| 项目 | 内容 |
+| --- | --- |
+| 新表 | `download_delta_sync_item` |
+| 主键 | `id` 自增主键 |
+| 业务唯一键 | `uk_download_delta_sync_batch_resource (batch_id, resource_id)` |
+| 清理索引 | `idx_download_delta_sync_confirmed_created (confirmed_at, created_at)` |
+| 初始化 SQL | `sql/init.sql` |
+| 存量库迁移 | `sql/migrations/20260714_download_delta_sync_idempotency.sql`，可重复执行 |
+
+### 兼容性
+
+- HTTP API、JWT 权限、前端请求、Redis 下载增量 Key 与 `resource.download_count` 字段均不变。
+- Redis 新增 current 指针 Key，实际 Hash 使用 UUID 批次；升级前遗留的 `syncing:active` Hash 因缺少历史幂等记录而不能自动重试。发布前必须排空该 Key，或人工核对后处理；当前版本会保留并记录错误，避免重复累计不确定历史数据。
+- 切换期间必须停止旧版本下载同步调度器，确认旧 `syncing:active` 已处理后再启用新版本调度器；旧、新批次协议不可并行运行。
+- 幂等明细本次保留，不在同步成功后立即删除；后续可按 `confirmed_at` 单独设计保留期清理任务。
+
 ## 2026-07-12 排行榜与定时任务模块
 
 ### 变更结论

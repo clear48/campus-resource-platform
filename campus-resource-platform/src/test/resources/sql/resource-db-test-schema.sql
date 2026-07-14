@@ -1,4 +1,5 @@
 DROP TABLE IF EXISTS audit_record;
+DROP TABLE IF EXISTS download_delta_sync_item;
 DROP TABLE IF EXISTS `resource`;
 DROP TABLE IF EXISTS file_info;
 DROP TABLE IF EXISTS category;
@@ -59,6 +60,19 @@ CREATE TABLE `resource` (
   KEY idx_resource_status_created (status, created_at),
   KEY idx_resource_uploader_status (uploader_id, status, created_at),
   KEY idx_resource_file (file_id)
+);
+
+CREATE TABLE download_delta_sync_item (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  batch_id CHAR(36) NOT NULL,
+  resource_id BIGINT NOT NULL,
+  delta BIGINT NOT NULL,
+  confirmed_at DATETIME,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_download_delta_sync_batch_resource (batch_id, resource_id),
+  KEY idx_download_delta_sync_confirmed_created (confirmed_at, created_at)
 );
 
 CREATE TABLE audit_record (
