@@ -7,6 +7,11 @@
 - 未移动 `campus-resource-platform/data/` 下的运行时上传资料，也未删除本地工具、构建或依赖缓存目录。
 - 已通过 Markdown 本地链接检查、前端全量单测与构建、后端跳过测试编译；本次仅调整文档与接口调试资料路径。
 
+## 2026-07-14 排行榜与定时任务补强
+
+- 已完成 P1：`RankingMapperIntegrationTest` 在 H2 MySQL 模式下验证 `ResourceMapper.xml` 的公开资料过滤、热度兜底排序、主键游标扫描和 APPROVED 热度快照更新。
+- P2 尚未开始：为 `RankingSyncTask` 和 `HotRankingMaintenanceTask` 增加最近执行状态的可观测性；不应修改数据库表结构或新增依赖。
+
 ## 当前分支
 
 | 项目 | 内容 |

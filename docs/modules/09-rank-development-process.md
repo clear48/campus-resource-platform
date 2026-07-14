@@ -1,5 +1,7 @@
 # 排行榜与定时任务模块开发流程文档
 
+> 2026-07-14 补强迭代：先补齐排行榜 Mapper 的 H2 MySQL 模式集成测试，验证公开过滤、Redis 候选补齐、MySQL 热度兜底、主键游标扫描与热度快照写回；本步骤不修改接口、数据库表结构、Redis Key 或依赖。
+
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
 > 当前状态：**步骤 1 至步骤 9、11、12 已完成；步骤 10 按用户要求跳过**。排行榜已具备查询、行为热度联动、下载增量同步、all 总榜缺失重建、热度快照和管理员手动重建能力。
 > 当前尚未实现排行榜 Mapper 集成测试、运行指标或数据库结构变更。
@@ -568,12 +570,13 @@ MySQL 查询 APPROVED 资料
 - 【步骤 10】按用户明确要求跳过；未新增排行榜 Mapper 集成测试或其他测试代码。步骤 9 已完成的 7 个专项测试和全量 94 个测试仍为当前真实验证记录。
 - 【步骤 11】已同步 API、Redis、项目进度、README 和数据库变更记录；明确复用既有 `resource` 表，无生产数据库结构变更。提交为 `6973a59 docs(rank): sync ranking module documentation`，已推送到 `origin/dev`。
 - 【步骤 12】已基于当前真实代码更新本流程文档的状态、调用关系、事务/一致性边界、测试记录、文件记录、待办事项和提交记录；提交为 `7bdb765 docs(rank): finalize ranking process status`，已推送到 `origin/dev`。
+- 【补强 P1】已新增 `RankingMapperIntegrationTest`，在 H2 MySQL 模式执行真实 `ResourceMapper.xml`，覆盖 Redis 候选补齐的 APPROVED/分类过滤、MySQL 热度兜底固定排序、主键游标扫描与仅 APPROVED 资料可写入热度快照。
 
 ---
 
 ## 19. 待完成事项
 
-- 排行榜 Mapper 集成测试按步骤 10 的用户要求跳过；如后续恢复该任务，应覆盖游标分页、`status = 1` 过滤和 `hot_score` 更新 SQL。
+- 定时任务运行指标、失败告警和遗留 `syncing` 批次监控尚未实现；当前仅具备任务触发单测和 Service 日志。
 - 在实现前统一 `docs/api/api-reference.md` 中 Redis Key 示例的旧前缀写法，最终以 `crp:` 规范和 `RedisKeyConstants` 为准。
 - 当前同步采用“优先不丢数据”的至少一次语义：若 MySQL 事务已提交但随后 Redis `HDEL` 失败，遗留字段可能被重复累加；后续可通过持久化批次记录或幂等流水进一步收敛这一边界。
 - 确定热门搜索词 Redis 故障时“返回空列表”与 API 文档 `50001` 描述的最终口径。
@@ -678,6 +681,7 @@ cd campus-resource-platform
 | `.\mvnw.cmd clean test`（Redisson 看门狗改造后） | 通过，87 个测试，0 失败、0 错误、0 跳过；Spring 上下文测试关闭真实定时同步，Redisson 依赖不要求测试环境连接 Redis |
 | `.\mvnw.cmd -Dtest=HotRankingMaintenanceServiceImplTest,HotScoreSnapshotPersistenceServiceImplTest,HotRankingMaintenanceTaskTest test`（步骤 9） | 通过，7 个测试，0 失败、0 错误、0 跳过；覆盖总榜重建、原子替换、锁竞争、脏成员跳过、快照持久化与任务触发 |
 | `.\mvnw.cmd test`（步骤 9 后） | 通过，94 个测试，0 失败、0 错误、0 跳过 |
+| `.\mvnw.cmd -Dtest=RankingMapperIntegrationTest test`（补强 P1） | 通过，3 个测试，0 失败、0 错误、0 跳过；真实 XML 已覆盖公开过滤、热度兜底、游标扫描和快照更新 SQL |
 
 ---
 
@@ -750,6 +754,7 @@ cd campus-resource-platform
 | `campus-resource-platform/src/test/java/com/john/campus/service/HotRankingMaintenanceServiceImplTest.java` | 新增 | 覆盖重建、公式、锁竞争、原子替换和脏成员 |
 | `campus-resource-platform/src/test/java/com/john/campus/service/HotScoreSnapshotPersistenceServiceImplTest.java` | 新增 | 覆盖快照 Mapper 写入及异常传播 |
 | `campus-resource-platform/src/test/java/com/john/campus/task/HotRankingMaintenanceTaskTest.java` | 新增 | 覆盖总榜维护任务委托调用 |
+| `campus-resource-platform/src/test/java/com/john/campus/mapper/RankingMapperIntegrationTest.java` | 新增 | 使用 H2 MySQL 模式验证排行榜 Mapper 的公开过滤、固定排序、主键游标扫描和热度快照更新 |
 
 ### 21.2 步骤 2、3、4、5、6、7、8 明确未修改或未涉及
 

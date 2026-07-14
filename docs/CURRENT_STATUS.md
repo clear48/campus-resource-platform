@@ -7,6 +7,11 @@
 - 后端工程目录、前端工程目录、`sql/` 与运行时用户上传资料未移动；本次不修改 Java 代码、接口、数据库结构或 Redis 配置。
 - 已通过 Markdown 本地链接检查、`npm run test:unit`（31 文件、66 用例）、`npm run build` 与 `mvnw.cmd -DskipTests compile` 验证。
 
+## 排行榜与定时任务补强（2026-07-14）
+
+- 补强 P1 已完成：新增 `RankingMapperIntegrationTest`，真实验证排行榜候选公开过滤、MySQL 兜底排序、游标扫描和热度快照写回；`mvnw.cmd -Dtest=RankingMapperIntegrationTest test` 3 个用例通过。
+- 后续 P2：补充定时任务最近执行结果的可观测性，不修改数据库表结构、不新增依赖。
+
 ## 基本信息
 
 | 项目 | 当前状态 |
