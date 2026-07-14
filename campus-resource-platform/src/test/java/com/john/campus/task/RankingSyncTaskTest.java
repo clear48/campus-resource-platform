@@ -1,5 +1,8 @@
 package com.john.campus.task;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 
 import com.john.campus.service.DownloadDeltaSyncService;
@@ -16,13 +19,21 @@ class RankingSyncTaskTest {
 
     @Mock
     private DownloadDeltaSyncService downloadDeltaSyncService;
+    @Mock
+    private RankingTaskExecutionMonitor taskExecutionMonitor;
 
     @Test
     void shouldDelegateToDownloadDeltaSyncService() {
-        RankingSyncTask task = new RankingSyncTask(downloadDeltaSyncService);
+        // Mock 监控器需要主动执行 Runnable，才能同时验证调度观测与原有 Service 委派没有被替换。
+        doAnswer(invocation -> {
+            invocation.getArgument(1, Runnable.class).run();
+            return null;
+        }).when(taskExecutionMonitor).execute(eq(RankingTaskExecutionMonitor.DOWNLOAD_DELTA_SYNC), any(Runnable.class));
+        RankingSyncTask task = new RankingSyncTask(downloadDeltaSyncService, taskExecutionMonitor);
 
         task.syncDownloadDeltas();
 
+        verify(taskExecutionMonitor).execute(eq(RankingTaskExecutionMonitor.DOWNLOAD_DELTA_SYNC), any(Runnable.class));
         verify(downloadDeltaSyncService).syncDownloadDeltas();
     }
 }

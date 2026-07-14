@@ -18,7 +18,8 @@
 ## 排行榜与定时任务补强（2026-07-14）
 
 - 补强 P1 已完成：新增 `RankingMapperIntegrationTest`，真实验证排行榜候选公开过滤、MySQL 兜底排序、游标扫描和热度快照写回；`mvnw.cmd -Dtest=RankingMapperIntegrationTest test` 3 个用例通过。
-- 后续 P2：补充定时任务最近执行结果的可观测性，不修改数据库表结构、不新增依赖。
+- 补强 P2 已完成：新增进程内 `RankingTaskExecutionMonitor`，统一记录下载增量同步、all 榜重建、热度快照三个入口的最近开始/结束时间、耗时和未捕获异常类型；`mvnw.cmd "-Dtest=RankingTaskExecutionMonitorTest,RankingSyncTaskTest,HotRankingMaintenanceTaskTest" test` 4 个用例通过。
+- 当前未实现跨实例指标聚合、历史持久化、管理员查询接口、失败告警和遗留 `syncing` 批次监控；本次未新增依赖、接口、Redis Key 或数据库结构。
 
 ## 基本信息
 

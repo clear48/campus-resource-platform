@@ -18,7 +18,8 @@
 ## 2026-07-14 排行榜与定时任务补强
 
 - 已完成 P1：`RankingMapperIntegrationTest` 在 H2 MySQL 模式下验证 `ResourceMapper.xml` 的公开资料过滤、热度兜底排序、主键游标扫描和 APPROVED 热度快照更新。
-- P2 尚未开始：为 `RankingSyncTask` 和 `HotRankingMaintenanceTask` 增加最近执行状态的可观测性；不应修改数据库表结构或新增依赖。
+- 已完成 P2：`RankingTaskExecutionMonitor` 以当前应用实例内最近快照记录下载增量同步、all 榜重建和热度快照任务的开始/结束时间、耗时及未捕获异常类型；调度入口已接入统一日志，任务触发与监控单测共 4 个用例通过。
+- 后续如需继续，应单独设计跨实例指标聚合、历史持久化、管理员查询接口、失败告警和遗留 `syncing` 批次监控；不应直接复用进程内快照作为跨实例运维数据。
 
 ## 当前分支
 

@@ -2,9 +2,11 @@
 
 > 2026-07-14 补强迭代：先补齐排行榜 Mapper 的 H2 MySQL 模式集成测试，验证公开过滤、Redis 候选补齐、MySQL 热度兜底、主键游标扫描与热度快照写回；本步骤不修改接口、数据库表结构、Redis Key 或依赖。
 
+> 补强 P2 计划：增加进程内任务执行监控，统一记录下载增量同步、all 榜缺失重建和热度快照三个调度入口的最近开始/结束时间、耗时及未捕获异常摘要；不新增 HTTP 接口、数据库表、Redis Key 或依赖。Service 已捕获并自行降级的可恢复异常仍以原有日志为准，监控状态只表示调度委派是否正常返回。
+
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
 > 当前状态：**步骤 1 至步骤 9、11、12 已完成；步骤 10 按用户要求跳过**。排行榜已具备查询、行为热度联动、下载增量同步、all 总榜缺失重建、热度快照和管理员手动重建能力。
-> 当前尚未实现排行榜 Mapper 集成测试、运行指标或数据库结构变更。
+> 补强 P1 已完成真实 Mapper 集成测试；补强 P2 已完成进程内最近任务执行快照与统一日志。当前未实现跨实例任务指标聚合、历史持久化、失败告警或数据库结构变更。
 
 ---
 
@@ -292,7 +294,7 @@ idx_resource_hot (status, hot_score, download_count)
 | controller | `AdminRankingController` | `POST /api/v1/admin/rankings/resources/hot/rebuild` 管理员手动重建入口 | 已实现 |
 | config/application | 启动类、`application.yaml` 与 `RedissonConfig` | 启用 Spring Scheduling，集中配置频率、单批上限与 Redisson 看门狗超时 | 已实现 |
 | test | `RankingPeriodTest` | 校验周期 TTL、热词边界与排行榜 Key 格式 | 已实现 |
-| test | `RankingControllerTest`、`AdminRankingControllerTest`、`RankingServiceImplTest`、`AdminRankingServiceImplTest`、`DownloadDeltaSyncServiceImplTest`、`HotRankingMaintenanceServiceImplTest`、`HotScoreSnapshotPersistenceServiceImplTest`、`HotRankingMaintenanceTaskTest` 等 | 已覆盖接口、管理员权限、热度行为、下载同步、总榜重建、读写锁协调、脏成员跳过、快照持久化与任务触发；Mapper 集成测试待后续补齐 | 部分已实现 |
+| test | `RankingControllerTest`、`AdminRankingControllerTest`、`RankingServiceImplTest`、`AdminRankingServiceImplTest`、`DownloadDeltaSyncServiceImplTest`、`HotRankingMaintenanceServiceImplTest`、`HotScoreSnapshotPersistenceServiceImplTest`、`RankingMapperIntegrationTest`、`RankingTaskExecutionMonitorTest`、`HotRankingMaintenanceTaskTest` 等 | 已覆盖接口、管理员权限、热度行为、下载同步、总榜重建、读写锁协调、脏成员跳过、快照持久化、真实 Mapper SQL、任务委派与最近执行快照 | 已实现 |
 
 > 项目现有约定要求 Spring Service 使用“接口 + 实现”。定时任务只负责触发，带事务的同步逻辑必须放入独立 Service，由 Spring 代理调用，避免同类自调用导致事务失效。
 
@@ -571,12 +573,13 @@ MySQL 查询 APPROVED 资料
 - 【步骤 11】已同步 API、Redis、项目进度、README 和数据库变更记录；明确复用既有 `resource` 表，无生产数据库结构变更。提交为 `6973a59 docs(rank): sync ranking module documentation`，已推送到 `origin/dev`。
 - 【步骤 12】已基于当前真实代码更新本流程文档的状态、调用关系、事务/一致性边界、测试记录、文件记录、待办事项和提交记录；提交为 `7bdb765 docs(rank): finalize ranking process status`，已推送到 `origin/dev`。
 - 【补强 P1】已新增 `RankingMapperIntegrationTest`，在 H2 MySQL 模式执行真实 `ResourceMapper.xml`，覆盖 Redis 候选补齐的 APPROVED/分类过滤、MySQL 热度兜底固定排序、主键游标扫描与仅 APPROVED 资料可写入热度快照。
+- 【补强 P2】已新增 `RankingTaskExecutionMonitor`，以进程内不可变快照记录下载增量同步、all 榜缺失重建和热度快照三个调度入口的最近开始/结束时间、耗时与未捕获异常类型，并在任务委派正常返回或异常抛出时输出统一日志。快照仅代表调度层的委派结果；Service 自行捕获并降级的 Redis 等可恢复异常仍以原有业务日志为准。
 
 ---
 
 ## 19. 待完成事项
 
-- 定时任务运行指标、失败告警和遗留 `syncing` 批次监控尚未实现；当前仅具备任务触发单测和 Service 日志。
+- 已具备单实例最近执行快照和统一耗时/未捕获异常日志；尚未实现跨实例指标聚合、历史持久化、管理员查询接口、失败告警和遗留 `syncing` 批次监控。
 - 在实现前统一 `docs/api/api-reference.md` 中 Redis Key 示例的旧前缀写法，最终以 `crp:` 规范和 `RedisKeyConstants` 为准。
 - 当前同步采用“优先不丢数据”的至少一次语义：若 MySQL 事务已提交但随后 Redis `HDEL` 失败，遗留字段可能被重复累加；后续可通过持久化批次记录或幂等流水进一步收敛这一边界。
 - 确定热门搜索词 Redis 故障时“返回空列表”与 API 文档 `50001` 描述的最终口径。
@@ -682,6 +685,7 @@ cd campus-resource-platform
 | `.\mvnw.cmd -Dtest=HotRankingMaintenanceServiceImplTest,HotScoreSnapshotPersistenceServiceImplTest,HotRankingMaintenanceTaskTest test`（步骤 9） | 通过，7 个测试，0 失败、0 错误、0 跳过；覆盖总榜重建、原子替换、锁竞争、脏成员跳过、快照持久化与任务触发 |
 | `.\mvnw.cmd test`（步骤 9 后） | 通过，94 个测试，0 失败、0 错误、0 跳过 |
 | `.\mvnw.cmd -Dtest=RankingMapperIntegrationTest test`（补强 P1） | 通过，3 个测试，0 失败、0 错误、0 跳过；真实 XML 已覆盖公开过滤、热度兜底、游标扫描和快照更新 SQL |
+| `.\mvnw.cmd "-Dtest=RankingTaskExecutionMonitorTest,RankingSyncTaskTest,HotRankingMaintenanceTaskTest" test`（补强 P2） | 通过，4 个测试，0 失败、0 错误、0 跳过；覆盖调度正常完成、异常记录、任务名称映射和三个调度入口的实际委派 |
 
 ---
 
@@ -755,6 +759,14 @@ cd campus-resource-platform
 | `campus-resource-platform/src/test/java/com/john/campus/service/HotScoreSnapshotPersistenceServiceImplTest.java` | 新增 | 覆盖快照 Mapper 写入及异常传播 |
 | `campus-resource-platform/src/test/java/com/john/campus/task/HotRankingMaintenanceTaskTest.java` | 新增 | 覆盖总榜维护任务委托调用 |
 | `campus-resource-platform/src/test/java/com/john/campus/mapper/RankingMapperIntegrationTest.java` | 新增 | 使用 H2 MySQL 模式验证排行榜 Mapper 的公开过滤、固定排序、主键游标扫描和热度快照更新 |
+| `campus-resource-platform/src/main/java/com/john/campus/task/TaskExecutionStatus.java` | 新增 | 定义调度入口的运行中、完成和未捕获异常三种最近执行状态 |
+| `campus-resource-platform/src/main/java/com/john/campus/task/TaskExecutionSnapshot.java` | 新增 | 定义仅保存在当前应用实例内的任务最近执行不可变快照 |
+| `campus-resource-platform/src/main/java/com/john/campus/task/RankingTaskExecutionMonitor.java` | 新增 | 统一记录三个排行榜调度入口的开始/结束时间、耗时、异常类型与日志 |
+| `campus-resource-platform/src/main/java/com/john/campus/task/RankingSyncTask.java` | 修改 | 将下载增量同步委派纳入统一任务执行监控 |
+| `campus-resource-platform/src/main/java/com/john/campus/task/HotRankingMaintenanceTask.java` | 修改 | 将 all 榜重建和热度快照委派纳入统一任务执行监控 |
+| `campus-resource-platform/src/test/java/com/john/campus/task/RankingTaskExecutionMonitorTest.java` | 新增 | 覆盖正常完成快照、异常快照和异常继续向调度框架传播 |
+| `campus-resource-platform/src/test/java/com/john/campus/task/RankingSyncTaskTest.java` | 修改 | 覆盖下载增量同步任务委派已纳入统一监控 |
+| `campus-resource-platform/src/test/java/com/john/campus/task/HotRankingMaintenanceTaskTest.java` | 修改 | 覆盖 all 榜重建与热度快照任务委派已纳入统一监控 |
 
 ### 21.2 步骤 2、3、4、5、6、7、8 明确未修改或未涉及
 
@@ -764,8 +776,8 @@ cd campus-resource-platform
 
 ### 21.3 后续计划修改（尚未发生）
 
-- 排行榜 Mapper 集成测试（步骤 10 已按用户要求跳过，后续如恢复需单独执行）。
-- 任务运行指标、失败告警、管理员手动重建接口和热度时间衰减策略。
+- 跨实例任务指标聚合、历史持久化、管理员查询接口、失败告警和遗留 `syncing` 批次监控。
+- 热度时间衰减策略。
 
 ---
 

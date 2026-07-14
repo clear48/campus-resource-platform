@@ -17,9 +17,14 @@ public class RankingSyncTask {
 
     /** 下载增量同步业务由独立 Service 承担，确保事务通过 Spring 代理生效。 */
     private final DownloadDeltaSyncService downloadDeltaSyncService;
+    /** 调度监控只记录入口耗时和未捕获异常，不参与下载增量的锁、批次或事务处理。 */
+    private final RankingTaskExecutionMonitor taskExecutionMonitor;
 
-    public RankingSyncTask(DownloadDeltaSyncService downloadDeltaSyncService) {
+    public RankingSyncTask(
+            DownloadDeltaSyncService downloadDeltaSyncService,
+            RankingTaskExecutionMonitor taskExecutionMonitor) {
         this.downloadDeltaSyncService = downloadDeltaSyncService;
+        this.taskExecutionMonitor = taskExecutionMonitor;
     }
 
     /**
@@ -27,6 +32,8 @@ public class RankingSyncTask {
      */
     @Scheduled(fixedDelayString = "${rank.sync.download-delta.fixed-delay-ms:60000}")
     public void syncDownloadDeltas() {
-        downloadDeltaSyncService.syncDownloadDeltas();
+        taskExecutionMonitor.execute(
+                RankingTaskExecutionMonitor.DOWNLOAD_DELTA_SYNC,
+                downloadDeltaSyncService::syncDownloadDeltas);
     }
 }
