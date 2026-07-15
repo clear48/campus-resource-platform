@@ -29,7 +29,7 @@ public interface DownloadService {
      * @param downloadRecordId 下载记录 ID，路径参数，必须为正整数
      * @return 文件输入流及响应头所需元数据
      */
-    DownloadFileInfo loadFile(Long downloadRecordId);
+    DownloadFileInfo loadFile(Long downloadRecordId, String downloadTicket);
 
     /**
      * 分页查询当前登录用户的下载记录，不接受前端传入 userId，避免越权。

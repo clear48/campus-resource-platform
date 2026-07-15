@@ -20,6 +20,12 @@ import com.john.campus.service.RankingService;
 import com.john.campus.vo.DownloadTicketVO;
 import com.john.campus.vo.MyDownloadRecordVO;
 import java.time.Duration;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -28,6 +34,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 /**
@@ -43,6 +50,24 @@ public class DownloadServiceImpl implements DownloadService {
      * 同用户同资料重复下载去重 TTL，10 分钟内同一用户下载同一资料不重复计入下载量和热度。
      */
     private static final Duration DEDUP_TTL = Duration.ofMinutes(10);
+    /**
+     * 票据只覆盖前端完成第二步文件请求所需的短窗口，过期后必须重新经过下载限流。
+     */
+    private static final Duration DOWNLOAD_TICKET_TTL = Duration.ofSeconds(60);
+    private static final int DOWNLOAD_TICKET_RANDOM_BYTES = 32;
+    private static final String DOWNLOAD_TICKET_PATTERN = "^[A-Za-z0-9_-]{43}$";
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    /**
+     * 原子消费一次性票据，保证同一票据在并发请求中最多只有一个请求成功。
+     */
+    private static final DefaultRedisScript<Long> CONSUME_DOWNLOAD_TICKET_SCRIPT =
+            new DefaultRedisScript<>("""
+                    if redis.call('EXISTS', KEYS[1]) == 0 then
+                        return 0
+                    end
+                    redis.call('DEL', KEYS[1])
+                    return 1
+                    """, Long.class);
     private static final int DEFAULT_PAGE_NO = 1;
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
@@ -116,6 +141,9 @@ public class DownloadServiceImpl implements DownloadService {
         record.setDownloadStatus(DownloadRecord.STATUS_SUCCESS);
         downloadRecordMapper.insert(record);
 
+        // 数据库记录只负责审计；真正的文件访问权由短期、随机、一次性的 Redis 票据承担。
+        String downloadTicket = createDownloadTicket(userId, record.getId());
+
         // 去重判断：去重 Key 命中期内不重复计入下载量，但允许下载本身。
         boolean counted = tryCountDownload(userId, resourceId);
         if (counted) {
@@ -126,10 +154,11 @@ public class DownloadServiceImpl implements DownloadService {
         String downloadUrl = String.format(DOWNLOAD_FILE_PATH_FORMAT, record.getId());
         return new DownloadTicketVO(
                 record.getId(),
+                downloadTicket,
                 resourceId,
                 fileInfo.getId(),
                 downloadUrl,
-                null,
+                DOWNLOAD_TICKET_TTL.toSeconds(),
                 counted);
     }
 
@@ -167,19 +196,33 @@ public class DownloadServiceImpl implements DownloadService {
      * 不在事务中执行文件 IO，避免事务持有数据库连接等待磁盘读取。
      */
     @Override
-    public DownloadFileInfo loadFile(Long downloadRecordId) {
+    public DownloadFileInfo loadFile(Long downloadRecordId, String downloadTicket) {
         if (downloadRecordId == null || downloadRecordId <= 0) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "下载记录 ID 不合法");
         }
+        if (downloadTicket == null || !downloadTicket.matches(DOWNLOAD_TICKET_PATTERN)) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "下载票据格式不合法");
+        }
+
+        LoginUser currentUser = UserContextHolder.getRequired();
+        consumeDownloadTicket(currentUser.userId(), downloadRecordId, downloadTicket);
 
         DownloadRecord record = downloadRecordMapper.selectById(downloadRecordId);
         if (record == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "下载记录不存在");
         }
 
-        LoginUser currentUser = UserContextHolder.getRequired();
-        if (!currentUser.userId().equals(record.getUserId()) && !currentUser.isAdmin()) {
+        if (!currentUser.userId().equals(record.getUserId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问该下载记录");
+        }
+
+        // 票据签发后资料仍可能被管理员下架，真正取流前必须以 MySQL 当前状态为准。
+        Resource resource = resourceMapper.selectById(record.getResourceId());
+        if (resource == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "资料不存在");
+        }
+        if (!resource.isApproved() || !Objects.equals(resource.getFileId(), record.getFileId())) {
+            throw new BusinessException(ErrorCode.RESOURCE_STATUS_INVALID, "资料已下架或文件已变更，不能继续下载");
         }
 
         FileInfo fileInfo = fileInfoMapper.selectNormalById(record.getFileId());
@@ -193,6 +236,57 @@ public class DownloadServiceImpl implements DownloadService {
                 fileInfo.getOriginalName(),
                 fileInfo.getMimeType(),
                 fileResource.contentLength());
+    }
+
+    /**
+     * 签发随机票据时只把 SHA-256 摘要写入 Redis；Redis 故障必须失败关闭，不能回退到长期记录 ID。
+     */
+    private String createDownloadTicket(Long userId, Long downloadRecordId) {
+        for (int attempt = 0; attempt < 3; attempt++) {
+            byte[] randomBytes = new byte[DOWNLOAD_TICKET_RANDOM_BYTES];
+            SECURE_RANDOM.nextBytes(randomBytes);
+            String ticket = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+            String ticketKey = RedisKeyConstants.downloadTicket(userId, downloadRecordId, sha256(ticket));
+            try {
+                Boolean created = stringRedisTemplate.opsForValue()
+                        .setIfAbsent(ticketKey, "1", DOWNLOAD_TICKET_TTL);
+                if (Boolean.TRUE.equals(created)) {
+                    return ticket;
+                }
+            } catch (RuntimeException ex) {
+                throw new BusinessException(ErrorCode.SERVER_ERROR, "下载票据服务暂不可用");
+            }
+        }
+        throw new BusinessException(ErrorCode.SERVER_ERROR, "下载票据生成失败");
+    }
+
+    /**
+     * 先按当前用户、记录和票据摘要定位 Key，再通过 Lua 原子删除；无效、过期和重放统一拒绝。
+     */
+    private void consumeDownloadTicket(Long userId, Long downloadRecordId, String downloadTicket) {
+        String ticketKey = RedisKeyConstants.downloadTicket(userId, downloadRecordId, sha256(downloadTicket));
+        try {
+            Long consumed = stringRedisTemplate.execute(
+                    CONSUME_DOWNLOAD_TICKET_SCRIPT,
+                    List.of(ticketKey));
+            if (!Long.valueOf(1L).equals(consumed)) {
+                throw new BusinessException(ErrorCode.RESOURCE_STATUS_INVALID, "下载票据无效、已过期或已使用");
+            }
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            throw new BusinessException(ErrorCode.SERVER_ERROR, "下载票据服务暂不可用");
+        }
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException ex) {
+            // SHA-256 是 Java 标准算法；若运行时缺失，属于不可恢复的环境错误。
+            throw new IllegalStateException("SHA-256 is unavailable", ex);
+        }
     }
 
     /**

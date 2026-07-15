@@ -36,7 +36,7 @@ describe('MyDownloadsView', () => {
       total: 1,
       pages: 1,
     })
-    vi.mocked(createDownloadRecord).mockResolvedValue({ downloadRecordId: 60002, resourceId: 20001, fileId: 30001, downloadUrl: '/api/v1/download-records/60002/file', expireSeconds: null, counted: false })
+    vi.mocked(createDownloadRecord).mockResolvedValue({ downloadRecordId: 60002, resourceId: 20001, fileId: 30001, downloadUrl: '/api/v1/download-records/60002/file', downloadTicket: 'history-ticket', expireSeconds: 60, counted: false })
     vi.mocked(downloadFile).mockResolvedValue({ blob: new Blob(['file']), fileName: '数据结构.pdf', contentType: 'application/pdf' })
   })
 
@@ -65,7 +65,7 @@ describe('MyDownloadsView', () => {
     await wrapper.get('[data-test="redownload-20001"]').trigger('click')
     await flushPromises()
     expect(createDownloadRecord).toHaveBeenCalledWith(20001)
-    expect(downloadFile).toHaveBeenCalledWith(60002)
+    expect(downloadFile).toHaveBeenCalledWith(60002, 'history-ticket')
     expect(saveDownloadBlob).toHaveBeenCalledWith(expect.any(Blob), '数据结构.pdf')
     expect(wrapper.text()).toContain('重复下载未重复计入统计')
   })

@@ -41,7 +41,7 @@ describe('ResourceDetailView', () => {
     getFavoriteStatus.mockResolvedValue({ resourceId: 20001, favorited: false })
     addFavorite.mockResolvedValue({ resourceId: 20001, favorited: true, duplicateIgnored: false, favoriteCount: 36, hotScoreDelta: 0 })
     removeFavorite.mockResolvedValue({ resourceId: 20001, favorited: false, duplicateIgnored: false, favoriteCount: 35, hotScoreDelta: 0 })
-    createDownloadRecord.mockResolvedValue({ downloadRecordId: 60001, resourceId: 20001, fileId: 30001, downloadUrl: '/api/v1/download-records/60001/file', expireSeconds: null, counted: false })
+    createDownloadRecord.mockResolvedValue({ downloadRecordId: 60001, resourceId: 20001, fileId: 30001, downloadUrl: '/api/v1/download-records/60001/file', downloadTicket: 'detail-ticket', expireSeconds: 60, counted: false })
     downloadFile.mockResolvedValue({ blob: new Blob(['file']), fileName: '数据结构.pdf', contentType: 'application/pdf' })
   })
 
@@ -108,7 +108,7 @@ describe('ResourceDetailView', () => {
     await flushPromises()
 
     expect(createDownloadRecord).toHaveBeenCalledWith(20001)
-    expect(downloadFile).toHaveBeenCalledWith(60001)
+    expect(downloadFile).toHaveBeenCalledWith(60001, 'detail-ticket')
     expect(saveDownloadBlob).toHaveBeenCalledWith(expect.any(Blob), '数据结构.pdf')
     expect(wrapper.text()).toContain('重复下载未重复计入统计')
   })

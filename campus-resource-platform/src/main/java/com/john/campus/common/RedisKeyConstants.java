@@ -46,6 +46,11 @@ public final class RedisKeyConstants {
     public static final String DOWNLOAD_DEDUP = "crp:dedup:download:%d:%d";
 
     /**
+     * 一次性下载票据 Key。只保存随机票据摘要，避免 Redis 数据泄露后直接重放明文票据。
+     */
+    public static final String DOWNLOAD_TICKET = "crp:download:ticket:%d:%d:%s";
+
+    /**
      * 下载量临时增量统计 Key，Hash 结构，field 为 resourceId，value 为待同步 MySQL 的下载增量。
      * 不主动设置 TTL，由后续定时任务同步到 MySQL 后主动 HDEL，避免统计丢失。
      */
@@ -140,6 +145,13 @@ public final class RedisKeyConstants {
      */
     public static String downloadDedup(long userId, long resourceId) {
         return String.format(DOWNLOAD_DEDUP, userId, resourceId);
+    }
+
+    /**
+     * 票据同时绑定用户和下载记录，错误用户或错误记录不会消费另一张合法票据。
+     */
+    public static String downloadTicket(long userId, long downloadRecordId, String ticketDigest) {
+        return String.format(DOWNLOAD_TICKET, userId, downloadRecordId, ticketDigest);
     }
 
     /**

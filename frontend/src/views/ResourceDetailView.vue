@@ -123,7 +123,7 @@ async function startDownload() {
 
   try {
     const record = await createDownloadRecord(resourceId)
-    const file = await downloadFile(record.downloadRecordId)
+    const file = await downloadFile(record.downloadRecordId, record.downloadTicket)
 
     saveDownloadBlob(file.blob, file.fileName)
     downloadNotice.value = record.counted ? '下载已开始，本次下载已计入统计。' : '下载已开始，重复下载未重复计入统计。'

@@ -9,9 +9,13 @@ export function createDownloadRecord(resourceId: number): Promise<DownloadRecord
 }
 
 /** 第二步按下载记录请求二进制流，不能使用普通 JSON 解包请求层。 */
-export async function downloadFile(downloadRecordId: number): Promise<DownloadFileResult> {
+export async function downloadFile(downloadRecordId: number, downloadTicket: string): Promise<DownloadFileResult> {
   try {
-    const response = await httpClient.get<Blob>(`/download-records/${downloadRecordId}/file`, { responseType: 'blob' })
+    const response = await httpClient.get<Blob>(`/download-records/${downloadRecordId}/file`, {
+      responseType: 'blob',
+      // 票据不进入 URL，避免被浏览器历史、代理日志或 Referer 记录。
+      headers: { 'X-Download-Ticket': downloadTicket },
+    })
     const contentDisposition = response.headers['content-disposition']
     const contentType = response.headers['content-type']
 

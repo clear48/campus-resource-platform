@@ -68,7 +68,7 @@ async function redownload(resourceId: number) {
 
   try {
     const record = await createDownloadRecord(resourceId)
-    const file = await downloadFile(record.downloadRecordId)
+    const file = await downloadFile(record.downloadRecordId, record.downloadTicket)
 
     // fileName 已由下载 API 从响应头解析，不能前端猜测或拼接存储路径。
     saveDownloadBlob(file.blob, file.fileName)

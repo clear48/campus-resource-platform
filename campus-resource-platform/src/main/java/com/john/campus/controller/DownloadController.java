@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -30,6 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1")
 public class DownloadController {
+
+    public static final String DOWNLOAD_TICKET_HEADER = "X-Download-Ticket";
 
     private final DownloadService downloadService;
 
@@ -55,8 +58,9 @@ public class DownloadController {
      */
     @GetMapping("/download-records/{downloadRecordId}/file")
     public ResponseEntity<InputStreamResource> downloadFile(
-            @PathVariable Long downloadRecordId) {
-        DownloadFileInfo fileInfo = downloadService.loadFile(downloadRecordId);
+            @PathVariable Long downloadRecordId,
+            @RequestHeader(DOWNLOAD_TICKET_HEADER) String downloadTicket) {
+        DownloadFileInfo fileInfo = downloadService.loadFile(downloadRecordId, downloadTicket);
 
         String contentType = StringUtils.hasText(fileInfo.mimeType())
                 ? fileInfo.mimeType()

@@ -1207,7 +1207,8 @@ Authorization: Bearer eyJhbG...
     "resourceId": 20001,
     "fileId": 30001,
     "downloadUrl": "/api/v1/download-records/60001/file",
-    "expireSeconds": null,
+    "downloadTicket": "一次性随机票据",
+    "expireSeconds": 60,
     "counted": true
   },
   "traceId": "down0001"
@@ -1220,8 +1221,9 @@ Authorization: Bearer eyJhbG...
 | --- | --- |
 | `downloadRecordId` | 下载记录 ID，请求文件流时作为路径参数 |
 | `downloadUrl` | 文件流下载地址 |
+| `downloadTicket` | 一次性下载票据；仅在本次响应中返回，使用后立即失效 |
 | `counted` | `true` 表示本次下载计入了下载量；去重期内重复下载返回 `false` |
-| `expireSeconds` | 下载地址有效期，首版暂未实现过期机制，始终为 `null` |
+| `expireSeconds` | 一次性下载票据有效期，当前为 60 秒 |
 
 实现说明：
 
@@ -1251,7 +1253,7 @@ Authorization: Bearer eyJhbG...
 | 请求方法 | `GET` |
 | URL | `/api/v1/download-records/{downloadRecordId}/file` |
 | 是否需要登录 | 是 |
-| 权限要求 | 下载记录所属用户或管理员 |
+| 权限要求 | 下载记录所属用户，且必须提交未过期、未使用的一次性票据 |
 
 路径参数：
 
@@ -1264,9 +1266,14 @@ Authorization: Bearer eyJhbG...
 ```http
 GET /api/v1/download-records/60001/file
 Authorization: Bearer eyJhbG...
+X-Download-Ticket: 一次性随机票据
 ```
 
 响应说明：
+
+- `X-Download-Ticket` 必填；票据与当前用户、下载记录绑定，并通过 Redis Lua 原子消费。
+- 票据无效、过期或重复使用时拒绝取流；Redis 不可用时安全关闭，不退化为仅凭记录 ID 下载。
+- 取流前重新校验资料仍为 `APPROVED` 且文件未变更，防止已下架资料继续下载。
 
 该接口返回**文件二进制流**，不经过 `ApiResponse` JSON 包装。成功时 HTTP 状态码为 `200`，响应头包含：
 

@@ -85,7 +85,7 @@
 | --- | --- | --- | --- |
 | `resourceId` | long | 是 | 资料 ID |
 
-响应数据（`data` 字段规划）：`downloadRecordId`、`resourceId`、`fileId`、`downloadUrl`、`expireSeconds`、`counted`。
+响应数据（`data` 字段）：`downloadRecordId`、`downloadTicket`、`resourceId`、`fileId`、`downloadUrl`、`expireSeconds`、`counted`。
 
 说明：
 
@@ -102,7 +102,7 @@
 | 方法 | `GET` |
 | 路径 | `/api/v1/download-records/{downloadRecordId}/file` |
 | 是否登录 | 是 |
-| 权限要求 | 下载记录所属用户或管理员 |
+| 权限要求 | 下载记录所属用户，并携带 `X-Download-Ticket` 一次性票据 |
 | 当前状态 | 已完成 |
 
 路径参数：

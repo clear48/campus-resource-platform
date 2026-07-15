@@ -20,7 +20,7 @@ describe('downloads api', () => {
   it('应携带 Token 创建下载记录', async () => {
     mock.onPost('/resources/20001/download-records').reply((config) => {
       expect(config.headers?.Authorization).toBe('Bearer download-token')
-      return [200, { code: 0, message: 'success', data: { downloadRecordId: 60001, resourceId: 20001, fileId: 30001, downloadUrl: '/api/v1/download-records/60001/file', expireSeconds: null, counted: true }, traceId: 'download-create-trace' }]
+      return [200, { code: 0, message: 'success', data: { downloadRecordId: 60001, resourceId: 20001, fileId: 30001, downloadUrl: '/api/v1/download-records/60001/file', downloadTicket: 'download-ticket', expireSeconds: 60, counted: true }, traceId: 'download-create-trace' }]
     })
 
     await expect(createDownloadRecord(20001)).resolves.toMatchObject({ downloadRecordId: 60001, counted: true })
@@ -29,12 +29,13 @@ describe('downloads api', () => {
   it('应携带 Token 获取二进制文件流和中文文件名', async () => {
     mock.onGet('/download-records/60001/file').reply((config) => {
       expect(config.headers?.Authorization).toBe('Bearer download-token')
+      expect(config.headers?.['X-Download-Ticket']).toBe('download-ticket')
       return [200, new Blob(['file-content'], { type: 'application/pdf' }), {
         'content-type': 'application/pdf',
         'content-disposition': "attachment; filename*=UTF-8''%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.pdf",
       }]
     })
 
-    await expect(downloadFile(60001)).resolves.toMatchObject({ fileName: '数据结构.pdf', contentType: 'application/pdf' })
+    await expect(downloadFile(60001, 'download-ticket')).resolves.toMatchObject({ fileName: '数据结构.pdf', contentType: 'application/pdf' })
   })
 })

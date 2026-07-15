@@ -4,7 +4,9 @@ export interface DownloadRecordResult {
   resourceId: number
   fileId: number
   downloadUrl: string
-  expireSeconds: number | null
+  /** 仅用于本次文件流请求的一次性票据，使用后立即失效。 */
+  downloadTicket: string
+  expireSeconds: number
   counted: boolean
 }
 
