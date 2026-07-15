@@ -7,10 +7,13 @@ import com.john.campus.common.LoginUser;
 import com.john.campus.common.UserContextHolder;
 import com.john.campus.dto.AuditApproveDTO;
 import com.john.campus.dto.ResourceOfflineDTO;
+import com.john.campus.entity.FileInfo;
 import com.john.campus.entity.Resource;
 import com.john.campus.mapper.AuditRecordMapper;
+import com.john.campus.mapper.FileInfoMapper;
 import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.service.impl.AuditServiceImpl;
+import java.io.ByteArrayInputStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,13 +34,22 @@ class AuditServiceImplTest {
     @Mock
     private AuditRecordMapper auditRecordMapper;
     @Mock
+    private FileInfoMapper fileInfoMapper;
+    @Mock
+    private FileStorageService fileStorageService;
+    @Mock
     private RankingService rankingService;
 
     private AuditService auditService;
 
     @BeforeEach
     void setUp() {
-        auditService = new AuditServiceImpl(resourceMapper, auditRecordMapper, rankingService);
+        auditService = new AuditServiceImpl(
+                resourceMapper,
+                auditRecordMapper,
+                fileInfoMapper,
+                fileStorageService,
+                rankingService);
         UserContextHolder.set(new LoginUser(90001L, 2, "audit-heat-test-jti"));
     }
 
@@ -85,5 +97,29 @@ class AuditServiceImplTest {
         org.mockito.Mockito.verifyNoInteractions(rankingService);
         TransactionSynchronizationUtils.triggerAfterCommit();
         verify(rankingService).removeOfflineResource(100L);
+    }
+
+    @Test
+    void loadReviewFileShouldUsePendingResourceLinkedFile() {
+        Resource pendingResource = new Resource();
+        pendingResource.setId(100L);
+        pendingResource.setFileId(200L);
+        pendingResource.setStatus(Resource.STATUS_PENDING_REVIEW);
+        FileInfo fileInfo = new FileInfo();
+        fileInfo.setId(200L);
+        fileInfo.setOriginalName("review.pdf");
+        fileInfo.setFileExt("pdf");
+        fileInfo.setStoragePath("C:/uploads/review.pdf");
+        when(resourceMapper.selectById(100L)).thenReturn(pendingResource);
+        when(fileInfoMapper.selectNormalById(200L)).thenReturn(fileInfo);
+        when(fileStorageService.loadAsResource("C:/uploads/review.pdf"))
+                .thenReturn(new FileStorageService.FileResource(new ByteArrayInputStream(new byte[]{1, 2}), 2));
+
+        AuditService.ReviewFileInfo result = auditService.loadReviewFile(100L);
+
+        org.junit.jupiter.api.Assertions.assertEquals("review.pdf", result.originalName());
+        org.junit.jupiter.api.Assertions.assertEquals("pdf", result.fileExt());
+        org.junit.jupiter.api.Assertions.assertEquals(2, result.contentLength());
+        verify(fileStorageService).loadAsResource("C:/uploads/review.pdf");
     }
 }

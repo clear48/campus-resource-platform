@@ -1678,3 +1678,13 @@ Authorization: Bearer eyJhbG...
 - 管理员查看用户上传统计：`GET /api/v1/admin/users/{userId}/upload-statistics`
 - Elasticsearch 高亮搜索：保持 `GET /api/v1/search/resources` 不变，在响应中增加 `highlights`
 - RocketMQ 事件查询：`GET /api/v1/admin/events/resource-events`
+## 补充：管理员读取待审核文件
+
+### GET `/api/v1/admin/resources/{resourceId}/review-file`
+
+- 权限：仅管理员。
+- 资料状态：仅 `PENDING_REVIEW`。
+- 响应：二进制文件流；PDF、JPEG、PNG、TXT、Markdown 可内联，其他格式作为附件下载。
+- 安全响应头：`Cache-Control: private, no-store`、`X-Content-Type-Options: nosniff`。
+- 常见错误：未登录 `40101`、非管理员 `40301`、资料或文件不存在 `40401`、资料已不在待审核状态 `40901`。
+- 说明：接口只接受 resourceId，并读取该资料在数据库中关联的 fileId，不接受客户端独立传入 fileId。

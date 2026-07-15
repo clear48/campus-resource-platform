@@ -33,6 +33,7 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,6 +72,12 @@ class AuditServiceDatabaseIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    /**
+     * 数据库集成测试只验证 MyBatis 与事务，不读取真实磁盘文件。
+     */
+    @MockitoBean
+    private FileStorageService fileStorageService;
 
     @AfterEach
     void clearUserContext() {

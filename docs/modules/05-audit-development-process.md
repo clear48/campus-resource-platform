@@ -899,3 +899,10 @@ docs(audit): sync audit module documentation
 - 不扩展搜索、下载、收藏、排行榜模块。
 - 不删除已有文档章节。
 ```
+## 2026-07-15 管理员待审核文件核验补强（IMP-003）
+
+- 新增 `GET /api/v1/admin/resources/{resourceId}/review-file`，仅管理员可读取当前 `PENDING_REVIEW` 资料的关联文件。
+- 调用链固定为 `AuditController -> AuditService -> ResourceMapper/FileInfoMapper -> FileStorageService`；客户端不能传入独立 fileId。
+- 文件响应禁止缓存并启用 `nosniff`；只有 PDF、图片和纯文本格式允许浏览器内联，其余格式作为附件。
+- 专项验证：`AuditControllerTest`、`AuditServiceImplTest`、`AuditServiceDatabaseIntegrationTest` 共 22 个测试全部通过。
+- 并发边界：请求开始时重新校验待审核状态；文件流已打开后若另一个管理员改变状态，当前已开始的响应允许完成。

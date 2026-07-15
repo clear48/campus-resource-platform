@@ -8,6 +8,7 @@ import com.john.campus.dto.ResourceOfflineDTO;
 import com.john.campus.vo.AuditRecordVO;
 import com.john.campus.vo.AuditResultVO;
 import com.john.campus.vo.PendingReviewResourceVO;
+import java.io.InputStream;
 import java.util.List;
 
 /**
@@ -43,4 +44,19 @@ public interface AuditService {
      * 查询某份资料的审核历史记录，只允许管理员访问。
      */
     List<AuditRecordVO> listAuditRecords(Long resourceId);
+
+    /**
+     * 读取待审核资料关联的实际文件，仅供管理员在作出审核决定前核验内容。
+     */
+    ReviewFileInfo loadReviewFile(Long resourceId);
+
+    /**
+     * 审核文件流及安全响应头所需元数据，不暴露内部存储路径。
+     */
+    record ReviewFileInfo(
+            InputStream inputStream,
+            String originalName,
+            String fileExt,
+            long contentLength) {
+    }
 }

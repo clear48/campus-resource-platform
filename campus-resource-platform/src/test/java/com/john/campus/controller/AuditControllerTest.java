@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.john.campus.common.ErrorCode;
@@ -30,6 +32,7 @@ import com.john.campus.service.AuditService;
 import com.john.campus.vo.AuditRecordVO;
 import com.john.campus.vo.AuditResultVO;
 import com.john.campus.vo.PendingReviewResourceVO;
+import java.io.ByteArrayInputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +42,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -259,6 +263,28 @@ class AuditControllerTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data[0].auditRecordId").value(500))
                 .andExpect(jsonPath("$.data[0].actionType").value(AuditRecord.ACTION_REJECT));
+    }
+
+    @Test
+    void reviewFileShouldReturnInlinePdfWithSecurityHeaders() throws Exception {
+        byte[] contentBytes = new byte[]{1, 2, 3};
+        when(auditService.loadReviewFile(100L)).thenReturn(new AuditService.ReviewFileInfo(
+                new ByteArrayInputStream(contentBytes),
+                "待审核.pdf",
+                "pdf",
+                contentBytes.length));
+
+        mockMvc.perform(get("/api/v1/admin/resources/{resourceId}/review-file", 100L)
+                        .with(bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes(contentBytes))
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "private, no-store"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION,
+                        org.hamcrest.Matchers.containsString("inline")));
+
+        verify(auditService).loadReviewFile(100L);
     }
 
     private RequestPostProcessor bearerToken() {

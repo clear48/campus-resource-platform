@@ -9,11 +9,14 @@ import com.john.campus.dto.AuditRejectDTO;
 import com.john.campus.dto.PageQuery;
 import com.john.campus.dto.ResourceOfflineDTO;
 import com.john.campus.entity.AuditRecord;
+import com.john.campus.entity.FileInfo;
 import com.john.campus.entity.Resource;
 import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.AuditRecordMapper;
+import com.john.campus.mapper.FileInfoMapper;
 import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.service.AuditService;
+import com.john.campus.service.FileStorageService;
 import com.john.campus.service.RankingService;
 import com.john.campus.vo.AuditRecordVO;
 import com.john.campus.vo.AuditResultVO;
@@ -57,6 +60,14 @@ public class AuditServiceImpl implements AuditService {
      */
     private final AuditRecordMapper auditRecordMapper;
     /**
+     * 审核文件元数据只按资料关联 fileId 查询，避免管理员接口演变为任意文件读取入口。
+     */
+    private final FileInfoMapper fileInfoMapper;
+    /**
+     * 复用文件存储根目录边界与可读性校验，审核 Service 不自行拼接物理路径。
+     */
+    private final FileStorageService fileStorageService;
+    /**
      * 审核提交后维护排行榜成员；不能在事务内直接写 Redis，否则数据库回滚会留下错误榜单状态。
      */
     private final RankingService rankingService;
@@ -64,9 +75,13 @@ public class AuditServiceImpl implements AuditService {
     public AuditServiceImpl(
             ResourceMapper resourceMapper,
             AuditRecordMapper auditRecordMapper,
+            FileInfoMapper fileInfoMapper,
+            FileStorageService fileStorageService,
             RankingService rankingService) {
         this.resourceMapper = resourceMapper;
         this.auditRecordMapper = auditRecordMapper;
+        this.fileInfoMapper = fileInfoMapper;
+        this.fileStorageService = fileStorageService;
         this.rankingService = rankingService;
     }
 
@@ -226,6 +241,32 @@ public class AuditServiceImpl implements AuditService {
         return auditRecordMapper.selectByResourceId(resourceId).stream()
                 .map(this::toAuditRecordVO)
                 .toList();
+    }
+
+    /**
+     * 管理员审核文件读取：权限校验先于资料查询，防止普通用户借错误差异探测待审核资料。
+     */
+    @Override
+    public ReviewFileInfo loadReviewFile(Long resourceId) {
+        requireAdmin();
+        validateResourceId(resourceId);
+
+        Resource resource = requireResource(resourceId);
+        if (!resource.isPendingReview()) {
+            throw new BusinessException(ErrorCode.RESOURCE_STATUS_INVALID, "仅待审核资料可以读取审核文件");
+        }
+
+        FileInfo fileInfo = fileInfoMapper.selectNormalById(resource.getFileId());
+        if (fileInfo == null) {
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "审核文件不存在或已删除");
+        }
+
+        FileStorageService.FileResource fileResource = fileStorageService.loadAsResource(fileInfo.getStoragePath());
+        return new ReviewFileInfo(
+                fileResource.inputStream(),
+                fileInfo.getOriginalName(),
+                fileInfo.getFileExt(),
+                fileResource.contentLength());
     }
 
     /**
