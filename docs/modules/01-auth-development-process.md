@@ -423,6 +423,7 @@ HTTP 状态码由 `GlobalExceptionHandler.resolveHttpStatus` 统一转换：
 | 测试项 | 命令 | 结果 |
 | --- | --- | --- |
 | 编译验证 | `.\mvnw.cmd -DskipTests compile` | 通过 |
+| JWT 密钥启动校验 | `.\mvnw.cmd "-Dtest=JwtUtilsTest,CampusResourcePlatformApplicationTests" test` | 3/3 通过；缺失、过短和历史公开默认密钥均被拒绝 |
 
 ### 15.2 建议接口测试用例
 
@@ -442,7 +443,7 @@ Postman 测试集合：
 - `docs/api/postman/campus-resource-platform.postman_collection.json`
 - `docs/api/postman/campus-local.postman_environment.json`
 
-本模块暂未涉及自动化单元测试和集成测试，后续建议使用 `@SpringBootTest`、`MockMvc`、Testcontainers MySQL/Redis 补齐认证链路测试。
+当前已补充 `JwtUtilsTest` 和完整 Spring 上下文启动测试，覆盖 JWT 密钥 fail-fast 与基本签发解析；登录、退出、Redis 黑名单和完整 HTTP 认证链路仍建议继续补齐。
 
 ## 16. 面试可讲点
 

@@ -139,6 +139,8 @@ $env:JWT_SECRET = '<仅本地使用的随机长字符串>'
 $env:APP_UPLOAD_STORAGE_PATH = (Join-Path (Get-Location) 'data\user-uploads')
 ```
 
+`JWT_SECRET` 为必填安全变量，必须使用至少 32 个 UTF-8 字节的随机值。变量缺失、长度不足或仍使用历史公开默认值时，后端会在启动阶段拒绝运行；更换密钥会让既有 Token 立即失效。
+
 可选变量：
 
 | 变量 | 默认值 | 使用时机 |

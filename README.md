@@ -67,7 +67,7 @@ $env:MYSQL_PASSWORD="你的MySQL密码"
 $env:REDIS_HOST="localhost"
 $env:REDIS_PORT="6379"
 $env:REDIS_PASSWORD=""
-$env:JWT_SECRET="campus-resource-platform-dev-secret-change-me"
+$env:JWT_SECRET=([Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48)))
 $env:APP_UPLOAD_STORAGE_PATH=".\data\user-uploads"
 ```
 

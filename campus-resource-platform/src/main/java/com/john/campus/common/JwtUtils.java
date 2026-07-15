@@ -34,6 +34,11 @@ public class JwtUtils {
      * HS256 至少需要 256 bit 密钥，启动时校验可以提前暴露配置风险。
      */
     private static final int HS256_MIN_SECRET_BYTES = 32;
+    /**
+     * 历史版本公开过的开发默认密钥。即使部署方显式设置了该值，也必须拒绝启动。
+     */
+    private static final String INSECURE_LEGACY_DEFAULT_SECRET =
+            "campus-resource-platform-dev-secret-change-me";
 
     /**
      * 由配置密钥派生出的签名密钥，所有 Token 验签都依赖它。
@@ -47,6 +52,13 @@ public class JwtUtils {
     public JwtUtils(
             @Value("${app.jwt.secret}") String secret,
             @Value("${app.jwt.expiration-seconds}") long expirationSeconds) {
+        if (!StringUtils.hasText(secret)) {
+            throw new IllegalArgumentException("JWT secret must be configured");
+        }
+        if (INSECURE_LEGACY_DEFAULT_SECRET.equals(secret)) {
+            // 公开默认值已不具备秘密性，显式配置它也不能作为兼容方案继续运行。
+            throw new IllegalArgumentException("JWT secret must not use the insecure legacy default");
+        }
         byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < HS256_MIN_SECRET_BYTES) {
             // 密钥过短会降低签名安全性，直接阻止应用以不安全配置启动。
