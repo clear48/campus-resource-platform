@@ -1,5 +1,15 @@
 # 当前项目状态
 
+## 2026-07-15 改进项实施状态
+
+- 已完成并推送 IMP-001、IMP-003、IMP-004、IMP-005；其余审计项未获本轮实施授权。
+- JWT 启动时拒绝缺失、已知默认值和不足 32 字节的密钥。
+- 管理员可通过受控接口读取仍处于 `PENDING_REVIEW` 的待审核文件。
+- 下载文件流要求 60 秒一次性 Redis 票据，原子消费并在取流前复核资料仍为 `APPROVED`。
+- 新增 `user_file_authorization`；存量库发布前执行 `sql/migrations/20260715_user_file_authorization.sql`，并人工核查迁移末尾列出的历史跨用户引用。
+- 本轮不包含 IMP-008，下载成功计数时点保持现状。
+- 全量回归：后端 `mvnw.cmd test` 124/124 通过；前端 `npm run test:unit` 66/66 通过；前端 `npm run build` 通过（保留既有主包体积警告）。
+
 ## Codex 多 Agent 协作配置（2026-07-14）
 
 - 新增项目级 `.codex/config.toml`，限制最多 4 个 Agent 线程和 1 层派生深度。

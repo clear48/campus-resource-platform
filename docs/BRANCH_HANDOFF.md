@@ -1,5 +1,14 @@
 # 分支交接记录
 
+## 2026-07-15 IMP-001、IMP-003、IMP-004、IMP-005
+
+- 分支：`dev`；四个独立实现提交均已推送到 `origin/dev`。
+- 提交：`8b4ae92`（JWT 密钥）、`024aff7`（审核文件读取）、`4ab0da0`（一次性下载票据）、`f07e704`（用户文件授权）。
+- 发布前必须先执行 `sql/migrations/20260715_user_file_authorization.sql`，再部署 `f07e704` 及其后版本。
+- 下载客户端必须把创建记录响应中的 `downloadTicket` 放入 `X-Download-Ticket` 请求头；旧客户端直接 GET 文件流将失败。
+- IMP-004 仅处理重放、下架复核和 Redis 故障关闭，不含 IMP-008 的计数时点修正。
+- 验证：后端全量 124/124、前端全量 66/66、前端生产构建均通过。
+
 ## 2026-07-14 Codex 多 Agent 协作配置
 
 - 项目级 Agent 配置位于外层仓库 `.codex/`，不要放到内层 Spring Boot 工程。
