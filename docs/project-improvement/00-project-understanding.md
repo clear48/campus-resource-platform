@@ -1,9 +1,9 @@
 # 项目理解与审计基线
 
-> 审计日期：2026-07-14  
-> 当前分支：`dev`  
-> 基线提交：`dcf1383 feat(rank): make download delta sync idempotent`  
-> 阶段：`ANALYSIS_ONLY`  
+> 审计日期：2026-07-14
+> 当前分支：`dev`
+> 基线提交：`dcf1383 feat(rank): make download delta sync idempotent`
+> 阶段：`ANALYSIS_ONLY`
 > 事实标记：除明确写有“待确认”的内容外，均已由代码、SQL、文档或实际命令交叉验证。
 
 ## 1. 项目目标与用户角色
@@ -181,4 +181,3 @@ Redis Key 集中定义，主要用途：
 - Redis 故障时普通接口和管理员接口分别应 fail-open、fail-closed 还是降级，安全策略待确认。
 - 本轮未执行真实 Redis 的故障注入、容量压测和多实例并发测试。
 - 仓库未提供容器、Kubernetes、Nginx 或正式部署清单；这不等于项目必须容器化。
-
