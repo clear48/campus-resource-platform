@@ -318,6 +318,19 @@ class ResourceDatabaseIntegrationTest {
         assertThat(jdbcTemplate.queryForObject("SELECT COUNT(1) FROM `resource`", Long.class)).isZero();
     }
 
+    @Test
+    void createShouldRejectNormalFileWithoutCurrentUserAuthorization() {
+        insertCategory(CATEGORY_ID, "计算机基础", 1);
+        insertFile(FILE_ID, 1);
+        mockLoginUser(OTHER_USER_ID);
+
+        assertThatThrownBy(() -> resourceService.create(buildCreateDTO(FILE_ID, CATEGORY_ID)))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code")
+                .isEqualTo(ErrorCode.RESOURCE_NOT_FOUND.getCode());
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(1) FROM `resource`", Long.class)).isZero();
+    }
+
     private void mockLoginUser(long userId) {
         UserContextHolder.set(new LoginUser(userId, 1, "resource-db-test-jti"));
     }
@@ -357,6 +370,11 @@ class ResourceDatabaseIntegrationTest {
                 "/tmp/resource-" + id + ".pdf",
                 CURRENT_USER_ID,
                 status);
+        // 测试夹具模拟首次上传完成后的授权关系；跨用户用例会切换登录用户验证隔离。
+        jdbcTemplate.update("""
+                INSERT INTO user_file_authorization (user_id, file_id, source_type)
+                VALUES (?, ?, 1)
+                """, CURRENT_USER_ID, id);
     }
 
     private void insertResource(

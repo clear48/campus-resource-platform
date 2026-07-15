@@ -23,6 +23,7 @@
 | `user` | 用户表 | 保存学生、管理员账号信息 |
 | `category` | 分类表 | 保存课程资料分类，支持父子分类 |
 | `file_info` | 文件信息表 | 保存物理文件信息、MD5、存储路径 |
+| `user_file_authorization` | 用户文件授权表 | 保存用户经真实上传验证后可引用的物理文件关系 |
 | `resource` | 资料表 | 保存资料业务信息和审核状态 |
 | `favorite` | 收藏表 | 保存用户收藏关系，防止重复收藏 |
 | `download_record` | 下载记录表 | 保存用户下载行为，辅助审计和统计 |
@@ -46,6 +47,8 @@
 | --- | --- | --- |
 | `resource.uploader_id` | `user.id` | 资料上传者 |
 | `resource.file_id` | `file_info.id` | 资料关联的物理文件 |
+| `user_file_authorization.user_id` | `user.id` | 获得文件引用权限的用户 |
+| `user_file_authorization.file_id` | `file_info.id` | 用户已验证上传内容对应的物理文件 |
 | `resource.category_id` | `category.id` | 资料所属分类 |
 | `favorite.user_id` | `user.id` | 收藏用户 |
 | `favorite.resource_id` | `resource.id` | 被收藏资料 |
@@ -153,6 +156,10 @@
 - 唯一索引使用 `file_md5 + file_size`，比单独 MD5 更稳妥。
 - `storage_type` 和 `storage_path` 为后续从本地存储迁移到 MinIO、OSS 等对象存储服务预留扩展。
 - `ref_count` 可以统计同一文件被多少条资料复用，是文件去重和存储优化的面试亮点。
+
+### 6.3 用户文件授权表 `user_file_authorization`
+
+该表把“全局物理文件已存在”和“当前用户可引用该文件”拆开。`uk_user_file_authorization (user_id, file_id)` 保证授权幂等；`source_type` 区分首次上传、实际内容去重和历史迁移。MD5 缓存只能定位候选文件，不能代替该表的用户级授权判断。
 
 ## 7. 资料表 `resource`
 

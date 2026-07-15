@@ -68,7 +68,7 @@
 | 方法 | `GET` |
 | 路径 | `/api/v1/files/check` |
 | 参数 | `fileMd5`（32 位十六进制）、`fileSize`（字节，≥0） |
-| 返回 | 是否已存在（可秒传）、命中时的 `fileId` |
+| 返回 | 当前用户是否已获授权（可秒传）、已授权命中时的 `fileId` |
 | 是否登录 | 是 |
 
 ### 5.2 文件上传
@@ -95,6 +95,7 @@
 | 查询去重 | 按 `uk_file_md5_size (file_md5, file_size)` 唯一索引查是否已存在 |
 | 插入文件 | 新文件写入一行，`ref_count = 1`，`status = 1`，`storage_type = 1` |
 | 引用自增 | 秒传命中时对已存在文件 `ref_count + 1`（引用计数） |
+| 用户授权 | `user_file_authorization` 记录用户可引用的 `fileId`；物理文件全局存在不等于当前用户可秒传 |
 
 关键字段：`file_md5`、`original_name`、`stored_name`、`file_ext`、`mime_type`、`file_size`、`storage_type`、`storage_path`、`uploader_id`、`ref_count`、`status`。
 
@@ -165,7 +166,7 @@ Controller 只做接收与参数校验，业务编排在 `FileServiceImpl`（遵
 3. Service 校验：大小、扩展名白名单；记录 MIME。
 4. 计算 `fileMd5`，读取 `fileSize`。
 5. 去重直接查 `file_info` by `(fileMd5, fileSize)`（上传去重以唯一索引为准，**不读缓存**，因秒传需完整记录组装 VO）。
-6. **命中**（秒传）：`ref_count + 1`，回填 Redis 缓存，返回已存在 `fileId`，`secondUpload = true`，不落盘。
+6. **命中**（服务端已读取真实上传内容并计算 MD5）：在短事务内执行 `ref_count + 1` 并幂等写入 `user_file_authorization`，随后回填 Redis 缓存，返回已存在 `fileId`，`secondUpload = true`，不重复落盘。
 7. **未命中**：生成 `stored_name = UUID + "." + ext` → 落盘到 `storage-path` → `insert file_info`（`ref_count = 1`）→ 写 Redis 缓存 → 返回 `fileId`，`secondUpload = false`。
 8. 补偿：落盘成功但入库失败时，删除已落盘文件，避免孤儿文件。
 9. 并发兜底：`insert` 命中 `uk_file_md5_size` 抛 `DuplicateKeyException` 时，删除多余落盘并改为查已存在记录按秒传返回。
@@ -173,8 +174,8 @@ Controller 只做接收与参数校验，业务编排在 `FileServiceImpl`（遵
 ### 10.2 预检（`GET /api/v1/files/check`）
 
 1. 校验登录与参数（`fileMd5`、`fileSize`）。
-2. 先读 Redis 缓存，命中直接返回；未命中查 `file_info`，命中则回填缓存。
-3. 返回是否可秒传及命中的 `fileId`。
+2. 先读 Redis 缓存定位候选文件，未命中则查 `file_info` 并回填缓存。
+3. 无论候选来自缓存还是数据库，都必须查询 `user_file_authorization`；只有当前用户已获授权才返回可秒传及 `fileId`，否则返回不可秒传且不暴露 ID。
 
 ---
 

@@ -6,6 +6,7 @@ import com.john.campus.common.UserContextHolder;
 import com.john.campus.entity.FileInfo;
 import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.FileInfoMapper;
+import com.john.campus.service.FileAuthorizationService;
 import com.john.campus.service.FileService;
 import com.john.campus.service.FileStorageService;
 import com.john.campus.vo.FileCheckVO;
@@ -63,6 +64,10 @@ public class FileServiceImpl implements FileService {
      */
     private final FileStorageService fileStorageService;
     /**
+     * 文件元数据与当前用户授权的短事务服务。
+     */
+    private final FileAuthorizationService fileAuthorizationService;
+    /**
      * Redis 用于文件 MD5 去重缓存，命中可跳过数据库查询。
      */
     private final StringRedisTemplate stringRedisTemplate;
@@ -70,10 +75,12 @@ public class FileServiceImpl implements FileService {
     public FileServiceImpl(
             FileInfoMapper fileInfoMapper,
             FileStorageService fileStorageService,
-            StringRedisTemplate stringRedisTemplate) {
+            StringRedisTemplate stringRedisTemplate,
+            FileAuthorizationService fileAuthorizationService) {
         this.fileInfoMapper = fileInfoMapper;
         this.fileStorageService = fileStorageService;
         this.stringRedisTemplate = stringRedisTemplate;
+        this.fileAuthorizationService = fileAuthorizationService;
     }
 
     /**
@@ -111,14 +118,14 @@ public class FileServiceImpl implements FileService {
         // 先查缓存加速秒传判断，命中直接返回，避免高频预检打到数据库。
         Long cachedFileId = getCachedFileId(fileMd5, fileSize);
         if (cachedFileId != null) {
-            return new FileCheckVO(true, cachedFileId);
+            return authorizedCheckResult(cachedFileId);
         }
         FileInfo fileInfo = fileInfoMapper.selectByMd5AndSize(fileMd5, fileSize);
         if (fileInfo == null) {
             return new FileCheckVO(false, null);
         }
         cacheFileId(fileMd5, fileSize, fileInfo.getId());
-        return new FileCheckVO(true, fileInfo.getId());
+        return authorizedCheckResult(fileInfo.getId());
     }
 
     /**
@@ -128,7 +135,7 @@ public class FileServiceImpl implements FileService {
             FileInfo fileInfo, FileStorageService.StoredFile stored, String fileMd5, Long fileSize) {
         try {
             // 单条 INSERT 自身即原子写入，无需跨文件 IO 的长事务。
-            fileInfoMapper.insert(fileInfo);
+            fileAuthorizationService.createAuthorizedFile(fileInfo, fileInfo.getUploaderId());
             cacheFileId(fileInfo.getFileMd5(), fileInfo.getFileSize(), fileInfo.getId());
             return toUploadVO(fileInfo, false);
         } catch (DuplicateKeyException ex) {
@@ -150,9 +157,22 @@ public class FileServiceImpl implements FileService {
      * 秒传：命中既有文件时引用次数原子自增，并回填缓存，返回该文件。
      */
     private FileUploadVO secondUpload(FileInfo fileInfo) {
-        fileInfoMapper.increaseRefCount(fileInfo.getId());
+        // 只有真实文件上传并经服务端计算内容哈希后，才为当前用户建立授权。
+        fileAuthorizationService.authorizeExistingFile(
+                fileInfo.getId(), UserContextHolder.getRequiredUserId());
         cacheFileId(fileInfo.getFileMd5(), fileInfo.getFileSize(), fileInfo.getId());
         return toUploadVO(fileInfo, true);
+    }
+
+    /**
+     * 全局 MD5 缓存只用于定位候选文件，最终是否返回 fileId 必须按当前用户查库授权。
+     */
+    private FileCheckVO authorizedCheckResult(Long fileId) {
+        Long userId = UserContextHolder.getRequiredUserId();
+        if (!fileAuthorizationService.isAuthorized(userId, fileId)) {
+            return new FileCheckVO(false, null);
+        }
+        return new FileCheckVO(true, fileId);
     }
 
     /**

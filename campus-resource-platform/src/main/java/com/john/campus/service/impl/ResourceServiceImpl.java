@@ -12,6 +12,7 @@ import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.CategoryMapper;
 import com.john.campus.mapper.FileInfoMapper;
 import com.john.campus.mapper.ResourceMapper;
+import com.john.campus.mapper.UserFileAuthorizationMapper;
 import com.john.campus.service.ResourceService;
 import com.john.campus.vo.MyResourceVO;
 import com.john.campus.vo.ResourceCreateVO;
@@ -58,14 +59,20 @@ public class ResourceServiceImpl implements ResourceService {
      * 分类表访问入口，用于校验 categoryId 是否指向启用分类。
      */
     private final CategoryMapper categoryMapper;
+    /**
+     * 用户文件授权关系，防止使用猜测或泄露的 fileId 引用他人文件。
+     */
+    private final UserFileAuthorizationMapper userFileAuthorizationMapper;
 
     public ResourceServiceImpl(
             ResourceMapper resourceMapper,
             FileInfoMapper fileInfoMapper,
-            CategoryMapper categoryMapper) {
+            CategoryMapper categoryMapper,
+            UserFileAuthorizationMapper userFileAuthorizationMapper) {
         this.resourceMapper = resourceMapper;
         this.fileInfoMapper = fileInfoMapper;
         this.categoryMapper = categoryMapper;
+        this.userFileAuthorizationMapper = userFileAuthorizationMapper;
     }
 
     /**
@@ -81,6 +88,10 @@ public class ResourceServiceImpl implements ResourceService {
         if (fileInfo == null) {
             // 只允许引用正常文件，避免资料指向不存在或已删除的物理文件。
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "文件不存在或已删除");
+        }
+        if (!userFileAuthorizationMapper.exists(uploaderId, dto.getFileId())) {
+            // 对外仍按不可用文件处理，避免借错误差异探测其他用户的 fileId。
+            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "文件不存在或当前用户未获得引用权限");
         }
 
         Category category = categoryMapper.selectEnabledById(dto.getCategoryId());

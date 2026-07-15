@@ -704,7 +704,7 @@ feat(resource): complete resource module MVP
 - `common/ErrorCode.java`
 
 完成标准：
-- `fileId` 不存在或文件非正常状态时返回合适的业务异常。
+- `fileId` 不存在、文件非正常状态或当前用户没有 `user_file_authorization` 授权时返回同一类不可用文件异常，避免探测他人文件。
 - `categoryId` 不存在或分类未启用时返回合适的业务异常。
 - 同一用户对同一文件已有待审核或已通过资料时，返回 `DATA_DUPLICATE`。
 - 创建成功后返回 `resourceId`、`fileId`、`status`、`statusName` 和提示信息。

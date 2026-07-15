@@ -600,7 +600,7 @@ GET /api/v1/categories?parentId=0
 | 是否需要登录 | 是 |
 | 权限要求 | 学生或管理员 |
 
-说明：该接口已按当前代码实现同步。前端可在上传前计算文件 MD5，并用 `fileMd5 + fileSize` 判断是否可秒传。
+说明：前端可在上传前计算文件 MD5，并用 `fileMd5 + fileSize` 判断当前用户是否可秒传。即使全局存在相同物理文件，未通过真实上传获得授权的用户也只会收到 `secondUpload=false` 和 `fileId=null`，避免通过哈希探测或复用他人文件。
 
 请求参数：
 
@@ -646,7 +646,7 @@ GET /api/v1/files/check?fileMd5=5d41402abc4b2a76b9719d911017c592&fileSize=104857
 | 是否需要登录 | 是 |
 | 权限要求 | 学生或管理员 |
 
-说明：该接口只保存物理文件并返回 `fileId`，不创建 `resource` 资料记录。资料标题、课程、分类、标签等业务信息由资料模块的 `POST /api/v1/resources` 处理。
+说明：该接口只保存物理文件并返回 `fileId`，不创建 `resource` 资料记录。若实际上传内容命中全局去重，服务端在同一数据库事务中增加引用次数并授予当前用户该 `fileId` 的引用权限。资料标题、课程、分类、标签等业务信息由资料模块的 `POST /api/v1/resources` 处理。
 
 请求参数：
 
@@ -1667,7 +1667,7 @@ Authorization: Bearer eyJhbG...
 
 | 能力 | 对应接口 | 体现点 |
 | --- | --- | --- |
-| 文件 MD5 去重 | `GET /api/v1/files/check` | 上传前判断文件是否已存在，支持复用 `file_info` |
+| 文件 MD5 去重 | `GET /api/v1/files/check` | 仅对已获授权的当前用户返回 `fileId`；未授权时必须实际上传并由服务端验算内容 |
 | 上传后待审核 | `POST /api/v1/resources` | 创建资料后状态为 `PENDING_REVIEW` |
 | 审核状态流转 | 审核模块接口 | 通过、拒绝、下架都校验状态机并写 `audit_record` |
 | 非公开资料隔离 | `GET /api/v1/search/resources` | 强制只返回 `APPROVED` 资料 |

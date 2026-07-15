@@ -65,6 +65,18 @@ CREATE TABLE IF NOT EXISTS `file_info` (
   CONSTRAINT `chk_file_ref_count` CHECK (`ref_count` >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='文件信息表';
 
+CREATE TABLE IF NOT EXISTS `user_file_authorization` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '授权关系ID',
+  `user_id` BIGINT NOT NULL COMMENT '获得文件引用权限的用户ID，逻辑关联user.id',
+  `file_id` BIGINT NOT NULL COMMENT '已验证上传内容对应的文件ID，逻辑关联file_info.id',
+  `source_type` TINYINT NOT NULL COMMENT '授权来源: 1首次上传 2实际上传命中去重 3历史迁移',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '授权时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_file_authorization` (`user_id`, `file_id`),
+  KEY `idx_file_authorized_user` (`file_id`, `user_id`),
+  CONSTRAINT `chk_file_authorization_source` CHECK (`source_type` IN (1, 2, 3))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户文件引用授权表';
+
 CREATE TABLE IF NOT EXISTS `resource` (
   `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '资料ID',
   `title` VARCHAR(150) NOT NULL COMMENT '资料标题',

@@ -1,6 +1,7 @@
 DROP TABLE IF EXISTS audit_record;
 DROP TABLE IF EXISTS download_delta_sync_item;
 DROP TABLE IF EXISTS `resource`;
+DROP TABLE IF EXISTS user_file_authorization;
 DROP TABLE IF EXISTS file_info;
 DROP TABLE IF EXISTS category;
 
@@ -33,6 +34,17 @@ CREATE TABLE file_info (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uk_file_md5_size (file_md5, file_size)
+);
+
+CREATE TABLE user_file_authorization (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  file_id BIGINT NOT NULL,
+  source_type TINYINT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_user_file_authorization (user_id, file_id),
+  KEY idx_file_authorized_user (file_id, user_id)
 );
 
 CREATE TABLE `resource` (
