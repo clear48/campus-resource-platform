@@ -1,5 +1,12 @@
 # 当前项目状态
 
+## 多 Agent 项目初始化 Skill（2026-08-05）
+
+- 已创建个人 Skill `$multi-agent-project-bootstrap`，用于在后续代码仓库中幂等安装 `architect`、`implementer`、`tester`、`reviewer` 四类 Agent。
+- Skill 提供 dry-run、字段级 TOML 合并、项目专属 Agent 保留、路径边界检查、冲突零写入、预检快照和失败回滚，并通过 11 个脚本回归测试及官方 Skill 校验。
+- 已将 Skill 应用到当前仓库：`max_threads = 4` 已迁移为 `max_concurrent_threads_per_session = 4`，并显式设置 `agents.enabled = true`。
+- 当前四个项目专属 Agent、根 `AGENTS.md` 和既有协作手册均被识别并保留，没有修改 Java、Vue、数据库或 Redis 业务实现。
+
 ## 2026-07-15 改进项实施状态
 
 - 已完成并推送 IMP-001、IMP-003、IMP-004、IMP-005；其余审计项未获本轮实施授权。

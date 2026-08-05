@@ -1,6 +1,6 @@
 # Codex 多 Agent 协作操作手册
 
-本文说明如何在本项目中启用、触发和检查 Codex Subagent 协作。配置基于 2026-07-14 核对的官方格式，适用于 Codex 桌面版、CLI 和 IDE 扩展的当前版本。
+本文说明如何在本项目中启用、触发和检查 Codex Subagent 协作。配置已于 2026-08-05 按官方当前格式复核，适用于 Codex 桌面版、CLI 和 IDE 扩展。
 
 ## 1. 配置目标
 
@@ -48,13 +48,15 @@
 
 ```toml
 [agents]
-max_threads = 4
+enabled = true
+max_concurrent_threads_per_session = 4
 max_depth = 1
 interrupt_message = true
 job_max_runtime_seconds = 1800
 ```
 
-- `max_threads = 4`：最多保留 4 个并发 Agent 线程，包含主线程时应控制实际同时工作的子 Agent 数量。
+- `enabled = true`：显式启用多 Agent 工具；当前版本默认值也是 `true`。
+- `max_concurrent_threads_per_session = 4`：最多同时运行 4 个子 Agent，不包含主 Agent；旧字段 `max_threads` 仅作为兼容别名。
 - `max_depth = 1`：只允许主 Agent 创建直接子 Agent，禁止子 Agent 继续递归派生。
 - `interrupt_message = true`：中断时给 Agent 上下文保留可见说明。
 - `job_max_runtime_seconds = 1800`：批量 CSV Agent 作业的默认单 Worker 上限为 30 分钟；普通 `spawn_agent` 不依赖该值。
@@ -174,7 +176,7 @@ for path in Path(".codex").rglob("*.toml"):
 
 ### 11.4 并发或令牌消耗过高
 
-- 降低 `max_threads`，优先保留并行只读分析。
+- 降低 `max_concurrent_threads_per_session`，优先保留并行只读分析。
 - 保持 `max_depth = 1`，不要开启递归委派。
 - 简单任务直接由主 Agent 完成，不强制使用所有角色。
 - 及时结束不再需要的 Agent 线程。
@@ -194,3 +196,26 @@ for path in Path(".codex").rglob("*.toml"):
 - [Git Worktrees](https://developers.openai.com/codex/app/worktrees)
 
 官方文档说明当前 Agent 文件格式仍可能演进。升级 Codex 后如出现不兼容，应先对照上述官方页面，再修改仓库配置和本文档。
+
+## 14. 在新项目中快速复用
+
+个人 Skill 位于 `$CODEX_HOME/skills/multi-agent-project-bootstrap`；未设置 `CODEX_HOME` 时使用 `~/.codex/skills/multi-agent-project-bootstrap`。
+
+进入新项目后可直接输入：
+
+```text
+请使用 $multi-agent-project-bootstrap 为当前代码仓库幂等配置多 Agent 协作。
+先检查分支、工作区、现有 AGENTS.md 和 .codex 配置，先预览再应用，不覆盖已有规则。
+```
+
+Skill 默认创建或合并：
+
+- `.codex/config.toml`；
+- `.codex/agents/architect.toml`；
+- `.codex/agents/implementer.toml`；
+- `.codex/agents/tester.toml`；
+- `.codex/agents/reviewer.toml`；
+- 根 `AGENTS.md` 的多 Agent 规则；
+- `docs/multi-agent-collaboration.md`。
+
+脚本默认只输出 dry-run 计划，显式传入 `--apply` 才会写入。已有 Agent 按 `name` 识别并保留；新旧并发字段冲突、TOML 无法解析或 Agent 必填字段缺失时零写入停止。`--doc-path` 只接受项目内相对路径；已有 `agents.enabled = false` 时，必须确认后显式追加 `--force-enable`。

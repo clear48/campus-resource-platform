@@ -1,6 +1,6 @@
 [agents]
-# 个人项目先限制为 4 个并发线程，在并行分析收益与本机资源消耗之间取平衡。
-max_threads = 4
+# 最多同时运行 4 个子 Agent，不包含主 Agent，在并行收益与本机资源消耗之间取平衡。
+max_concurrent_threads_per_session = 4
 
 # 只允许主 Agent 创建一级子 Agent，避免递归派生导致范围和成本失控。
 max_depth = 1
@@ -10,3 +10,6 @@ interrupt_message = true
 
 # 批量 Agent 任务沿用 30 分钟的单任务上限；普通 spawn_agent 不依赖该值。
 job_max_runtime_seconds = 1800
+
+# 显式启用多 Agent 工具。
+enabled = true

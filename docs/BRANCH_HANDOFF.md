@@ -1,5 +1,13 @@
 # 分支交接记录
 
+## 2026-08-05 多 Agent 项目初始化 Skill
+
+- 个人 Skill 名称：`$multi-agent-project-bootstrap`，默认安装目录为 `$CODEX_HOME/skills/multi-agent-project-bootstrap`。
+- 新项目中直接要求使用该 Skill，即可先 dry-run 再幂等创建或合并 `.codex/`、Agent 角色、根协作规则和操作文档。
+- 当前项目已完成旧并发字段迁移：使用 `agents.max_concurrent_threads_per_session = 4`，该数量不包含主 Agent；`agents.enabled = true` 已显式启用。
+- Skill 应用时保留了当前项目四个专属 Agent、根 `AGENTS.md` 和 `docs/08-multi-agent-collaboration.md`，没有覆盖项目业务规则。
+- 后续升级 Skill 时，应先运行其 11 个回归测试和 `skill-creator/scripts/quick_validate.py`，再在临时仓库做前向测试。
+
 ## 2026-07-15 IMP-001、IMP-003、IMP-004、IMP-005
 
 - 分支：`dev`；四个独立实现提交均已推送到 `origin/dev`。
