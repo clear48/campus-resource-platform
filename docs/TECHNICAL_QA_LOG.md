@@ -64,3 +64,22 @@
 
 - 相关文件：`sql/init.sql`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadDeltaPersistenceServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadDeltaSyncServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileAuthorizationServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/ResourceServiceImpl.java`
 - 验证方式：核对建表 SQL、迁移 SQL、Mapper、Service 与模块文档；仅静态分析，未运行测试
+
+## 2026-08-07 09:44:52 | download_delta_sync_item 的 batch_id 含义
+
+### 问题 1
+
+**download\_delta\_sync\_item表batch\_id字段的含义**
+
+### 答案 1
+
+`batch_id` 是一次 Redis 下载增量隔离批次的唯一身份标识，正常值由 `UUID.randomUUID()` 生成。同步任务通过 Lua 把实时 Hash `crp:stats:resource:download:delta` 原子重命名为 `crp:stats:resource:download:syncing:{batchId}`，并把同一个 UUID 写入 `syncing:current`；随后写入 MySQL 幂等明细的 `batch_id` 就来自这个 Redis 批次。
+
+一个批次 Hash 可以包含多个 `resourceId -> delta`，因此同一个 `batch_id` 会出现在多条明细中；`(batch_id, resource_id)` 唯一键才唯一标识“某个隔离批次中的某个资料增量”。它不是用户下载记录 ID，也不严格等于定时任务执行 ID：单批最多处理 500 个资料，若 Hash 尚未处理完，后续定时任务会恢复同一批次，继续使用原 `batch_id`。
+
+该字段的核心价值是保持重试身份稳定。若 MySQL 已经提交而 Redis `HDEL` 失败，下一轮从 `syncing:current` 恢复相同 UUID，插入相同 `(batch_id, resource_id)` 时命中唯一键，从而跳过 `download_count` 的重复累加。若重试时重新生成批次 ID，数据库会把它识别成新事件，幂等保护就会失效。建表注释中的 `legacy-active` 用于描述旧固定 `syncing:active` 批次的兼容背景；当前代码检测到这类没有历史幂等记录的遗留批次时只告警保留，不会自动累加。
+
+### 关联信息
+
+- 相关文件：`sql/init.sql`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadDeltaSyncServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadDeltaPersistenceServiceImpl.java`、`campus-resource-platform/src/main/resources/mapper/DownloadDeltaSyncItemMapper.xml`、`docs/05-redis-design.md`
+- 验证方式：核对建表 SQL、Redis 批次隔离与恢复代码、MySQL 幂等持久化代码；仅静态分析，未运行测试
