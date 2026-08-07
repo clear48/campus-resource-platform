@@ -193,3 +193,28 @@ Lua 把“清理、计数、判断、写入、续期”放在 Redis 单次原子
 
 - 相关文件：`campus-resource-platform/src/main/java/com/john/campus/exception/GlobalExceptionHandler.java`、`campus-resource-platform/src/main/java/com/john/campus/exception/BusinessException.java`、`campus-resource-platform/src/main/java/com/john/campus/common/ErrorCode.java`、`campus-resource-platform/src/main/java/com/john/campus/common/ApiResponse.java`、`campus-resource-platform/src/main/java/com/john/campus/CampusResourcePlatformApplication.java`
 - 验证方式：核对组件扫描、异常类型到处理方法的映射、HTTP 状态解析和统一响应生成逻辑；运行 `.\\mvnw.cmd '-Dtest=ResourceControllerTest,AuditControllerTest,RankingControllerTest,AdminRankingControllerTest' test`，共 28 个测试通过，0 失败、0 错误
+
+## 2026-08-07 16:04:04 | 文件上传模块 Redis 的触发时机与作用
+
+### 问题 1
+
+文件上传模块的redis配置什么时候触发，有什么作用
+
+### 答案 1
+
+文件上传模块的 Redis 分为“启动时装配连接”和“业务请求时真正读写”两层。应用启动时，Spring Boot 读取 `spring.data.redis` 下的 host、port、password、database，并自动装配 `StringRedisTemplate` 注入 `FileServiceImpl`；这一步只是准备 Redis 客户端。真正访问 Redis 只发生在文件 MD5 缓存的读取或写入方法被调用时。
+
+当前 Key 为 `crp:cache:file:md5:{fileMd5}:{fileSize}`，类型是 String，实际值是 `file_info.id` 字符串，TTL 固定为 6 小时。它的核心作用是把“MD5 + 文件大小”快速映射为候选物理文件 ID，加速上传前秒传预检，减少重复查询 `file_info`，但不保存文件内容，也不承担权限判断和最终去重正确性。
+
+Redis 读取只在 `GET /api/v1/files/check` 的 `checkByMd5AndSize` 中触发：先按 MD5 和大小 `GET`；命中后仍查询 MySQL `user_file_authorization`，只有当前用户已获文件引用授权才返回 `secondUpload=true` 和 `fileId`，否则返回不可秒传且不泄露 ID。缓存未命中或 Redis 异常时查询 MySQL `file_info`；查到后回填 Redis，再做相同授权检查；数据库也未命中时直接返回不存在，当前没有负缓存。
+
+Redis 写入在三类场景触发：新文件完成落盘、`file_info` 与首次授权事务成功后写入；真实上传计算服务端 MD5 后直接查 MySQL，若已存在则先增加引用计数并授予当前用户引用权，再写入或续期；并发上传命中 `(file_md5, file_size)` 唯一索引时，删除本次多余物理文件、读取赢家记录、授权当前用户后写入或续期。真实 `POST /api/v1/files` 上传流程本身不会先读 Redis，因为服务端仍需完整 `FileInfo`、状态与数据库唯一约束来保证正确性。
+
+Redis 只是可降级加速层：读失败按缓存未命中处理并回源 MySQL，写失败只记录日志，不影响已经完成的上传、授权或秒传；并发去重最终由 MySQL 唯一索引 `uk_file_md5_size` 保证，用户是否可引用文件由 `user_file_authorization` 保证。Key 同时包含 MD5 和大小，既与数据库唯一键一致，也降低单独 MD5 碰撞或错误预检的风险。
+
+当前边界包括：设计文档仍写成缓存完整 JSON，真实代码只保存 `fileId`；缓存命中时没有再次查询 `file_info` 的当前状态，文件删除或异常后需要主动删除对应 Key，否则在 6 小时 TTL 内可能产生陈旧预检结果，而当前代码中尚未发现文件状态变更时的缓存删除调用。
+
+### 关联信息
+
+- 相关文件：`campus-resource-platform/src/main/resources/application.yaml`、`campus-resource-platform/src/main/java/com/john/campus/controller/FileController.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileAuthorizationServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java`、`campus-resource-platform/src/test/java/com/john/campus/service/FileServiceImplTest.java`、`sql/init.sql`、`docs/05-redis-design.md`
+- 验证方式：核对 Redis 自动配置、预检与真实上传调用链、缓存读写、授权事务、数据库唯一索引及现有单元测试；仅静态分析，未运行测试
