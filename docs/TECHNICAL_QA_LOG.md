@@ -83,3 +83,22 @@
 
 - 相关文件：`sql/init.sql`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadDeltaSyncServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadDeltaPersistenceServiceImpl.java`、`campus-resource-platform/src/main/resources/mapper/DownloadDeltaSyncItemMapper.xml`、`docs/05-redis-design.md`
 - 验证方式：核对建表 SQL、Redis 批次隔离与恢复代码、MySQL 幂等持久化代码；仅静态分析，未运行测试
+
+## 2026-08-07 10:01:00 | 文件内容去重与业务重复提交的区别
+
+### 问题 1
+
+**用户上传资料流程已经有根据 md5 + file\_size 去重，为什么还需要判断是否为业务重复提交**
+
+### 答案 1
+
+因为两次判断保护的对象不同：`md5 + file_size` 是物理文件层去重，回答“这份字节内容是否已经存储”，命中后复用同一个 `file_info.id` 和物理文件，避免重复落盘；业务重复提交是资料层幂等，回答“是否还应创建新的 `resource` 业务记录”。如果只有文件去重，同一用户连续提交同一个 `fileId` 时虽然不会多存一份文件，但仍会产生多条待审核资料，造成重复审核、重复展示以及统计口径混乱。
+
+项目当前业务规则是按“同一用户 + 同一 `file_id` + 状态为 `PENDING_REVIEW` 或 `APPROVED`”判重。`ResourceServiceImpl.create` 调用 `countActiveByUploaderAndFileId`，命中后返回 `DATA_DUPLICATE`；查询不统计 `REJECTED`、`OFFLINE`、`DELETED`，因此这些状态是否允许重新提交可按后续业务规则处理。判重带有用户和状态维度，而文件唯一索引是全局的，因此不同用户上传相同内容可以复用同一物理文件，但各自建立合法的资料记录。
+
+流程文档还描述了可以按课程、标题或资料用途放宽业务规则，让同一物理文件对应多条不同业务资料；这是可配置的业务策略。当前代码采用更保守的实现：同一用户只要对该 `fileId` 已有待审核或已通过资料，即使课程或标题不同也会拒绝。另一个实现边界是当前逻辑采用“先计数、后插入”，`resource` 表没有对应业务唯一约束，极端并发请求仍可能同时通过检查；若要强并发兜底，需要另行设计数据库约束、幂等键或锁。
+
+### 关联信息
+
+- 相关文件：`docs/02-business-flow.md`、`sql/init.sql`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/ResourceServiceImpl.java`、`campus-resource-platform/src/main/resources/mapper/ResourceMapper.xml`
+- 验证方式：核对上传去重、资料创建、重复计数 SQL、建表索引及业务流程文档；仅静态分析，未运行测试
