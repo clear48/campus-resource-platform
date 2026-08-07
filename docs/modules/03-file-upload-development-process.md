@@ -313,7 +313,7 @@ flowchart TD
 
 ## 20. 测试清单
 
-> 自动化记录：`.\mvnw.cmd "-Dtest=FileServiceImplTest,FileMd5CacheServiceImplTest" test` 已通过，专项 21 项全部成功；后端全量 `.\mvnw.cmd test` 已通过，173 项全部成功。真实 Redis TTL/NX、数据库/Redis 并发和手工上传仍属于完整 T6 待办。
+> 自动化记录：`FileServiceImplTest` 与 `FileMd5CacheServiceImplTest` 专项共 21 项，已分别执行并全部成功；后端全量 `.\mvnw.cmd test` 已通过，173 项全部成功。真实 Redis TTL/NX、数据库/Redis 并发和手工上传仍属于完整 T6 待办。
 
 | 场景 | 预期 |
 | --- | --- |
