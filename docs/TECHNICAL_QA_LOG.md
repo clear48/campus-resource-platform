@@ -241,3 +241,33 @@ Redis 只缓存 `MD5 + 大小 -> fileId` 来加速上传前预检，不参与并
 
 - 相关文件：`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileAuthorizationServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileStorageServiceImpl.java`、`campus-resource-platform/src/main/resources/mapper/FileInfoMapper.xml`、`campus-resource-platform/src/main/resources/mapper/UserFileAuthorizationMapper.xml`、`campus-resource-platform/src/test/java/com/john/campus/service/FileServiceImplTest.java`、`sql/init.sql`、`docs/modules/03-file-upload-development-process.md`
 - 验证方式：核对上传调用链、Spring 事务代理边界、唯一索引、原子 SQL、用户授权幂等、Redis 降级和文件补偿逻辑；运行 `.\mvnw.cmd -Dtest=FileServiceImplTest test`，共 3 个测试通过，0 失败、0 错误
+
+## 2026-08-07 17:05:01 | 文件 MD5 三态与负缓存新增改动
+
+### 问题 1
+
+详细讲解新增改动
+
+### 答案 1
+
+本次改动把原先散落在 `FileServiceImpl` 中的“MD5 + 文件大小 -> fileId”正缓存逻辑抽取为独立 `FileMd5CacheService`，并把二态的“命中/未命中”升级为 `FOUND(fileId)`、`NOT_FOUND`、`ABSENT` 三态。`FOUND` 表示 Redis 有合法正数 fileId；`NOT_FOUND` 表示最近一次 MySQL 回源确认不存在；`ABSENT` 表示 Key 不存在、值损坏或 Redis 读取异常，业务仍需查询 MySQL。这样可以严格区分“Redis 没有结论”和“数据库已经确认不存在”。
+
+Key 仍为 `crp:cache:file:md5:{fileMd5}:{fileSize}`，兼容历史纯数字正值。正缓存使用普通 `SET` 保存 fileId，TTL 6 小时；负缓存使用固定哨兵 `NOT_FOUND`，通过 `SET NX` 写入，TTL 5 分钟。普通 SET 允许上传成功后的正值覆盖旧负值；SET NX 则保证一个较早的数据库未命中结果不能覆盖并发上传已经写入的正值。若负值先写，上传正值随后覆盖；若正值先写，负值的 NX 写入失败，因此只要正缓存写成功，最终结果都收敛为正值。
+
+缓存读取会把 null 解释为 ABSENT，把 `NOT_FOUND` 解释为负命中，把可解析的正 long 解释为 FOUND；非正数、long 溢出和其他协议外字符串会最佳努力删除并按 ABSENT 回源。日志只记录值长度，不记录原始坏值，避免超长内容或换行污染日志。GET、SET、SET NX、DEL 的 RuntimeException 都只告警，不让 Redis 反向破坏数据库主流程。
+
+上传前预检 `checkByMd5AndSize` 的行为是：FOUND 时跳过 `file_info` 查询，但仍查询当前用户的 `user_file_authorization`；NOT_FOUND 时直接返回不可秒传，不查询文件表和授权表；ABSENT 时回源 `file_info`，数据库命中则写正缓存并检查授权，数据库未命中则写 5 分钟负缓存。全局文件存在不等于当前用户有权引用，未授权用户始终得到 `secondUpload=false` 和 null fileId。
+
+真实上传仍不读取 Redis，而是使用服务端计算的 MD5 与文件大小直接查询 MySQL。命中既有文件时，`authorizeExistingFile` 在事务中原子自增引用计数并幂等写用户授权，事务代理成功返回后才写正缓存；首次上传在文件落盘后调用 `createAuthorizedFile`，文件记录和首次授权事务提交后才写正缓存；并发插入命中唯一键时删除本请求的多余文件，查询赢家记录、完成授权后再写赢家 fileId。授权或创建事务失败时不会写正缓存，相关失败路径已有回归测试。
+
+新增 `evict(md5, size)` 只提供未来显式失效能力，目前仓库仍没有真实文件删除、恢复或状态变更入口调用它，因此不能声称生命周期失效闭环已经完成。后续 `BATCH-17` 应先确定逻辑删除后的重传语义，再在数据库事务提交后调用 evict；当前 `selectByMd5AndSize` 仍未限制 `status=1`，`increaseRefCount` 也未附带正常状态条件，这些属于尚未扩大的生命周期边界。
+
+负缓存解决的是同一个不存在 MD5 被反复查询时持续穿透 MySQL的问题，不解决首次同 Key 并发查询，也不防御攻击者不断生成不同 MD5 的高基数穿透。另一个诚实边界是：如果上传事务已经提交，但正缓存 SET 因 Redis 故障或进程中断失败，旧负值可能让预检最多 5 分钟短暂假阴性；真实上传仍直接查 MySQL并正确转秒传，所以数据库文件与授权数据不受影响。
+
+测试新增 `FileMd5CacheServiceImplTest` 12 项与扩充后的 `FileServiceImplTest` 9 项，共 21 项，覆盖三态协议、6 小时/5 分钟 TTL、普通 SET/SET NX、坏值删除、Redis 异常降级、授权隔离、数据库回源、事务失败不写缓存、落盘补偿和唯一键冲突回退。实现交付时后端全量 173 项测试全部通过。
+
+### 关联信息
+
+- 相关提交：`67d2a0c6 feat(file): add md5 negative cache`、`ddead6f6 docs(file): clarify cache test record`
+- 相关文件：`campus-resource-platform/src/main/java/com/john/campus/service/FileMd5CacheService.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileMd5CacheServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileAuthorizationServiceImpl.java`、`campus-resource-platform/src/test/java/com/john/campus/service/FileMd5CacheServiceImplTest.java`、`campus-resource-platform/src/test/java/com/john/campus/service/FileServiceImplTest.java`、`docs/05-redis-design.md`
+- 验证方式：核对当前 `dev` 分支上述提交后的缓存协议、预检/上传调用链、事务代理边界、Mapper 状态条件和测试用例；本轮为代码解释，未重复运行测试，引用实现交付时 21 项专项及 173 项全量测试结果
