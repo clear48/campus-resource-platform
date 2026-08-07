@@ -1,5 +1,13 @@
 # 当前项目状态
 
+## 文件 MD5 三态与负缓存（2026-08-07）
+
+- 已抽取 `FileMd5CacheService` 统一管理 `crp:cache:file:md5:{fileMd5}:{fileSize}`；正值为十进制 `fileId`，固定负哨兵为 `NOT_FOUND`，读取结果为 `FOUND` / `NOT_FOUND` / `ABSENT` 三态。
+- 正缓存 TTL 6 小时且用普通 `SET` 覆盖旧负值；数据库确实未命中后才用 `SET NX` 写 5 分钟负缓存，避免覆盖并发上传刚提交的正值。
+- 预检负缓存命中不查 `file_info` 和授权表；正缓存命中仍查当前用户授权。上传主链继续直查 MySQL，事务/授权成功后才写正缓存；Redis 异常不影响数据库及最终上传正确性，但正值写失败时旧负值可能造成最长 5 分钟的预检假阴性。
+- 非正、溢出和协议外缓存值会被最佳努力删除并按 ABSENT 回源；已提供显式 `evict`，但真实文件删除/恢复生命周期尚未接入，留给 `BATCH-17`。
+- 本次未改接口、数据库结构、Mapper、SQL、Controller、前端或依赖；编译通过，缓存专项测试 21/21、后端全量测试 173/173 通过。
+
 ## 公开资料详情缓存（2026-08-07）
 
 - `GET /api/v1/resources/{resourceId}` 已接入 `crp:cache:resource:detail:{resourceId}` Cache Aside，缓存值为 `ResourceDetailVO` 公共 JSON，`favorited` 固定为 `null`，TTL 为 30 分钟 + 随机 0-5 分钟。

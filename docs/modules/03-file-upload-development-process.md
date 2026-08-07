@@ -1,7 +1,7 @@
 # 文件上传模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**核心功能已完成（T1–T5）并通过编译，测试（T6）待补充**。文中标注“已实现/已完成”的内容均已在真实代码中核对；测试尚未执行，第 20 节为测试计划而非测试记录。
+> 当前状态：**核心功能与 MD5 三态缓存增强已完成，缓存专项自动化测试已通过；完整 T6 仍待补充真实 Redis、并发集成与手工上传验证**。文中标注“已实现/已完成”的内容均已在真实代码中核对。
 
 ---
 
@@ -13,7 +13,7 @@
 | 英文标识 | file-upload |
 | 文档路径 | `docs/modules/03-file-upload-development-process.md` |
 | 建议分支 | `feature/file-upload` |
-| 当前状态 | 核心功能已完成（T1–T5，编译通过），待测试（T6） |
+| 当前状态 | 核心功能与 MD5 三态缓存增强已完成；专项自动化测试通过，完整 T6 待补充 |
 | 前置依赖模块 | 用户认证模块（登录态、`uploader_id`） |
 | 下游模块 | 资料模块（消费本模块返回的 `fileId`）、下载模块（读取 `file_info.storage_path`） |
 | 接口前缀 | `/api/v1/files`（与现有 `AuthController`、`CategoryController` 的 `/api/v1` 前缀保持一致） |
@@ -107,11 +107,11 @@
 
 | Key | 类型 | 状态 | 用途 | TTL |
 | --- | --- | --- | --- | --- |
-| `crp:cache:file:md5:{fileMd5}:{fileSize}` | String | 已实现（`RedisKeyConstants.fileMd5Cache`） | 缓存 MD5→fileId，加速秒传判断；预检读穿透、上传落库后回填 | 6 小时 |
+| `crp:cache:file:md5:{fileMd5}:{fileSize}` | String | 已实现（`RedisKeyConstants.fileMd5Cache`） | 正值为十进制 `fileId`，负值为 `NOT_FOUND`；预检三态读取，上传成功后回填 | 正值 6 小时；负值 5 分钟 |
 
-一致性策略：以 `file_info` 的 `uk_file_md5_size` 唯一索引为**准**，Redis 仅为加速缓存；缓存未命中回查数据库，数据库仍以唯一索引兜底并发。该 Redis 缓存可作为本模块可选步骤或后续优化，首版可先只用唯一索引。
+一致性策略：以 `file_info` 的 `uk_file_md5_size` 唯一索引为**准**，Redis 仅为加速缓存。正缓存用普通 `SET`，在新文件事务、既有文件授权或并发唯一键回退授权成功后无条件覆盖旧负值；负缓存只在数据库确实未命中后用 `SET NX` 写入，不能覆盖并发上传已经提交的正值。非法、非正或溢出值最佳努力删除并回源；Redis 读取异常按缓存无结论降级 MySQL，写入异常只记录告警。
 
-> 已在 `RedisKeyConstants` 新增 `FILE_MD5_CACHE` 常量与 `fileMd5Cache(...)` 格式化方法；`FileServiceImpl` 注入 `StringRedisTemplate` 使用，禁止硬编码 Key。缓存以数据库唯一索引为准，Redis 故障时自动降级查库，不影响上传/预检正确性。
+> `FileMd5CacheService` 已提供显式 `evict(md5, size)`，但当前没有文件删除/恢复的真实生命周期入口，尚未形成删除失效闭环；禁止把该能力描述为已完成，接线留给 `BATCH-17`。
 
 ---
 
@@ -137,6 +137,7 @@
 | controller | `FileController` | `/api/v1/files`、`/api/v1/files/check` |
 | vo | `FileUploadVO`、`FileCheckVO` | 上传结果 / 预检结果（均含 `secondUpload` 标志） |
 | service | `FileStorageService`（接口）/ `FileStorageServiceImpl`（本地存储实现） | MD5 计算、落盘、生成 `stored_name`、删除补偿 |
+| service | `FileMd5CacheService` / `FileMd5CacheServiceImpl` | MD5 缓存三态读取、正负写入、坏值清理、故障降级与显式失效 |
 | 常量 | （未单独建类） | 类型白名单、大小上限等内联为 `FileServiceImpl` 私有常量 |
 
 ---
@@ -149,7 +150,8 @@ FileController
         ├── 校验（大小 / 扩展名白名单 / MIME）
         ├── MD5 计算（Spring DigestUtils 或自封装工具）
         ├── FileInfoMapper（selectByMd5AndSize / insert / increaseRefCount）
-        ├── StringRedisTemplate（crp:cache:file:md5:*，预检读穿透 / 上传回填）
+        ├── FileMd5CacheService（三态预检 / 正负缓存 / 坏值清理 / 显式失效）
+        │     └── StringRedisTemplate（crp:cache:file:md5:*）
         └── FileStorageService（落盘 / 删除补偿）
 ```
 
@@ -174,8 +176,9 @@ Controller 只做接收与参数校验，业务编排在 `FileServiceImpl`（遵
 ### 10.2 预检（`GET /api/v1/files/check`）
 
 1. 校验登录与参数（`fileMd5`、`fileSize`）。
-2. 先读 Redis 缓存定位候选文件，未命中则查 `file_info` 并回填缓存。
-3. 无论候选来自缓存还是数据库，都必须查询 `user_file_authorization`；只有当前用户已获授权才返回可秒传及 `fileId`，否则返回不可秒传且不暴露 ID。
+2. 读取 Redis 三态：`FOUND(fileId)` 继续查当前用户授权；`NOT_FOUND` 直接返回不可秒传，不查文件表和授权表；`ABSENT` 回源 `file_info`。
+3. MySQL 命中时写 6 小时正缓存并查询 `user_file_authorization`；MySQL 未命中时用 `SET NX` 写 5 分钟负缓存。
+4. 无论候选来自正缓存还是数据库，都只有当前用户已获授权才返回可秒传及 `fileId`，否则返回不可秒传且不暴露 ID。
 
 ---
 
@@ -243,7 +246,8 @@ flowchart TD
 ## 15. 事务处理
 
 - 遵循 `AGENTS.md` 第 11 节：**不要在事务中执行耗时文件 IO**。
-- 落盘在任何数据库写操作之外完成；本模块的入库（`insert`）与秒传自增（`increaseRefCount`）均为**单条 SQL**，自身即原子写入，因此 `upload()` 未加 `@Transactional`，避免把耗时文件 IO 卷入事务。跨多表写入的事务留待资料模块。
+- 落盘在任何数据库写操作之外完成；文件入库 + 首次授权、引用自增 + 幂等授权分别由 `FileAuthorizationServiceImpl` 的代理事务提交，`upload()` 不加事务，避免把耗时文件 IO 卷入事务。
+- `FileServiceImpl` 只在事务代理成功返回后写正缓存；Redis 失败不会回滚数据库，Redis 不成为正确性依赖。
 - 入库失败（含 `DuplicateKeyException` 之外的异常）→ 手动删除已落盘文件补偿（文件系统操作无法参与数据库事务）。
 - 秒传 `ref_count + 1` 使用 `UPDATE ... SET ref_count = ref_count + 1 WHERE id = ?` 的行级原子自增。
 
@@ -290,6 +294,7 @@ flowchart TD
 - **（T3 已完成）** `service/FileService.java`、`service/impl/FileServiceImpl.java` 已创建，编译通过：校验（非空/大小/扩展名白名单）→ MD5 → 去重 → 命中秒传（`ref_count+1`）/未命中落盘入库；`DuplicateKeyException` 转秒传，入库异常补偿删除。
 - **（T4 已完成）** `controller/FileController.java`、`vo/FileUploadVO.java`、`vo/FileCheckVO.java` 已创建，编译通过：`POST /api/v1/files` 上传、`GET /api/v1/files/check` 预检；Service 直接返回 VO、Controller 保持瘦身；`uploader_id` 由 Service 从 `UserContextHolder` 获取。
 - **（T5 已完成）** 异常与缓存支撑：`GlobalExceptionHandler` 统一处理超大文件（`MaxUploadSizeExceededException` → `FILE_TOO_LARGE`/413）与缺参异常（→ `PARAM_ERROR`/400）；`RedisKeyConstants` 新增 `crp:cache:file:md5:{fileMd5}:{fileSize}` 常量与 `fileMd5Cache(...)`；`FileServiceImpl` 接入 MD5 去重缓存（预检读穿透、上传落库后回填、Redis 故障降级查库）。
+- **（MD5 缓存增强已完成）** 新增 `FileMd5CacheService` / `FileMd5CacheServiceImpl`：兼容纯数字 `fileId` 正值，以 `NOT_FOUND` 表示负值，提供 `FOUND` / `NOT_FOUND` / `ABSENT` 三态读取；正值 6 小时普通 `SET`，负值 5 分钟 `SET NX`，坏值最佳努力删除，Redis 异常 fail-open。
 
 ## 19. 待完成事项
 
@@ -299,13 +304,16 @@ flowchart TD
 - [x] `FileController`（上传 + 预检）与 `FileUploadVO` / `FileCheckVO`。
 - [x] `RedisKeyConstants` 新增文件 MD5 缓存常量，并在 `FileServiceImpl` 去重中接入。
 - [x] `GlobalExceptionHandler` 新增 `MaxUploadSizeExceededException` 与缺参异常处理。
-- [ ] 测试用例与本文档测试记录回填。
+- [x] MD5 三态缓存、5 分钟负缓存、坏值清理和显式 `evict` 能力。
+- [x] MD5 三态缓存与上传缓存写时机专项测试及记录回填。
+- [ ] 完整 T6：真实 Redis TTL/NX、数据库/Redis 并发、上传补偿与手工接口验证。
+- [ ] `BATCH-17`：在真实文件删除/恢复生命周期入口调用 `evict(md5, size)`；当前不得声称失效闭环已完成。
 
 ---
 
 ## 20. 测试清单
 
-> 说明：以下为**测试计划**。自动化/手工测试尚未执行（T6 待办），本节暂无实际测试记录。
+> 自动化记录：`.\mvnw.cmd "-Dtest=FileServiceImplTest,FileMd5CacheServiceImplTest" test` 已通过，专项 21 项全部成功；后端全量 `.\mvnw.cmd test` 已通过，173 项全部成功。真实 Redis TTL/NX、数据库/Redis 并发和手工上传仍属于完整 T6 待办。
 
 | 场景 | 预期 |
 | --- | --- |
@@ -319,6 +327,10 @@ flowchart TD
 | 并发上传相同文件 | 唯一索引兜底，二者最终指向同一 `fileId` |
 | 入库失败 | 已落盘文件被补偿删除，无孤儿文件 |
 | MD5 预检命中/未命中 | 分别返回可秒传（含 `fileId`）/ 不可秒传 |
+| MD5 负缓存命中 | 直接返回不可秒传，不查询 `file_info` 与授权表 |
+| MD5 缓存坏值或读取异常 | 清理后或直接按 ABSENT 降级查 MySQL |
+| 负缓存与并发上传竞争 | `SET NX` 不覆盖正值，上传成功的普通 `SET` 可覆盖旧负值 |
+| 上传后的正缓存写入失败 | 不影响数据库及最终上传正确性；已有或随后写入的负值可能造成最长 5 分钟的预检假阴性 |
 | 预检缺 `fileMd5`/`fileSize` | `PARAM_ERROR` / 400 |
 
 测试方式：Postman `multipart/form-data` 或 `curl -F "file=@xxx.pdf" -H "Authorization: Bearer {token}"`；秒传预检用 `GET` 带 `fileMd5`、`fileSize`。
@@ -338,6 +350,7 @@ flowchart TD
 | 新增 | `controller/FileController.java`、`vo/FileUploadVO.java`、`vo/FileCheckVO.java` | 已创建（T4） |
 | 修改 | `common/RedisKeyConstants.java`（新增文件缓存常量） | 已修改（T5） |
 | 修改 | `service/impl/FileServiceImpl.java`（接入 MD5 去重缓存） | 已修改（T5） |
+| 新增 | `service/FileMd5CacheService.java`、`service/impl/FileMd5CacheServiceImpl.java` | 已创建（MD5 缓存增强） |
 | 修改 | `exception/GlobalExceptionHandler.java`（超大文件 + 缺参处理） | 已修改（T5） |
 
 ---
@@ -361,7 +374,8 @@ flowchart TD
 6. 并发：前置查询 + 唯一索引兜底，`DuplicateKeyException` 转秒传。
 7. 缓存加速与降级：Redis 缓存 MD5→fileId，未命中回查数据库，唯一索引是最终一致性来源。
 8. 全局异常兜底：超大文件在进入 Controller 前由 multipart 抛异常，统一在 `GlobalExceptionHandler` 映射为 `FILE_TOO_LARGE` 并给出 413 语义，避免暴露 500。
-9. 缓存使用的取舍：读缓存只放在高频预检接口（读穿透），上传去重坚持查唯一索引（只写不读），兼顾性能与并发正确性；Redis 故障自动降级查库。
+9. 缓存使用的取舍：读缓存只放在高频预检接口（读穿透），上传去重坚持查唯一索引（只写不读），兼顾性能与并发正确性；Redis 读取故障自动降级查库，写入故障不回滚数据库主流程。
+10. 防穿透与并发：短 TTL 负缓存用 `SET NX`，上传事务成功后用普通 `SET` 覆盖旧负值，避免数据库旧读覆盖新正值。
 
 ---
 
@@ -373,6 +387,7 @@ flowchart TD
 - 病毒扫描 / 内容合规校验。
 - 孤儿文件与 `ref_count = 0` 文件的定时清理任务。
 - `ref_count` 增减的并发原子性与跨模块一致性加固。
+- `BATCH-17` 在真实文件删除/恢复入口接入 MD5 缓存 `evict`，补齐生命周期失效闭环。
 
 ---
 

@@ -1,5 +1,13 @@
 # 分支交接记录
 
+## 2026-08-07 文件 MD5 三态与负缓存
+
+- 分支：`dev`；新增 `FileMd5CacheService` / `FileMd5CacheServiceImpl`，继续使用 `RedisKeyConstants.fileMd5Cache(md5, size)`，缓存正值为十进制 `fileId`，负值为固定 `NOT_FOUND`。
+- 预检按 `FOUND` / `NOT_FOUND` / `ABSENT` 分流：FOUND 仍查用户授权，NOT_FOUND 不查文件表和授权表，ABSENT 回源 MySQL 并按结果写正缓存或 `SET NX` 负缓存。
+- 正值 TTL 6 小时，负值 TTL 5 分钟；上传主链仍直查 MySQL，在新文件事务、既有文件授权及并发唯一键回退授权成功后用普通 `SET` 覆盖旧负值。Redis 读写异常不影响数据库主流程。
+- 非正、溢出或协议外缓存值最佳努力删除；显式 `evict(md5, size)` 已提供，但没有真实文件删除/恢复入口调用，生命周期失效闭环留给 `BATCH-17`。
+- 验证：`.\\mvnw.cmd -DskipTests compile` 通过；缓存专项测试 21/21、后端全量测试 173/173 通过。正缓存写失败不影响数据库及最终上传正确性，但旧负值可能造成最长 5 分钟的预检假阴性；真实 Redis/数据库并发集成与生命周期接线仍待后续完成。
+
 ## 2026-08-07 公开资料详情缓存
 
 - 分支：`dev`；已实现 `crp:cache:resource:detail:{resourceId}`，缓存 `ResourceDetailVO` 公共 JSON，TTL 30-35 分钟且 `favorited` 固定为 `null`。

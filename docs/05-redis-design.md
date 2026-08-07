@@ -730,6 +730,8 @@ JWT 黑名单 TTL 不应超过 Token 原始过期时间，否则会浪费 Redis 
 
 ## 10. 文件 MD5 去重缓存
 
+实现状态：已由 `FileMd5CacheServiceImpl` 统一落地正缓存、负缓存、坏值清理和 Redis 故障降级；Key 继续通过 `RedisKeyConstants.fileMd5Cache(fileMd5, fileSize)` 生成。上传主链不读该缓存，MySQL 唯一索引仍是去重正确性的最终保障。
+
 ### 10.1 Key 设计
 
 ```text
@@ -744,34 +746,24 @@ crp:cache:file:md5:5d41402abc4b2a76b9719d911017c592:1048576
 
 ### 10.2 数据结构
 
-String，存储 JSON。
+String，存在两类合法值：
 
-示例值：
+- 正缓存：`file_info.id` 的十进制正整数字符串，例如 `30001`。
+- 负缓存：固定非数字哨兵 `NOT_FOUND`，表示最近一次回源 MySQL 确认没有对应文件。
 
-```json
-{
-  "fileId": 30001,
-  "fileMd5": "5d41402abc4b2a76b9719d911017c592",
-  "fileSize": 1048576,
-  "storageType": 1,
-  "storagePath": "/data/upload/2026/07/02/abc.pdf",
-  "status": 1
-}
-```
+读取结果分为 `FOUND(fileId)`、`NOT_FOUND`、`ABSENT` 三态。现有纯数字正值保持兼容；非正数、long 溢出或其他协议外字符串会被最佳努力 `DEL` 后按 `ABSENT` 回源。Redis 读取或清理异常同样 fail-open 为 `ABSENT`，不改变 MySQL 主流程。
 
 ### 10.3 使用场景
 
 - 上传前 MD5 检查接口。
-- 上传文件时判断是否可以复用已有文件。
-- 减少对 MySQL `file_info` 表的重复查询。
+- 正缓存减少重复查询 `file_info`，但命中后仍按当前用户查询 `user_file_authorization`，不能把全局文件存在误当成用户授权。
+- 负缓存拦截短时间内对不存在 MD5 的重复预检；负缓存命中时不查询 `file_info` 和授权表。
+- 真实上传继续直接查询 MySQL，不能用 Redis 代替完整文件记录、事务授权或唯一索引判断。
 
 ### 10.4 TTL 策略
 
-建议 TTL：
-
-```text
-6-24 小时
-```
+- 正缓存 TTL：6 小时。
+- 负缓存 TTL：5 分钟，缩短新文件上传前后负值残留窗口。
 
 文件 MD5 去重最终以 MySQL 唯一索引 `uk_file_md5_size` 为准，Redis 只做加速，不需要永久保存。
 
@@ -779,28 +771,35 @@ String，存储 JSON。
 
 | 触发动作 | 处理方式 |
 | --- | --- |
-| MD5 检查缓存未命中 | 查询 MySQL，查到后写 Redis |
-| 新文件保存成功 | 写入 Redis MD5 缓存 |
-| 文件被删除或状态异常 | 删除 Redis MD5 缓存 |
-| 文件复用成功 | 可刷新 TTL |
+| 预检缓存 ABSENT，MySQL 命中 | 普通 `SET` 写正数 fileId，TTL 6 小时 |
+| 预检缓存 ABSENT，MySQL 未命中 | `SET NX` 写 `NOT_FOUND`，TTL 5 分钟 |
+| 新文件与首次授权事务成功 | 普通 `SET` 写正值，无条件覆盖旧负缓存 |
+| 既有文件秒传授权成功 | 普通 `SET` 写正值并刷新 6 小时 TTL |
+| 并发唯一键回退并授权成功 | 普通 `SET` 写赢家 fileId，覆盖旧负缓存 |
+| 非法/非正/溢出缓存值 | 最佳努力删除，按 ABSENT 回源 MySQL |
+| 文件被删除、恢复或状态异常 | 应调用 `evict(md5, size)` 最佳努力删除；真实生命周期入口尚未实现 |
+
+`FileMd5CacheService` 已提供显式 `evict(md5, size)`，但当前代码没有文件删除/恢复的真实业务入口，因此不能声称删除失效闭环已经完成；该接线留给后续 `BATCH-17`。
 
 ### 10.6 MySQL 一致性处理
 
 Redis 只作为查询加速，MySQL 是最终准数据源。
 
-上传时必须仍然依赖 MySQL 唯一索引兜底：
+预检采用三态 Cache Aside：
 
 ```text
-先查 Redis -> Redis 未命中查 MySQL -> 尝试插入 file_info -> 唯一索引防重复
+FOUND -> 查当前用户授权
+NOT_FOUND -> 直接返回不可秒传
+ABSENT -> 查 MySQL -> 命中写正缓存并查授权 / 未命中 SET NX 写负缓存
 ```
 
-并发上传同一文件时，可能两个请求都没有查到 Redis。此时由 MySQL 的 `uk_file_md5_size` 唯一索引保证不会重复插入文件记录。
+上传主链始终直接查 MySQL，并由 `uk_file_md5_size` 兜底并发。数据库事务或秒传授权成功后才调用普通 `SET` 写正缓存，保证可以覆盖旧负值；负缓存只能 `SET NX`，避免一个较早的数据库未命中结果覆盖并发上传已经写入的正值。Redis 写入失败只记录告警，不回滚已提交的文件和授权数据。
 
 ### 10.7 为什么选择 String
 
-- MD5 去重结果是一个小对象。
-- 一次读取即可获得 `fileId`、大小、路径、状态等信息。
-- 结构简单，适合缓存 MySQL 查询结果。
+- Key 已包含 MD5 和文件大小，值只需保存候选 `fileId` 或负哨兵。
+- 一次 `GET` 即可得到三态判断，不需要 JSON 序列化依赖和字段兼容协议。
+- 缓存只负责候选定位，不保存路径、状态或授权信息，避免被误用为下载或权限依据。
 
 ## 11. 用户收藏集合
 

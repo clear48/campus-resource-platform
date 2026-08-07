@@ -1,23 +1,19 @@
 package com.john.campus.service.impl;
 
 import com.john.campus.common.ErrorCode;
-import com.john.campus.common.RedisKeyConstants;
 import com.john.campus.common.UserContextHolder;
 import com.john.campus.entity.FileInfo;
 import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.FileInfoMapper;
 import com.john.campus.service.FileAuthorizationService;
+import com.john.campus.service.FileMd5CacheService;
 import com.john.campus.service.FileService;
 import com.john.campus.service.FileStorageService;
 import com.john.campus.vo.FileCheckVO;
 import com.john.campus.vo.FileUploadVO;
 import java.nio.file.Paths;
-import java.time.Duration;
 import java.util.Set;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -28,8 +24,6 @@ import org.springframework.web.multipart.MultipartFile;
  */
 @Service
 public class FileServiceImpl implements FileService {
-
-    private static final Logger log = LoggerFactory.getLogger(FileServiceImpl.class);
 
     /**
      * 允许上传的扩展名白名单，是文件类型的主要安全闸口。
@@ -51,11 +45,6 @@ public class FileServiceImpl implements FileService {
      */
     private static final String MD5_PATTERN = "^[a-fA-F0-9]{32}$";
     /**
-     * 文件 MD5 去重缓存 TTL，取设计文档建议区间下限，过期后回查数据库。
-     */
-    private static final Duration FILE_MD5_CACHE_TTL = Duration.ofHours(6);
-
-    /**
      * 文件表访问入口。
      */
     private final FileInfoMapper fileInfoMapper;
@@ -68,18 +57,18 @@ public class FileServiceImpl implements FileService {
      */
     private final FileAuthorizationService fileAuthorizationService;
     /**
-     * Redis 用于文件 MD5 去重缓存，命中可跳过数据库查询。
+     * 文件 MD5 三态缓存服务，统一处理负缓存、坏值清理和 Redis 降级。
      */
-    private final StringRedisTemplate stringRedisTemplate;
+    private final FileMd5CacheService fileMd5CacheService;
 
     public FileServiceImpl(
             FileInfoMapper fileInfoMapper,
             FileStorageService fileStorageService,
-            StringRedisTemplate stringRedisTemplate,
+            FileMd5CacheService fileMd5CacheService,
             FileAuthorizationService fileAuthorizationService) {
         this.fileInfoMapper = fileInfoMapper;
         this.fileStorageService = fileStorageService;
-        this.stringRedisTemplate = stringRedisTemplate;
+        this.fileMd5CacheService = fileMd5CacheService;
         this.fileAuthorizationService = fileAuthorizationService;
     }
 
@@ -105,7 +94,7 @@ public class FileServiceImpl implements FileService {
     }
 
     /**
-     * MD5 预检，供前端上传前判断是否可秒传；先查缓存，未命中回查数据库并回填。
+     * MD5 预检，供前端上传前判断是否可秒传；三态缓存只跳过可证明不必要的查库。
      */
     @Override
     public FileCheckVO checkByMd5AndSize(String fileMd5, Long fileSize) {
@@ -115,16 +104,22 @@ public class FileServiceImpl implements FileService {
         if (fileSize == null || fileSize < 0) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "fileSize 不合法");
         }
-        // 先查缓存加速秒传判断，命中直接返回，避免高频预检打到数据库。
-        Long cachedFileId = getCachedFileId(fileMd5, fileSize);
-        if (cachedFileId != null) {
-            return authorizedCheckResult(cachedFileId);
+        FileMd5CacheService.LookupResult cacheResult = fileMd5CacheService.get(fileMd5, fileSize);
+        if (cacheResult.state() == FileMd5CacheService.CacheState.FOUND) {
+            // 全局文件命中不等于当前用户有引用权限，仍需查询授权表且不能泄露未授权 fileId。
+            return authorizedCheckResult(cacheResult.fileId());
         }
-        FileInfo fileInfo = fileInfoMapper.selectByMd5AndSize(fileMd5, fileSize);
-        if (fileInfo == null) {
+        if (cacheResult.state() == FileMd5CacheService.CacheState.NOT_FOUND) {
+            // 负缓存只表达 file_info 未命中，不需要再查询文件表或授权表。
             return new FileCheckVO(false, null);
         }
-        cacheFileId(fileMd5, fileSize, fileInfo.getId());
+
+        FileInfo fileInfo = fileInfoMapper.selectByMd5AndSize(fileMd5, fileSize);
+        if (fileInfo == null) {
+            fileMd5CacheService.putNotFound(fileMd5, fileSize);
+            return new FileCheckVO(false, null);
+        }
+        fileMd5CacheService.putFound(fileMd5, fileSize, fileInfo.getId());
         return authorizedCheckResult(fileInfo.getId());
     }
 
@@ -136,7 +131,8 @@ public class FileServiceImpl implements FileService {
         try {
             // 单条 INSERT 自身即原子写入，无需跨文件 IO 的长事务。
             fileAuthorizationService.createAuthorizedFile(fileInfo, fileInfo.getUploaderId());
-            cacheFileId(fileInfo.getFileMd5(), fileInfo.getFileSize(), fileInfo.getId());
+            // 事务代理返回即表示文件与授权已提交，此时普通 SET 覆盖并发遗留的负缓存。
+            fileMd5CacheService.putFound(fileInfo.getFileMd5(), fileInfo.getFileSize(), fileInfo.getId());
             return toUploadVO(fileInfo, false);
         } catch (DuplicateKeyException ex) {
             // 并发下别的请求已入库相同文件：删除本次多余落盘，转为秒传。
@@ -160,7 +156,8 @@ public class FileServiceImpl implements FileService {
         // 只有真实文件上传并经服务端计算内容哈希后，才为当前用户建立授权。
         fileAuthorizationService.authorizeExistingFile(
                 fileInfo.getId(), UserContextHolder.getRequiredUserId());
-        cacheFileId(fileInfo.getFileMd5(), fileInfo.getFileSize(), fileInfo.getId());
+        // 授权事务成功后才写缓存；Redis 失败不影响已经提交的数据库正确性。
+        fileMd5CacheService.putFound(fileInfo.getFileMd5(), fileInfo.getFileSize(), fileInfo.getId());
         return toUploadVO(fileInfo, true);
     }
 
@@ -253,32 +250,4 @@ public class FileServiceImpl implements FileService {
                 secondUpload);
     }
 
-    /**
-     * 读取文件 MD5 去重缓存，返回缓存的 fileId；缓存不可用时降级返回 null，交由查库。
-     */
-    private Long getCachedFileId(String fileMd5, Long fileSize) {
-        try {
-            String value = stringRedisTemplate.opsForValue()
-                    .get(RedisKeyConstants.fileMd5Cache(fileMd5, fileSize));
-            return StringUtils.hasText(value) ? Long.valueOf(value) : null;
-        } catch (RuntimeException ex) {
-            // 缓存是加速项而非正确性依赖，异常时记录日志并降级为查库。
-            log.warn("读取文件 MD5 缓存失败: md5={}, size={}", fileMd5, fileSize, ex);
-            return null;
-        }
-    }
-
-    /**
-     * 写入文件 MD5 去重缓存；失败不影响主流程，仅记录日志。
-     */
-    private void cacheFileId(String fileMd5, Long fileSize, Long fileId) {
-        try {
-            stringRedisTemplate.opsForValue().set(
-                    RedisKeyConstants.fileMd5Cache(fileMd5, fileSize),
-                    String.valueOf(fileId),
-                    FILE_MD5_CACHE_TTL);
-        } catch (RuntimeException ex) {
-            log.warn("写入文件 MD5 缓存失败: md5={}, size={}", fileMd5, fileSize, ex);
-        }
-    }
 }
