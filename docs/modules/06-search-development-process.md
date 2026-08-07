@@ -239,16 +239,27 @@ Controller 只负责接收请求、触发参数绑定和返回统一响应；可
 
 ## 11. 数据流转流程
 
-```text
-用户输入搜索条件
-  → SearchController 参数绑定
-  → SearchServiceImpl 参数校验与关键词归一化
-  → ResourceMapper 固定 status = APPROVED 查询
-  → Resource Entity 列表
-  → SearchResourceVO 列表
-  → PageResult 分页响应
-  → Redis ZSet 记录非空关键词
+```mermaid
+flowchart TD
+    A["游客或登录用户发起公开搜索"] --> B["SearchController 绑定 SearchResourceQueryDTO"]
+    B --> C{"参数绑定与校验是否通过？"}
+    C -- "否" --> X1["返回 PARAM_ERROR"]
+    C -- "是" --> D["归一化关键词、分页参数<br/>并映射排序白名单"]
+    D --> E["统计符合条件的 APPROVED 资料总数"]
+    E --> F{"归一化关键词是否非空？"}
+    F -- "否" --> I{"total 是否为 0？"}
+    F -- "是" --> G["写入 daily、weekly、monthly 热词 ZSet"]
+    G --> H{"Redis 写入是否成功？"}
+    H -- "否" --> H1["记录告警并降级<br/>不中断搜索主流程"]
+    H -- "是" --> I
+    H1 --> I
+    I -- "是" --> J["返回空 records 的 PageResult"]
+    I -- "否" --> K["按安全排序和分页查询 APPROVED 资料"]
+    K --> L["Resource Entity 转 SearchResourceVO"]
+    L --> M["返回 PageResult<SearchResourceVO>"]
 ```
+
+> Redis 热词统计是搜索成功后的运营旁路，零结果搜索也可以计入热词；Redis 异常不影响 MySQL 搜索结果，搜索可见性的最终边界始终由 SQL 中固定的 `status = APPROVED` 保证。
 
 状态隔离要求：
 

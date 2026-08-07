@@ -379,42 +379,64 @@ HotRankingMaintenanceTask
 
 ### 11.1 下载行为到排行榜
 
-```text
-下载请求成功
-→ Redis SETNX 去重成功
-→ HINCRBY download:delta resourceId 1
-→ 四周期热门资料 ZSet 分数各 +5
-→ 定时任务隔离一个 syncing 批次
-→ MySQL resource.download_count 原子累加
-→ MySQL 事务提交
-→ 删除 syncing 批次
+```mermaid
+flowchart TD
+    A["下载凭证创建成功"] --> B{"10 分钟 SETNX 去重是否成功？"}
+    B -- "否" --> C["不重复计数和增加热度"]
+    B -- "是" --> D["HINCRBY 下载增量 +1"]
+    D --> E{"增量写入是否成功？"}
+    E -- "否" --> F["记录告警并跳过热度更新"]
+    E -- "是" --> G["旁路 best-effort 更新热门资料四周期 +5<br/>all 榜更新受维护读锁保护"]
+    E -- "是" --> H["定时任务独立隔离 UUID syncing 批次"]
+    G --> G1["周期更新可能部分成功<br/>失败仅记录日志"]
+    H --> I["MySQL 事务写幂等明细<br/>并原子累加 download_count"]
+    I --> J{"事务提交成功？"}
+    J -- "否" --> K["保留批次，使用同一 batchId 重试"]
+    J -- "是" --> L["HDEL 已持久化字段<br/>批次清空后删除 current 指针"]
 ```
 
 ### 11.2 收藏行为到排行榜
 
-```text
-收藏/取消收藏 MySQL 事务提交
-→ 确认是否发生真实状态变化
-→ 收藏四周期 +3 / 取消收藏四周期 -3
-→ Redis 失败只记录日志，不回滚收藏主事务
+```mermaid
+flowchart TD
+    A["收藏模块 MySQL 事务提交"] --> B{"收藏状态是否真实变化？"}
+    B -- "否" --> C["幂等返回，不更新排行榜"]
+    B -- "收藏" --> D["热门资料四周期热度 +3"]
+    B -- "取消收藏" --> E["热门资料四周期热度 -3"]
+    D --> F["Redis 失败仅记录日志"]
+    E --> F
+    F --> G["不回滚已提交的收藏事务"]
 ```
 
 ### 11.3 热度快照
 
-```text
-Redis all 总榜
-→ 定时读取资源 ID 与 score
-→ 批量更新 resource.hot_score
-→ 搜索 hotScore 排序和 Redis 故障兜底读取快照
+```mermaid
+flowchart TD
+    A["定时快照任务触发"] --> B{"获得热门榜维护读锁？"}
+    B -- "否" --> C["重建进行中，跳过本轮"]
+    B -- "是" --> D["分批读取 Redis all 榜 member 与 score"]
+    D --> E["独立 MySQL 事务批量更新<br/>APPROVED 资料的 resource.hot_score"]
+    E --> F["搜索 hotScore 排序和 Redis 降级<br/>读取 MySQL 快照"]
 ```
 
 ### 11.4 总榜初始化/重建
 
-```text
-MySQL 查询 APPROVED 资料
-→ hotScore = downloadCount * 5 + favoriteCount * 3 + viewCount * 1
-→ 写入 crp:rank:resource:hot:all
-→ 不写 daily / weekly / monthly，避免伪造周期历史
+```mermaid
+flowchart TD
+    A["all 榜缺失检查或管理员手动重建"] --> B{"触发来源"}
+    B -- "定时缺失检查" --> C{"tryLock 是否获得维护写锁？"}
+    C -- "否" --> D["跳过本轮"]
+    C -- "是" --> C1{"锁内检查正式 all Key 是否存在？"}
+    C1 -- "是" --> D1["结束本轮，不覆盖实时热度"]
+    C1 -- "否" --> F["游标分页查询 APPROVED 资料"]
+    B -- "管理员手动重建" --> E["校验管理员并等待维护写锁"]
+    E --> F
+    F --> G{"是否存在 APPROVED 资料？"}
+    G -- "否" --> H["删除正式 all 榜"]
+    G -- "是" --> I["计算 hotScore<br/>download×5 + favorite×3 + view×1"]
+    I --> J["写入 rebuild:active 临时 ZSet"]
+    J --> K["RENAME 原子替换正式 all 榜"]
+    K --> L["不写 daily、weekly、monthly<br/>避免伪造周期历史"]
 ```
 
 ---

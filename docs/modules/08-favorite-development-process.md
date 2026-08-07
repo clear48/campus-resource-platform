@@ -385,33 +385,66 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 
 ## 11. 数据流转流程（规划）
 
-```text
-用户点击收藏
-  → FavoriteController 取 resourceId
-  → FavoriteServiceImpl 取当前用户
-  → ResourceMapper 校验 APPROVED
-  → FavoriteMapper 查询是否已有记录
-       ├── 无记录：INSERT（唯一索引防重复）
-       ├── status=0 旧记录：UPDATE status=1
-       └── status=1 已有：幂等返回 duplicateIgnored=true
-  → ResourceMapper.updateFavoriteCount(+1)（原子 SQL）
-  → Redis SADD crp:user:favorites:{userId}
-  → 返回 FavoriteResultVO
+### 11.1 收藏与取消收藏
 
-用户取消收藏
-  → FavoriteController 取 resourceId
-  → FavoriteServiceImpl 取当前用户
-  → FavoriteMapper 校验存在 status=1 记录
-  → FavoriteMapper.updateStatus(1→0)
-  → ResourceMapper.updateFavoriteCount(-1)（防负）
-  → Redis SREM crp:user:favorites:{userId}
-  → 返回 FavoriteResultVO
+```mermaid
+flowchart TD
+    A["用户发起收藏模块请求"] --> B["JWT 校验并从 UserContext 获取 userId"]
+    B --> C{"请求类型"}
 
-查询收藏状态
-  → Redis SISMEMBER 快速判断
-       ├── 命中 → 直接返回
-       └── 未命中 → MySQL 查询 → 重建 Redis Set → 返回
+    C -- "收藏" --> D["校验资料存在且为 APPROVED"]
+    D --> E["开启 MySQL 事务"]
+    E --> F{"当前收藏关系"}
+    F -- "status = 1" --> G["幂等成功<br/>不修改 favorite_count"]
+    F -- "无记录" --> H["INSERT 收藏关系<br/>唯一索引兜底并发"]
+    F -- "status = 0" --> I["条件更新 0 → 1"]
+    H --> H1{"INSERT 是否成功？"}
+    H1 -- "唯一索引冲突" --> H2["回滚原事务并读取并发赢家<br/>必要时在新事务恢复收藏"]
+    H1 -- "是" --> H3{"收藏状态是否真实变化？"}
+    H2 --> H3
+    I --> H3
+    H3 -- "否" --> G
+    H3 -- "是" --> J["原子 favorite_count +1<br/>影响行数必须为 1"]
+    J --> K["提交 MySQL 事务"]
+    K --> L["提交后 SADD 收藏 Set<br/>并刷新 30 分钟 TTL"]
+    K --> M["提交后热门资料四周期热度 +3"]
+    G --> L
+
+    C -- "取消收藏" --> N["开启 MySQL 事务"]
+    N --> O{"是否存在 status = 1 的关系？"}
+    O -- "否" --> X1["返回 RESOURCE_NOT_FOUND"]
+    O -- "是" --> P["条件更新 1 → 0"]
+    P --> P1{"状态更新行数是否为 1？"}
+    P1 -- "否" --> X2["回滚事务并返回并发冲突"]
+    P1 -- "是" --> Q["原子 favorite_count -1<br/>影响行数必须为 1 且防止减负"]
+    Q --> R["提交 MySQL 事务"]
+    R --> S["提交后 SREM 收藏 Set"]
+    R --> T["提交后热门资料四周期热度 -3"]
+
+    L --> U["Redis 或排行榜异常仅告警<br/>不回滚 MySQL 结果"]
+    M --> U
+    S --> U
+    T --> U
+    U --> V["返回 FavoriteResultVO"]
 ```
+
+### 11.2 查询收藏状态
+
+```mermaid
+flowchart TD
+    A["用户查询资料收藏状态"] --> B{"Redis 可用且收藏 Set Key 存在？"}
+    B -- "是" --> C["SISMEMBER 直接判断"]
+    B -- "否或 Redis 异常" --> D["查询 MySQL 收藏关系"]
+    D --> E["加载当前用户全部有效收藏 ID"]
+    E --> F{"有效收藏集合是否为空？"}
+    F -- "否" --> G["批量 SADD 并设置 30 分钟 TTL"]
+    F -- "是" --> H["不创建空 Set Key"]
+    C --> I["返回 FavoriteStatusVO"]
+    G --> I
+    H --> I
+```
+
+> `favorite` 关系与 `resource.favorite_count` 在同一 MySQL 事务中更新；收藏 Set 和热门榜只在事务提交后更新，MySQL 是最终事实来源。
 
 ---
 

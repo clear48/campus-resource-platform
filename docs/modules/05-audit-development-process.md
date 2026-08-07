@@ -306,25 +306,49 @@ Controller 只负责接收请求、触发参数校验和返回统一响应；状
 
 ## 11. 数据流转流程
 
-```text
-resource.status = 0(PENDING_REVIEW)
-  → 管理员审核通过
-  → resource.status = 1(APPROVED)
-  → audit_record(action_type=1)
-  → 后续搜索/下载/收藏可消费
+```mermaid
+flowchart TD
+    A["管理员发起审核请求"] --> B["JWT 校验登录"]
+    B --> C{"当前用户是否为管理员？"}
+    C -- "否" --> X1["返回 FORBIDDEN"]
+    C -- "是" --> D{"请求类型"}
 
-resource.status = 0(PENDING_REVIEW)
-  → 管理员审核拒绝
-  → resource.status = 2(REJECTED)
-  → audit_record(action_type=2)
-  → 上传者在我的上传列表查看拒绝原因
+    D -- "待审核列表" --> E["校验筛选与分页参数"]
+    E --> F["查询 status = PENDING_REVIEW 的资料"]
+    F --> G["返回 PageResult"]
 
-resource.status = 1(APPROVED)
-  → 管理员下架
-  → resource.status = 3(OFFLINE)
-  → audit_record(action_type=3)
-  → 公开详情/搜索/下载不再消费
+    D -- "审核文件" --> H{"资料存在且为 PENDING_REVIEW？"}
+    H -- "否" --> X2["返回不存在或状态非法错误"]
+    H -- "是" --> I["按 resource.file_id 查询正常文件"]
+    I --> J["校验存储根目录与文件可读性"]
+    J --> K["按安全类型返回 inline 或 attachment<br/>设置 no-store 与 nosniff"]
+
+    D -- "通过、拒绝或下架" --> L["查询资料并校验原因与前置状态"]
+    L --> M{"状态流转是否合法？"}
+    M -- "通过：0 → 1" --> N1["条件更新为 APPROVED"]
+    M -- "拒绝：0 → 2" --> N2["条件更新为 REJECTED"]
+    M -- "下架：1 → 3" --> N3["条件更新为 OFFLINE"]
+    M -- "否" --> X3["返回 RESOURCE_STATUS_INVALID"]
+
+    N1 --> O{"更新行数是否为 1？"}
+    N2 --> O
+    N3 --> O
+    O -- "否" --> X3
+    O -- "是" --> P["同一事务插入 audit_record"]
+    P --> Q{"事务是否提交成功？"}
+    Q -- "否" --> R["回滚状态更新与审核记录"]
+    Q -- "是" --> S["提交后失效资料详情缓存"]
+    S --> T{"审核动作"}
+    T -- "通过" --> U["初始化热门资料榜成员"]
+    T -- "下架" --> V["从热门资料榜移除成员"]
+    T -- "拒绝" --> W["无需更新排行榜"]
+    U --> Y["派生数据异常仅告警<br/>不回滚审核事务"]
+    V --> Y
+    W --> Y
+    Y --> Z["返回 AuditResultVO"]
 ```
+
+> 状态条件更新与 `audit_record` 写入必须位于同一 MySQL 事务；详情缓存和排行榜属于事务提交后的派生更新，失败不会反向回滚已提交的审核结果。
 
 ---
 

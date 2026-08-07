@@ -256,15 +256,40 @@ Controller 只负责接收请求、触发参数校验和返回统一响应；业
 
 ## 11. 数据流转流程
 
-```text
-FileUploadVO.fileId
-  → ResourceCreateDTO.fileId
-  → 校验 file_info.status = 1
-  → 校验 category.status = 1
-  → resource.status = 0(PENDING_REVIEW)
-  → ResourceCreateVO
-  → 后续审核模块消费 resource.id
+```mermaid
+flowchart TD
+    A["客户端发起资料请求"] --> B{"请求类型"}
+
+    B -- "创建资料" --> C["JWT 校验并获取当前用户 ID"]
+    C --> D["校验 DTO、正常文件及当前用户文件授权"]
+    D --> E{"文件可引用？"}
+    E -- "否" --> X1["返回 RESOURCE_NOT_FOUND"]
+    E -- "是" --> F["校验分类存在且启用"]
+    F --> G{"同一用户和文件是否已有<br/>待审核或已通过资料？"}
+    G -- "是" --> X2["返回 DATA_DUPLICATE"]
+    G -- "否" --> H["事务内插入 resource<br/>status = PENDING_REVIEW"]
+    H --> I["返回 ResourceCreateVO<br/>供审核模块消费 resourceId"]
+
+    B -- "公开详情" --> J["匿名访问 ResourceServiceImpl.getPublicDetail"]
+    J --> K{"Redis 公共快照是否命中？"}
+    K -- "是" --> L["返回 ResourceDetailVO"]
+    K -- "否或缓存异常" --> M{"获得每资料 Redisson 锁？"}
+    M -- "是" --> N["锁内二次检查<br/>仍未命中才查询 MySQL"]
+    M -- "否" --> O["直接查询 MySQL<br/>不回填缓存"]
+    N --> P{"资料存在且为 APPROVED？"}
+    O --> P
+    P -- "否" --> X3["返回不存在或状态不可见错误"]
+    P -- "是且持锁" --> Q["组装公共详情并回填缓存"]
+    P -- "是但未持锁" --> L
+    Q --> L
+
+    B -- "我的上传" --> R["JWT 校验并获取当前用户 ID"]
+    R --> S["校验状态和分页参数"]
+    S --> T["按 uploader_id 查询列表和总数"]
+    T --> U["返回 PageResult<MyResourceVO>"]
 ```
+
+> 创建资料时，全局存在的 `file_info` 不能直接证明当前用户可引用该文件，还必须校验 `user_file_authorization`；公开详情缓存只保存公共字段，Redis 或锁异常时降级查询 MySQL。
 
 ---
 

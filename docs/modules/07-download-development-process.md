@@ -325,24 +325,64 @@ Controller 只负责接收请求、取路径参数、绑定分页参数、返回
 
 ## 11. 数据流转流程（规划）
 
-```text
-用户点击下载
-  → DownloadController 取 resourceId + 客户端 IP
-  → DownloadServiceImpl 取当前用户
-  → Redis 限流（用户 + IP 滑动窗口，Lua 原子）
-  → ResourceMapper 校验 APPROVED
-  → FileInfoMapper 校验文件正常
-  → download_record 落库（成功记录）
-  → 去重 Key 判断是否计数
-       ├── 未计数过：HINCRBY delta +1，写去重 Key，counted=true
-       └── 已计数过：counted=false
-  → 返回 DownloadTicketVO（含 downloadUrl）
-  → 用户请求下载文件流
-  → 校验下载记录归属
-  → file_info 定位物理文件
-  → 返回文件二进制流
-  → （后续定时任务）读取 delta Hash 批量回写 resource.download_count 后 HDEL
+### 11.1 下载凭证与文件流
+
+```mermaid
+flowchart TD
+    A["用户请求创建下载记录"] --> B["JWT 校验并获取 userId、IP"]
+    B --> C["用户维度 Redis 滑动窗口限流"]
+    C --> D{"用户限流通过？"}
+    D -- "否或 Redis 异常" --> X1["返回 RATE_LIMITED"]
+    D -- "是" --> E["IP 维度 Redis 滑动窗口限流"]
+    E --> F{"IP 限流通过？"}
+    F -- "否或 Redis 异常" --> X1
+    F -- "是" --> G["校验资料为 APPROVED 且文件正常"]
+    G --> H["插入 download_record"]
+    H --> I["签发 60 秒一次性下载票据<br/>Redis 仅保存 SHA-256 摘要"]
+    I --> J{"票据签发成功？"}
+    J -- "否或 Redis 异常" --> X2["失败关闭并返回 SERVER_ERROR<br/>已插入记录不会回滚"]
+    J -- "是" --> K["使用 10 分钟去重 Key 判断是否计数"]
+    K --> L{"本次是否首次计数？"}
+    L -- "否或统计异常" --> M["counted = false"]
+    L -- "是" --> N["下载增量 HINCRBY +1<br/>热门资料四周期热度 +5"]
+    N --> O["counted = true"]
+    M --> P["返回 DownloadTicketVO"]
+    O --> P
+
+    P --> Q["用户携 X-Download-Ticket 请求文件流"]
+    Q --> R["Lua 原子校验并删除一次性票据"]
+    R --> S{"票据是否有效？"}
+    S -- "否、过期或重放" --> X3["拒绝下载"]
+    S -- "是" --> T["查询下载记录并校验仅属于当前用户"]
+    T --> U["重新校验资料仍为 APPROVED<br/>且 file_id 未变化"]
+    U --> V["校验正常文件并安全读取存储路径"]
+    V --> W["返回二进制流与安全响应头"]
 ```
+
+### 11.2 下载增量同步
+
+```mermaid
+flowchart TD
+    A["每 60 秒触发同步任务"] --> B{"获得 Redisson 看门狗锁？"}
+    B -- "否" --> C["跳过本轮"]
+    B -- "是" --> D["恢复 current 指向的 UUID 批次<br/>或用 Lua 原子隔离新批次"]
+    D --> D1{"是否取得可处理批次？"}
+    D1 -- "否" --> L["finally：仅当前线程持锁时 unlock<br/>解锁异常由看门狗兜底"]
+    D1 -- "是" --> E["分批读取 syncing Hash 中的合法正增量"]
+    E --> E1{"是否存在有效增量？"}
+    E1 -- "否" --> L
+    E1 -- "是" --> F["MySQL 事务：写入幂等明细<br/>并原子累加 resource.download_count"]
+    F --> G{"事务提交成功？"}
+    G -- "否" --> H["保留 UUID 批次与 current 指针<br/>下轮使用同一 batchId 重试"]
+    G -- "是" --> I["HDEL 已持久化字段并标记确认"]
+    I --> J{"批次是否清空？"}
+    J -- "否" --> H
+    J -- "是" --> K["比较并删除 current 指针"]
+    H --> L
+    K --> L
+```
+
+> 限流和一次性票据属于安全关键 Redis 能力，异常时失败关闭；下载去重、增量统计和排行榜热度属于可降级派生数据，异常只记录日志，不阻断已经签发的下载凭证。
 
 可下载状态隔离：
 
