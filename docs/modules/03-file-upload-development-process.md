@@ -181,17 +181,33 @@ Controller 只做接收与参数校验，业务编排在 `FileServiceImpl`（遵
 
 ## 11. 数据流转流程
 
-```text
-MultipartFile
-  → 校验（大小 / 扩展名白名单；记录 MIME）
-  → 计算 MD5、读取 size
-  → 去重查询（file_info 唯一索引；上传去重不读缓存）
-  → 命中：ref_count+1 → 回填 Redis 缓存 → 返回既有 fileId
-  → 未命中：UUID 落盘（storage-path/stored_name）
-            → insert file_info（storage_path、uploader_id、ref_count=1）
-            → 写 Redis 缓存
-  → FileUploadVO（fileId、secondUpload、元信息）
+```mermaid
+flowchart TD
+    A["客户端提交 MultipartFile"] --> B["JWT 校验并获取当前用户 ID"]
+    B --> C["校验文件非空、大小和扩展名白名单<br/>记录客户端 MIME"]
+    C --> D["服务端计算 MD5 并读取文件大小"]
+    D --> E["按 file_md5 + file_size 查询 file_info<br/>上传去重不读取 Redis"]
+    E --> F{"是否命中既有物理文件？"}
+
+    F -- "是" --> G["短事务：ref_count 原子自增<br/>幂等写入当前用户文件授权"]
+    G --> H["回填 MD5 → fileId Redis 缓存"]
+    H --> I["返回 FileUploadVO<br/>secondUpload = true"]
+
+    F -- "否" --> J["生成 UUID 存储名并落盘<br/>文件 IO 位于数据库事务外"]
+    J --> K["短事务：插入 file_info<br/>同时写入当前用户文件授权"]
+    K --> L{"数据库写入结果"}
+    L -- "成功" --> M["回填 MD5 → fileId Redis 缓存"]
+    M --> N["返回 FileUploadVO<br/>secondUpload = false"]
+
+    L -- "唯一索引冲突" --> O["删除本次并发产生的多余落盘文件"]
+    O --> P["查询已存在记录并转入秒传短事务"]
+    P --> G
+
+    L -- "其他异常" --> Q["删除已落盘文件进行补偿"]
+    Q --> R["向上抛出异常<br/>由全局异常处理器统一响应"]
 ```
+
+> 图中 Redis 只承担预检加速和上传后的缓存回填，写缓存失败仅记录告警，不影响已成功的数据库主流程；文件去重的最终正确性由 `uk_file_md5_size` 唯一索引保证。
 
 ---
 
