@@ -149,3 +149,26 @@ MIME（Multipurpose Internet Mail Extensions）是文件内容类型的标准化
 
 - 相关文件：`docs/05-redis-design.md`、`campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java`、`campus-resource-platform/src/main/java/com/john/campus/interceptor/JwtAuthenticationInterceptor.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/AuthServiceImpl.java`、`FileServiceImpl.java`、`ResourceServiceImpl.java`、`FavoriteServiceImpl.java`、`SearchServiceImpl.java`、`RankingServiceImpl.java`、`AuditServiceImpl.java`、`DownloadRateLimiterImpl.java`、`DownloadServiceImpl.java`、`DownloadDeltaSyncServiceImpl.java`、`DownloadDeltaPersistenceServiceImpl.java`、`HotRankingMaintenanceServiceImpl.java`
 - 验证方式：核对 Redis Key 常量、各 Service/Interceptor/Task 的真实读写路径、TTL、Lua、Redisson 锁和 MySQL 幂等落库代码；仅静态分析，未运行测试
+
+## 2026-08-07 12:09:13 | 下载模块的滑动窗口限流
+
+### 问题 1
+
+解释下载模块中使用的滑动窗口
+
+### 答案 1
+
+下载模块的滑动窗口以每次请求到达时间 `now` 为右边界，只统计区间 `(now - 60秒, now]` 内的请求，而不是按 12:00、12:01 这样的自然分钟固定清零。用户维度限制每 60 秒最多 10 次，IP 维度限制每 60 秒最多 30 次；`DownloadServiceImpl.createDownloadRecord` 在访问资料、文件和下载记录数据库之前先调用限流器，减少无效请求穿透。
+
+每个用户或 IP 对应一个 Redis ZSet。member 使用 `毫秒时间戳:UUID`，保证同一毫秒并发请求仍是不同成员；score 使用毫秒时间戳，便于按时间范围删除。一次请求执行 Lua 脚本：先用 `ZREMRANGEBYSCORE key 0 now-60000` 删除窗口外成员，再以 `ZCARD` 得到当前窗口请求数；若数量已经达到阈值，刷新 120 秒 TTL 后返回 0；否则用 `ZADD` 写入当前请求、刷新 TTL 并返回 1。窗口边界上的 `now-60000` 也会被删除，因此实际保留的是左开右闭区间。
+
+Lua 把“清理、计数、判断、写入、续期”放在 Redis 单次原子执行中。若两个请求同时到达且窗口内已有 9 次，Redis 会串行执行两个脚本：第一个看到 9 次并写成第 10 次，第二个随后看到 10 次并被拒绝，不会出现两边都读到 9 而共同放行的竞态。120 秒 TTL 不是统计窗口，窗口仍是 60 秒；额外 60 秒只用于无流量后自动清理临时风控 Key。
+
+相较固定窗口，滑动窗口避免边界突刺。例如用户在 12:00:59 连续请求 10 次，12:01:01 的新请求仍能看到过去 60 秒内的 10 次，因此会被拒绝；固定自然分钟计数器则可能在跨分钟后立即清零，短短两秒内放行 20 次。
+
+当前实现先检查用户 Key，再检查 IP Key，两次检查分别原子，但二者不是一个联合原子操作：如果用户检查已写入记录、随后 IP 检查拒绝，本次请求仍会消耗一次用户额度。Redis 异常采用 fail-closed，统一返回限流错误，防止 Redis 故障被利用来绕过防刷；IP 维度的可靠性还取决于上游是否清洗并可信传递 `X-Forwarded-For` 等代理头。
+
+### 关联信息
+
+- 相关文件：`campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadRateLimiterImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/controller/DownloadController.java`、`campus-resource-platform/src/test/java/com/john/campus/service/DownloadRateLimiterTest.java`、`docs/05-redis-design.md`
+- 验证方式：核对限流调用入口、ZSet Lua 脚本参数、用户/IP 阈值、TTL、异常策略和现有 Mockito 测试；仅静态分析，未运行测试
