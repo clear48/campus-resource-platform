@@ -102,3 +102,22 @@
 
 - 相关文件：`docs/02-business-flow.md`、`sql/init.sql`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/ResourceServiceImpl.java`、`campus-resource-platform/src/main/resources/mapper/ResourceMapper.xml`
 - 验证方式：核对上传去重、资料创建、重复计数 SQL、建表索引及业务流程文档；仅静态分析，未运行测试
+
+## 2026-08-07 10:23:58 | 文件审核中的 MIME 属性
+
+### 问题 1
+
+介绍文件审核中的MIME属性
+
+### 答案 1
+
+MIME（Multipurpose Internet Mail Extensions）是文件内容类型的标准化声明，格式通常为 `主类型/子类型`，例如 PDF 为 `application/pdf`、PNG 为 `image/png`、文本为 `text/plain`。在文件审核中，它有两个主要用途：一是作为类型一致性的辅助线索，例如文件名为 `.pdf` 但 MIME 声明为 `application/x-msdownload` 时应提高风险等级；二是生成 HTTP `Content-Type`，决定浏览器尝试内联预览，还是作为普通二进制附件下载。`application/octet-stream` 表示通用未知二进制类型，不能据此认定文件危险或安全。
+
+本项目将 MIME 保存到 `file_info.mime_type VARCHAR(100)`，值来自上传请求中 `MultipartFile.getContentType()`，允许为空并限制为 100 个字符。该值通常由浏览器或客户端根据文件名、操作系统或自身识别规则生成，上传者可以伪造，因此当前代码只把它当作元数据记录；上传拦截实际以文件扩展名白名单为准，尚未实现 MIME 与扩展名交叉校验、文件魔数识别或恶意内容扫描。流程文档中的“MIME 校验”是设计目标，不能描述为当前已经完成的安全能力。
+
+管理员审核预览接口没有直接信任数据库 MIME，而是按服务端扩展名白名单映射安全响应类型：PDF、JPEG、PNG、TXT、MD 可以内联展示，其余类型统一返回 `application/octet-stream` 并强制附件下载；同时设置 `X-Content-Type-Options: nosniff` 和 `Cache-Control: private, no-store`，降低浏览器内容嗅探和审核文件缓存风险。普通下载接口目前仍优先使用已保存的 MIME 作为 `Content-Type`，无值时回退 `application/octet-stream`，这是待改进边界。更可靠的审核应综合扩展名、受控 MIME 映射、文件签名/魔数、格式解析和恶意文件扫描，不能只根据 MIME 作出审核结论。
+
+### 关联信息
+
+- 相关文件：`sql/init.sql`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/controller/AuditController.java`、`campus-resource-platform/src/main/java/com/john/campus/controller/DownloadController.java`、`docs/modules/03-file-upload-development-process.md`、`docs/project-improvement/01-improvement-audit.md`
+- 验证方式：核对 MIME 入库、上传校验、管理员审核预览、普通下载响应头和改进审计文档；仅静态分析，未运行测试
