@@ -218,3 +218,26 @@ Redis 只是可降级加速层：读失败按缓存未命中处理并回源 MySQ
 
 - 相关文件：`campus-resource-platform/src/main/resources/application.yaml`、`campus-resource-platform/src/main/java/com/john/campus/controller/FileController.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileAuthorizationServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java`、`campus-resource-platform/src/test/java/com/john/campus/service/FileServiceImplTest.java`、`sql/init.sql`、`docs/05-redis-design.md`
 - 验证方式：核对 Redis 自动配置、预检与真实上传调用链、缓存读写、授权事务、数据库唯一索引及现有单元测试；仅静态分析，未运行测试
+
+## 2026-08-07 16:36:07 | 文件上传模块的并发处理
+
+### 问题 1
+
+文件上传模块是如何解决并发问题的
+
+### 答案 1
+
+文件上传模块没有使用 JVM 锁或 Redis 分布式锁，而是采用“前置查询降低冲突概率 + MySQL 唯一索引最终裁决 + 竞争失败转秒传 + 短事务 + 文件删除补偿”的方案。真实上传由服务端计算 MD5 和文件大小，先按 `(file_md5, file_size)` 查询 `file_info`；该组合同时受唯一索引 `uk_file_md5_size` 约束，因此前置查询即使出现先查后写竞态，也不会生成两条有效文件记录。
+
+两个请求首次并发上传相同内容时，二者可能都查询未命中，并各自使用 UUID 文件名落盘，所以不会互相覆盖。随后二者在独立 Spring 事务 Bean `FileAuthorizationServiceImpl.createAuthorizedFile` 中尝试写入文件元数据和首次用户授权；一个请求成为赢家，另一个请求被数据库唯一索引阻塞并最终抛出 `DuplicateKeyException`。失败事务由 Spring 代理先回滚，外层 `FileServiceImpl` 再捕获异常，删除本请求刚写入的 UUID 文件，重新查询赢家记录，并转入秒传流程。最终两个响应指向同一个 `fileId`，只保留赢家的物理文件；删除是尽力补偿，失败时只记录日志。
+
+秒传命中既有文件时，引用计数使用 `UPDATE file_info SET ref_count = ref_count + 1 WHERE id = ?`，由数据库对单行做原子自增，避免 Java 层“先读再写”造成丢失更新。用户授权使用 `(user_id, file_id)` 唯一索引与 `INSERT IGNORE`，并发重复授权最终只保留一条；引用计数更新与授权写入位于同一个短事务中，任一未捕获异常都会整体回滚。文件 MD5 计算和落盘位于数据库事务外，避免大文件 IO 长时间占用数据库事务。
+
+Redis 只缓存 `MD5 + 大小 -> fileId` 来加速上传前预检，不参与并发裁决，也不是权限依据。Redis 未命中或故障时回查 MySQL；真实上传始终直接查数据库。预检即使命中全局缓存，也必须查询 `user_file_authorization`，只有当前用户已通过真实上传获得授权才返回 `fileId`。
+
+当前实现仍有未完全解决的边界：同一用户重复或并发上传同一文件时，`ref_count` 每个请求都会自增，但用户授权因唯一索引只新增一次，导致引用计数可能虚高；如果 `ref_count` 表示有效授权或业务资料引用，应改为授权插入成功后才自增，或把计数移动到资料创建/删除事务。`increaseRefCount` 也没有校验更新行数和文件正常状态，与并发删除组合时可能写入悬空授权。补偿删除失败或进程在落盘后崩溃仍可能留下孤儿文件，目前没有定时对账清理任务。现有 `FileServiceImplTest` 的 3 个 Mockito 单元测试全部通过，但只覆盖预检授权隔离和秒传授权调用，没有验证真实 MySQL 唯一索引等待、事务代理回滚、并发最终状态和磁盘文件数量；模块文档第 15 节仍称相关写入是单条 SQL，也已落后于当前两表事务代码。
+
+### 关联信息
+
+- 相关文件：`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileAuthorizationServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileStorageServiceImpl.java`、`campus-resource-platform/src/main/resources/mapper/FileInfoMapper.xml`、`campus-resource-platform/src/main/resources/mapper/UserFileAuthorizationMapper.xml`、`campus-resource-platform/src/test/java/com/john/campus/service/FileServiceImplTest.java`、`sql/init.sql`、`docs/modules/03-file-upload-development-process.md`
+- 验证方式：核对上传调用链、Spring 事务代理边界、唯一索引、原子 SQL、用户授权幂等、Redis 降级和文件补偿逻辑；运行 `.\mvnw.cmd -Dtest=FileServiceImplTest test`，共 3 个测试通过，0 失败、0 错误
