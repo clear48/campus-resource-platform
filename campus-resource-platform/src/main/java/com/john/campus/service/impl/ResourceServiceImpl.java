@@ -13,6 +13,7 @@ import com.john.campus.mapper.CategoryMapper;
 import com.john.campus.mapper.FileInfoMapper;
 import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.mapper.UserFileAuthorizationMapper;
+import com.john.campus.service.ResourceDetailCacheService;
 import com.john.campus.service.ResourceService;
 import com.john.campus.vo.MyResourceVO;
 import com.john.campus.vo.ResourceCreateVO;
@@ -22,6 +23,8 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -63,7 +66,28 @@ public class ResourceServiceImpl implements ResourceService {
      * 用户文件授权关系，防止使用猜测或泄露的 fileId 引用他人文件。
      */
     private final UserFileAuthorizationMapper userFileAuthorizationMapper;
+    /**
+     * 公开详情共享缓存；部分 Mapper 切片测试未装配 Redis 组件时允许为空并直接回源 MySQL。
+     */
+    private final ResourceDetailCacheService resourceDetailCacheService;
 
+    @Autowired
+    public ResourceServiceImpl(
+            ResourceMapper resourceMapper,
+            FileInfoMapper fileInfoMapper,
+            CategoryMapper categoryMapper,
+            UserFileAuthorizationMapper userFileAuthorizationMapper,
+            ObjectProvider<ResourceDetailCacheService> resourceDetailCacheServiceProvider) {
+        this.resourceMapper = resourceMapper;
+        this.fileInfoMapper = fileInfoMapper;
+        this.categoryMapper = categoryMapper;
+        this.userFileAuthorizationMapper = userFileAuthorizationMapper;
+        this.resourceDetailCacheService = resourceDetailCacheServiceProvider.getIfAvailable();
+    }
+
+    /**
+     * 保留现有纯 Mapper 测试的构造入口；生产环境由 Spring 使用带缓存提供器的构造方法。
+     */
     public ResourceServiceImpl(
             ResourceMapper resourceMapper,
             FileInfoMapper fileInfoMapper,
@@ -73,6 +97,7 @@ public class ResourceServiceImpl implements ResourceService {
         this.fileInfoMapper = fileInfoMapper;
         this.categoryMapper = categoryMapper;
         this.userFileAuthorizationMapper = userFileAuthorizationMapper;
+        this.resourceDetailCacheService = null;
     }
 
     /**
@@ -120,6 +145,18 @@ public class ResourceServiceImpl implements ResourceService {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "资料 ID 不合法");
         }
 
+        if (resourceDetailCacheService == null) {
+            return loadPublicDetailFromDatabase(resourceId);
+        }
+        return resourceDetailCacheService.getOrLoad(
+                resourceId,
+                () -> loadPublicDetailFromDatabase(resourceId));
+    }
+
+    /**
+     * MySQL loader 只承担原有可见性校验与 VO 组装；是否加锁、二次检查和回填统一由缓存 Service 决定。
+     */
+    private ResourceDetailVO loadPublicDetailFromDatabase(Long resourceId) {
         Resource resource = resourceMapper.selectById(resourceId);
         if (resource == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "资料不存在");

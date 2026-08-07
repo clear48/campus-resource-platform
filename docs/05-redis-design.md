@@ -42,6 +42,7 @@ crp:stats:resource:download:delta
 | 场景 | Key | 类型 | TTL |
 | --- | --- | --- | --- |
 | 资料详情缓存 | `crp:cache:resource:detail:{resourceId}` | String | 30 分钟 + 随机 0-5 分钟 |
+| 资料详情读写锁 | `crp:lock:cache:resource:detail:{resourceId}` | Redisson RLock | 不传 leaseTime，使用看门狗自动续期 |
 | 热门资料排行榜 | `crp:rank:resource:hot:{period}` | ZSet | 按周期设置 |
 | 热门搜索词排行榜 | `crp:rank:search:keyword:{period}` | ZSet | 按周期设置 |
 | 用户下载限流 | `crp:rate:download:user:{userId}` | ZSet | 限流窗口 + 60 秒 |
@@ -58,6 +59,8 @@ crp:stats:resource:download:delta
 | 用户收藏集合 | `crp:user:favorites:{userId}` | Set | 30 分钟 |
 
 ## 4. 资料详情缓存
+
+当前已在公开详情接口落地：`ResourceServiceImpl` 把 MySQL 查询封装为 loader，`ResourceDetailCacheServiceImpl.getOrLoad` 统一负责 Cache Aside、每资料互斥锁、二次检查、JSON 序列化、TTL、坏值治理、故障降级和审核状态变更后的同锁失效与有限重试。
 
 ### 4.1 Key 设计
 
@@ -91,19 +94,21 @@ String，存储 JSON 字符串。
   "downloadCount": 128,
   "favoriteCount": 35,
   "hotScore": 745.0,
-  "createdAt": "2026-07-02 10:00:00"
+  "createdAt": "2026-07-02T10:00:00",
+  "favorited": null
 }
 ```
 
+缓存值只保存 `ResourceDetailVO` 公共快照，不缓存 `Resource` Entity。共享缓存中的 `favorited` 必须为 `null`，避免把某个登录用户的收藏状态泄露给其他访问者。
+
 ### 4.3 使用场景
 
-- 资料详情页高频访问。
-- 下载前查询资料基础信息。
-- 收藏前校验资料是否存在、是否 `APPROVED`。
+- 当前用于 `GET /api/v1/resources/{resourceId}` 公开详情的高频访问。
+- 下载和收藏链路仍各自查询 MySQL 并校验 `APPROVED`，当前没有复用详情缓存，以免缓存扩大可见性判断边界。
 
 ### 4.4 TTL 策略
 
-建议 TTL：
+已实现 TTL：
 
 ```text
 30 分钟 + 0-5 分钟随机值
@@ -116,9 +121,9 @@ String，存储 JSON 字符串。
 | 触发动作 | 处理方式 |
 | --- | --- |
 | 查询资料详情，缓存未命中 | 查询 MySQL，结果写入 Redis |
-| 审核通过 | 删除该资料详情缓存 |
-| 审核拒绝 | 删除该资料详情缓存 |
-| 下架资料 | 删除该资料详情缓存 |
+| 审核通过 | MySQL 提交后建立实例绕过，立即尝试删除，并在 500ms、2s、5s 有限重试 |
+| 审核拒绝 | MySQL 提交后建立实例绕过，立即尝试删除，并在 500ms、2s、5s 有限重试 |
+| 下架资料 | MySQL 提交后建立实例绕过，立即尝试删除，并在 500ms、2s、5s 有限重试 |
 | 修改资料标题、简介、分类、标签 | 先更新 MySQL，再删除缓存 |
 | 下载量、收藏数变化 | 可不立即更新详情缓存，由 TTL 自然刷新或异步刷新 |
 
@@ -126,18 +131,29 @@ String，存储 JSON 字符串。
 
 采用 Cache Aside 模式：
 
-1. 查询时先读 Redis。
-2. Redis 未命中时查 MySQL。
-3. 查到数据后写 Redis。
-4. 更新资料状态或基础信息时，先更新 MySQL，再删除 Redis 缓存。
+1. 查询时先读 Redis，首次合法命中不获取分布式锁。
+2. Redis 未命中时最多等待约 2 秒获取 `crp:lock:cache:resource:detail:{resourceId}`，持锁后必须二次检查缓存。
+3. 二次检查仍未命中时，持锁线程执行一次 MySQL loader 并写入缓存；loader 的 `BusinessException` 原样传播且不会重试。
+4. 锁竞争超时、线程中断或 Redisson 异常时直接执行一次 MySQL loader 并返回，但绝不在锁外回填，避免慢请求越过审核失效写回旧值。
+5. 更新资料状态或基础信息时，先更新 MySQL，再删除 Redis 缓存。
 
-对于审核通过、下架这种影响可见性的关键操作，建议使用延迟双删：
+审核通过、审核拒绝、下架均已复用 `AuditServiceImpl.runAfterCommit`，详情缓存失效回调先于排行榜回调注册且异常相互隔离。失效开始即在当前实例写入最长 35 分钟的绕过标记，绕过有效时 `getOrLoad` 只执行一次 MySQL loader，禁止读取和回填详情缓存。
 
 ```text
-更新 MySQL -> 删除 Redis -> 延迟 500ms 再删除一次 Redis
+更新 MySQL -> 当前实例绕过缓存 -> 立即持锁删除 -> 500ms / 2s / 5s 有限持锁重试
 ```
 
-这样可以降低并发读写时旧缓存被重新写回 Redis 的概率。
+立即删除和三次重试获取同一把资源锁时最多等待约 2 秒。只有在同锁内成功执行 Redis 删除命令，才能清除本轮实例绕过；锁超时、中断或 Redisson 异常时虽然仍会最佳努力直接删除，但不能证明旧 reader 已结束，因此保留绕过并继续后续重试。全部失败或调度失败时，绕过最长保留到详情缓存 TTL 上限并在后续访问时懒清理。
+
+500ms、2s、5s 重试使用独立 `resourceDetailCacheTaskScheduler` 单线程池；现有 `@Scheduled` 批任务继续使用名为 `taskScheduler` 的默认调度器，二者不会互相阻塞，不创建裸线程。
+
+缓存读取会校验 `resourceId` 与 Key 一致、`status = APPROVED` 且 `favorited = null`。ID 不匹配、非公开状态、用户态字段非空、坏 JSON 都会触发坏值删除并回源 MySQL。Redis 读取、写入、删除或延迟任务调度异常只记录告警并降级，不改变公开详情原有的参数非法、资料不存在和状态不可见错误语义。
+
+当前不缓存不存在或不可见资料，不使用空对象或哨兵值做负缓存，避免扩大协议并保留现有 `40401` / `40901` 语义。`downloadCount`、`favoriteCount`、`hotScore` 等统计快照不做实时删改，由 30-35 分钟 TTL 自然刷新。
+
+锁释放前会检查 `RLock.isHeldByCurrentThread()`，只有当前线程实际持锁时才 `unlock`；锁不设置固定 leaseTime，复用项目现有 Redisson 看门狗续期。
+
+实例绕过表只能保护当前应用实例。Redis 与 Redisson 同时故障时，其他实例仍可能暂时读取残留值，最终由详情缓存 35 分钟 TTL 上限兜底。
 
 ### 4.7 为什么选择 String
 

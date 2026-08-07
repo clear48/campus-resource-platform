@@ -16,6 +16,16 @@ public final class RedisKeyConstants {
     public static final String FILE_MD5_CACHE = "crp:cache:file:md5:%s:%d";
 
     /**
+     * 公开资料详情缓存 Key，String 值为不含用户态字段的 ResourceDetailVO JSON。
+     */
+    public static final String RESOURCE_DETAIL = "crp:cache:resource:detail:%d";
+
+    /**
+     * 公开资料详情读写互斥锁，同一资料的慢回源和审核失效使用同一把 Redisson 锁。
+     */
+    public static final String RESOURCE_DETAIL_LOCK = "crp:lock:cache:resource:detail:%d";
+
+    /**
      * 用户收藏集合 Key，Set 的 member 为 resourceId，用于加速收藏状态判断。
      */
     public static final String USER_FAVORITES = "crp:user:favorites:%d";
@@ -96,6 +106,20 @@ public final class RedisKeyConstants {
      */
     public static String fileMd5Cache(String fileMd5, long fileSize) {
         return String.format(FILE_MD5_CACHE, fileMd5, fileSize);
+    }
+
+    /**
+     * 生成公开资料详情缓存完整 Key，统一封装 resourceId 格式化逻辑。
+     */
+    public static String resourceDetail(long resourceId) {
+        return String.format(RESOURCE_DETAIL, resourceId);
+    }
+
+    /**
+     * 生成公开资料详情锁完整 Key，确保读侧回填与审核失效按资料串行化。
+     */
+    public static String resourceDetailLock(long resourceId) {
+        return String.format(RESOURCE_DETAIL_LOCK, resourceId);
     }
 
     /**

@@ -392,9 +392,13 @@ GET /api/v1/resources/20001
 实现说明：
 
 - 该接口在 `WebMvcConfig` 中通过 `/api/v1/resources/*` 匿名放行。
-- Service 层先按 ID 查询资料，再通过状态判断只允许 `status = 1` 的资料公开返回。
+- Service 层校验 ID 后通过 `getOrLoad` 先读 `crp:cache:resource:detail:{resourceId}`；首次命中不加锁。miss 最多等待约 2 秒获取 `crp:lock:cache:resource:detail:{resourceId}`，只有持锁线程会二次检查、回源并回填，竞争或 Redisson 故障路径只回源不回填。
+- 缓存值是 `ResourceDetailVO` 公共 JSON 快照，TTL 为 30 分钟 + 随机 0-5 分钟；不缓存 Entity，也不缓存不存在或不可见资料。
+- 缓存中的 `resourceId`、公开状态和用户态字段会被校验；坏 JSON 或污染值会删除后回源。审核通过、拒绝、下架提交后先让当前实例绕过缓存，再执行同锁立即删除与 500ms/2s/5s 有限重试，详情缓存失效先于排行榜派生更新。
 - 当前不返回下载地址，也不返回 `file_info.storage_path`、`stored_name` 等内部存储字段。
-- `favorited` 字段预留给收藏模块；收藏模块未接入前返回 `null`。
+- `favorited` 属于当前用户状态，公开详情共享缓存和当前匿名响应固定返回 `null`；收藏状态请使用登录接口 `/api/v1/resources/{resourceId}/favorite-status` 查询。
+- Redis 读写、删除或延迟调度失败只记录告警并降级 MySQL，不改变下列参数、存在性和可见性错误码。
+- 500ms、2s、5s 重试使用独立单线程调度器，不与排行榜、下载增量等 `@Scheduled` 批任务共用线程。只有同锁内 Redis 删除成功且重试均成功调度才提前清除实例绕过；全部删除失败或任一调度失败时，当前实例绕过最长保留 35 分钟。
 
 可能的错误码：
 

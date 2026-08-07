@@ -18,6 +18,7 @@ import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.service.AuditService;
 import com.john.campus.service.FileStorageService;
 import com.john.campus.service.RankingService;
+import com.john.campus.service.ResourceDetailCacheService;
 import com.john.campus.vo.AuditRecordVO;
 import com.john.campus.vo.AuditResultVO;
 import com.john.campus.vo.PendingReviewResourceVO;
@@ -26,6 +27,8 @@ import java.util.Arrays;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -71,7 +74,30 @@ public class AuditServiceImpl implements AuditService {
      * 审核提交后维护排行榜成员；不能在事务内直接写 Redis，否则数据库回滚会留下错误榜单状态。
      */
     private final RankingService rankingService;
+    /**
+     * 审核状态提交后失效公开详情缓存，未装配缓存组件的切片测试保持原有行为。
+     */
+    private final ResourceDetailCacheService resourceDetailCacheService;
 
+    @Autowired
+    public AuditServiceImpl(
+            ResourceMapper resourceMapper,
+            AuditRecordMapper auditRecordMapper,
+            FileInfoMapper fileInfoMapper,
+            FileStorageService fileStorageService,
+            RankingService rankingService,
+            ObjectProvider<ResourceDetailCacheService> resourceDetailCacheServiceProvider) {
+        this.resourceMapper = resourceMapper;
+        this.auditRecordMapper = auditRecordMapper;
+        this.fileInfoMapper = fileInfoMapper;
+        this.fileStorageService = fileStorageService;
+        this.rankingService = rankingService;
+        this.resourceDetailCacheService = resourceDetailCacheServiceProvider.getIfAvailable();
+    }
+
+    /**
+     * 保留现有审核单元测试的构造入口；生产环境由 Spring 使用带缓存提供器的构造方法。
+     */
     public AuditServiceImpl(
             ResourceMapper resourceMapper,
             AuditRecordMapper auditRecordMapper,
@@ -83,6 +109,7 @@ public class AuditServiceImpl implements AuditService {
         this.fileInfoMapper = fileInfoMapper;
         this.fileStorageService = fileStorageService;
         this.rankingService = rankingService;
+        this.resourceDetailCacheService = null;
     }
 
     /**
@@ -141,7 +168,8 @@ public class AuditServiceImpl implements AuditService {
                 resource.getStatus(),
                 Resource.STATUS_APPROVED,
                 auditReason);
-        runAfterCommit(() -> rankingService.initializeApprovedResource(resourceId));
+        invalidateDetailCacheAfterCommit(resourceId);
+        runAfterCommit("初始化热门资料排行榜", () -> rankingService.initializeApprovedResource(resourceId));
         return toAuditResultVO(auditRecord, approvedAt, null);
     }
 
@@ -173,6 +201,7 @@ public class AuditServiceImpl implements AuditService {
                 resource.getStatus(),
                 Resource.STATUS_REJECTED,
                 rejectReason);
+        invalidateDetailCacheAfterCommit(resourceId);
         return toAuditResultVO(auditRecord, null, null);
     }
 
@@ -205,29 +234,46 @@ public class AuditServiceImpl implements AuditService {
                 resource.getStatus(),
                 Resource.STATUS_OFFLINE,
                 offlineReason);
-        runAfterCommit(() -> rankingService.removeOfflineResource(resourceId));
+        invalidateDetailCacheAfterCommit(resourceId);
+        runAfterCommit("移除热门资料排行榜成员", () -> rankingService.removeOfflineResource(resourceId));
         return toAuditResultVO(auditRecord, null, offlineAt);
+    }
+
+    /**
+     * 缓存失效与审核事务解耦：只在提交成功后触发，缓存组件内部负责立即删除和延迟第二次删除。
+     */
+    private void invalidateDetailCacheAfterCommit(long resourceId) {
+        if (resourceDetailCacheService != null) {
+            runAfterCommit("失效公开资料详情缓存", () -> resourceDetailCacheService.invalidateWithDelay(resourceId));
+        }
     }
 
     /**
      * 仅在 MySQL 事务真正提交后执行 Redis 派生数据更新；未开启事务的测试或内部调用则立即执行，便于保持调用语义一致。
      */
-    private void runAfterCommit(Runnable action) {
+    private void runAfterCommit(String actionName, Runnable action) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            action.run();
+            executeAfterCommitAction(actionName, action);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                try {
-                    action.run();
-                } catch (RuntimeException ex) {
-                    // Redis 派生数据异常不应影响已提交的审核状态机结果。
-                    log.warn("审核完成后同步排行榜失败", ex);
-                }
+                executeAfterCommitAction(actionName, action);
             }
         });
+    }
+
+    /**
+     * 每个提交后动作独立隔离异常并记录动作名称，缓存失效失败不会阻止随后注册的排行榜更新。
+     */
+    private void executeAfterCommitAction(String actionName, Runnable action) {
+        try {
+            action.run();
+        } catch (RuntimeException ex) {
+            // Redis 派生数据异常不应影响已经提交的审核状态机结果。
+            log.warn("审核事务提交后{}失败", actionName, ex);
+        }
     }
 
     /**

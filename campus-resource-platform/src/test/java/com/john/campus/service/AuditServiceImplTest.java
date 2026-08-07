@@ -1,11 +1,13 @@
 package com.john.campus.service;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.john.campus.common.LoginUser;
 import com.john.campus.common.UserContextHolder;
 import com.john.campus.dto.AuditApproveDTO;
+import com.john.campus.dto.AuditRejectDTO;
 import com.john.campus.dto.ResourceOfflineDTO;
 import com.john.campus.entity.FileInfo;
 import com.john.campus.entity.Resource;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionSynchronizationUtils;
 
@@ -39,17 +42,23 @@ class AuditServiceImplTest {
     private FileStorageService fileStorageService;
     @Mock
     private RankingService rankingService;
+    @Mock
+    private ResourceDetailCacheService resourceDetailCacheService;
+    @Mock
+    private ObjectProvider<ResourceDetailCacheService> resourceDetailCacheServiceProvider;
 
     private AuditService auditService;
 
     @BeforeEach
     void setUp() {
+        when(resourceDetailCacheServiceProvider.getIfAvailable()).thenReturn(resourceDetailCacheService);
         auditService = new AuditServiceImpl(
                 resourceMapper,
                 auditRecordMapper,
                 fileInfoMapper,
                 fileStorageService,
-                rankingService);
+                rankingService,
+                resourceDetailCacheServiceProvider);
         UserContextHolder.set(new LoginUser(90001L, 2, "audit-heat-test-jti"));
     }
 
@@ -73,9 +82,28 @@ class AuditServiceImplTest {
 
         auditService.approve(100L, new AuditApproveDTO());
 
-        org.mockito.Mockito.verifyNoInteractions(rankingService);
+        verifyNoInteractions(rankingService, resourceDetailCacheService);
         TransactionSynchronizationUtils.triggerAfterCommit();
         verify(rankingService).initializeApprovedResource(100L);
+        verify(resourceDetailCacheService).invalidateWithDelay(100L);
+    }
+
+    @Test
+    void rejectShouldInvalidateDetailCacheOnlyAfterCommit() {
+        Resource pendingResource = new Resource();
+        pendingResource.setId(100L);
+        pendingResource.setStatus(Resource.STATUS_PENDING_REVIEW);
+        when(resourceMapper.selectById(100L)).thenReturn(pendingResource);
+        when(resourceMapper.rejectPendingReview(100L, "内容不完整")).thenReturn(1);
+        AuditRejectDTO dto = new AuditRejectDTO();
+        dto.setRejectReason("内容不完整");
+        TransactionSynchronizationManager.initSynchronization();
+
+        auditService.reject(100L, dto);
+
+        verifyNoInteractions(resourceDetailCacheService);
+        TransactionSynchronizationUtils.triggerAfterCommit();
+        verify(resourceDetailCacheService).invalidateWithDelay(100L);
     }
 
     @Test
@@ -94,9 +122,10 @@ class AuditServiceImplTest {
 
         auditService.offline(100L, dto);
 
-        org.mockito.Mockito.verifyNoInteractions(rankingService);
+        verifyNoInteractions(rankingService, resourceDetailCacheService);
         TransactionSynchronizationUtils.triggerAfterCommit();
         verify(rankingService).removeOfflineResource(100L);
+        verify(resourceDetailCacheService).invalidateWithDelay(100L);
     }
 
     @Test

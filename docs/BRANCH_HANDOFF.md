@@ -1,5 +1,13 @@
 # 分支交接记录
 
+## 2026-08-07 公开资料详情缓存
+
+- 分支：`dev`；已实现 `crp:cache:resource:detail:{resourceId}`，缓存 `ResourceDetailVO` 公共 JSON，TTL 30-35 分钟且 `favorited` 固定为 `null`。
+- 公开详情采用 Cache Aside；ID/状态/用户态字段不合法或坏 JSON 时删除并回源，Redis 故障保持 MySQL 原错误语义，不做不存在/不可见负缓存。
+- miss 回填和审核失效共享每资料锁并最多等待约 2 秒；竞争/Redisson 异常线程只回源不回填。审核提交后先建立当前实例绕过，再执行同锁立即删除和 500ms/2s/5s 有限重试。
+- 重试使用独立 `resourceDetailCacheTaskScheduler`；只有同锁删除成功才清除绕过，全部失败或调度失败时当前实例最长绕过 35 分钟。Redis/Redisson 同时故障下的跨实例残留仍由 TTL 兜底。
+- 最终验证：缓存专项 34/34、资料/审核相关回归 74/74、Spring 上下文 1/1、后端全量 155/155 均通过；本功能将按项目规则提交并推送到 `dev`。
+
 ## 2026-08-05 多 Agent 项目初始化 Skill
 
 - 个人 Skill 名称：`$multi-agent-project-bootstrap`，默认安装目录为 `$CODEX_HOME/skills/multi-agent-project-bootstrap`。

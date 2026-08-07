@@ -179,10 +179,12 @@
 | 重复提交拦截 | 已完成 | 同一用户、同一文件、待审核或已通过资料不允许重复提交 |
 | 标签清洗 | 已完成 | 去空白、去重、保序后写入 `resource.tags` |
 | 鉴权路径 | 已完成 | 仅放行 `/api/v1/resources/*`，不放行创建接口 |
+| 公开详情 Redis 缓存 | 已完成 | `crp:cache:resource:detail:{resourceId}`，公共 VO JSON，TTL 30 分钟 + 随机 0-5 分钟，坏值/故障回源 MySQL |
+| 详情缓存并发保护 | 已完成 | 每资料 Redisson 锁 + 2 秒有限等待 + 持锁后二次检查；锁竞争/异常时回源但禁止锁外回填 |
 
 涉及表：`resource`、`file_info`、`category`。
 
-当前资料模块暂未使用 Redis，后续可接入 `crp:cache:resource:detail:{resourceId}`。
+涉及 Redis Key：`crp:cache:resource:detail:{resourceId}`。不存在或不可见资料不做负缓存，统计字段由 TTL 自然刷新。
 
 ### 6.5 审核模块
 
@@ -196,10 +198,11 @@
 | 管理员权限 | 已完成 | JWT 拦截器保证登录，`AuditServiceImpl.requireAdmin()` 校验 `role = 2` |
 | 事务一致性 | 已完成 | 审核通过、拒绝、下架使用 `@Transactional(rollbackFor = Exception.class)` |
 | 并发兜底 | 已完成 | 状态更新 SQL 带旧状态条件，影响行数为 0 时返回非法状态流转 |
+| 详情缓存失效 | 已完成 | 提交后建立当前实例最长 35 分钟绕过，同锁立即删除并在 500ms/2s/5s 有限重试；全部失败时跨实例仍由 TTL 兜底 |
 
 涉及表：`resource`、`audit_record`。
 
-当前审核模块暂未使用 Redis；后续资料详情缓存上线后，需要在审核通过、拒绝、下架时删除 `crp:cache:resource:detail:{resourceId}`。
+审核模块在状态写事务中不直接操作 Redis；提交成功后通过 `runAfterCommit` 失效 `crp:cache:resource:detail:{resourceId}`，缓存失败不会回滚已提交的 MySQL。
 
 ### 6.6 搜索模块
 
