@@ -4,7 +4,7 @@
 
 ## 归档状态
 
-`DISABLED`
+`ENABLED`
 
 - `ENABLED`：每次与本项目有关的技术提问都自动追加记录。
 - `DISABLED`：暂停追加记录，已有历史内容保持不变。
@@ -172,3 +172,24 @@ Lua 把“清理、计数、判断、写入、续期”放在 Redis 单次原子
 
 - 相关文件：`campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadRateLimiterImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/DownloadServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/controller/DownloadController.java`、`campus-resource-platform/src/test/java/com/john/campus/service/DownloadRateLimiterTest.java`、`docs/05-redis-design.md`
 - 验证方式：核对限流调用入口、ZSet Lua 脚本参数、用户/IP 阈值、TTL、异常策略和现有 Mockito 测试；仅静态分析，未运行测试
+
+## 2026-08-07 15:38:00 | 全局异常处理器配置
+
+### 问题 1
+
+介绍项目的全局异常处理器是如何配置的（开启技术问答日志）
+
+### 答案 1
+
+项目的全局异常处理器是 `GlobalExceptionHandler`。它没有在 `application.yml` 中手工注册，而是通过类上的 `@RestControllerAdvice` 同时获得全局 Controller 增强、异常捕获和 JSON 响应能力。启动类 `CampusResourcePlatformApplication` 位于根包 `com.john.campus` 并使用 `@SpringBootApplication`，因此 Spring Boot 默认组件扫描能够发现子包 `com.john.campus.exception` 下的处理器并注册到 Spring MVC 异常解析链。生产环境不需要额外配置；`@WebMvcTest` 属于切片测试，所以相关 Controller 测试通过 `@Import(GlobalExceptionHandler.class)` 显式导入它。
+
+业务层、拦截器或工具类遇到可预期业务失败时抛出 `BusinessException`。该异常继承 `RuntimeException`，保存稳定的整数业务错误码，并支持使用 `ErrorCode` 默认提示或覆盖为更具体的消息。`handleBusinessException` 捕获它后，调用 `resolveHttpStatus` 计算 HTTP 状态，再通过 `ApiResponse.fail(code, message)` 生成统一响应。当前映射规则是：未认证或 Token 失效映射 401、无权限映射 403、资源不存在映射 404、请求过频映射 429、文件过大映射 413、所有 `5xxxx` 错误映射 500，其余业务错误默认映射 400。因此当前 `40901/40902` 和 `41501` 虽然业务码表达 409/415 语义，实际 HTTP 状态仍是 400，并不是按业务码前三位自动映射。
+
+请求进入 Controller 前后的框架异常也有专门处理：`MethodArgumentNotValidException` 处理 `@RequestBody` 校验失败，`BindException` 处理表单或查询对象绑定失败，二者优先返回第一个字段错误；`ConstraintViolationException` 处理路径变量或单个查询参数约束；`MethodArgumentTypeMismatchException` 处理类型转换失败；`HttpMessageNotReadableException` 处理非法或不可读 JSON；`MaxUploadSizeExceededException` 返回文件过大和 HTTP 413；`MissingServletRequestPartException`、`MissingServletRequestParameterException` 分别处理缺失 multipart 文件部分和必填查询参数。这些参数类异常统一使用 `PARAM_ERROR(40001)` 和 HTTP 400。最后的 `@ExceptionHandler(Exception.class)` 是兜底分支，固定返回 HTTP 500 与 `SERVER_ERROR(50001)`，不把未知异常详情或堆栈暴露给客户端。
+
+所有失败响应均采用 `ApiResponse` 的 `code/message/data/traceId` 结构，其中失败时 `data` 为 `null`，每次响应生成一个去掉连字符的 UUID 作为 `traceId`。这保证前端同时拥有 HTTP 状态和稳定业务码两层判断依据。不过当前兜底处理器没有接收或记录异常对象，`traceId` 也尚未写入日志上下文，所以它目前只是响应标识，还没有形成可按 `traceId` 查询服务端异常堆栈的完整链路。
+
+### 关联信息
+
+- 相关文件：`campus-resource-platform/src/main/java/com/john/campus/exception/GlobalExceptionHandler.java`、`campus-resource-platform/src/main/java/com/john/campus/exception/BusinessException.java`、`campus-resource-platform/src/main/java/com/john/campus/common/ErrorCode.java`、`campus-resource-platform/src/main/java/com/john/campus/common/ApiResponse.java`、`campus-resource-platform/src/main/java/com/john/campus/CampusResourcePlatformApplication.java`
+- 验证方式：核对组件扫描、异常类型到处理方法的映射、HTTP 状态解析和统一响应生成逻辑；运行 `.\\mvnw.cmd '-Dtest=ResourceControllerTest,AuditControllerTest,RankingControllerTest,AdminRankingControllerTest' test`，共 28 个测试通过，0 失败、0 错误
