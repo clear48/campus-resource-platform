@@ -121,3 +121,31 @@ MIME（Multipurpose Internet Mail Extensions）是文件内容类型的标准化
 
 - 相关文件：`sql/init.sql`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/controller/AuditController.java`、`campus-resource-platform/src/main/java/com/john/campus/controller/DownloadController.java`、`docs/modules/03-file-upload-development-process.md`、`docs/project-improvement/01-improvement-audit.md`
 - 验证方式：核对 MIME 入库、上传校验、管理员审核预览、普通下载响应头和改进审计文档；仅静态分析，未运行测试
+
+## 2026-08-07 11:44:09 | Redis 在各模块中的职责
+
+### 问题 1
+
+详细说明redis在各个模块中承担的职责
+
+### 答案 1
+
+本项目中的 Redis 不是单一缓存，而是分别承担认证失效、安全票据、风控限流、文件预检加速、收藏状态缓存、实时排行榜、运营热词统计、下载增量缓冲以及多实例定时任务协调等职责；MySQL 仍是用户、文件、资料、收藏、下载记录和最终统计快照的事实来源。
+
+- 认证模块：`crp:auth:token:blacklist:{jti}` 使用 String 保存已退出 JWT，TTL 等于 Token 剩余有效期。退出时写入黑名单，受保护请求在解析 JWT 后检查 Key 是否存在，实现无状态 JWT 的主动失效。当前代码把 Redis 作为鉴权链路的直接依赖；用户级 Token 版本 `crp:auth:user:token-version:{userId}` 仅为设计预留，尚未实现。
+- 文件上传模块：`crp:cache:file:md5:{fileMd5}:{fileSize}` 使用 String 保存 `file_info.id`，TTL 为 6 小时，只加速上传前 MD5 预检；缓存未命中或异常时回查 MySQL。真实上传流程仍直接查 MySQL，并依靠 `(file_md5, file_size)` 唯一索引兜底并发去重；全局缓存命中后还必须校验当前用户的文件引用授权，不能把缓存当作授权依据。
+- 资料模块：设计文档规划了 `crp:cache:resource:detail:{resourceId}` 详情缓存，但当前 `ResourceServiceImpl.getPublicDetail` 仍直接查询 MySQL，常量类中也没有该 Key，因此目前不能把资料详情缓存描述为已实现能力。
+- 收藏模块：`crp:user:favorites:{userId}` 使用 Set 保存有效收藏的 `resourceId`，TTL 为 30 分钟，通过 `SISMEMBER` 加速收藏状态判断。收藏/取消收藏先在 MySQL 事务中更新收藏关系和计数，提交后再 `SADD`/`SREM`；Redis 异常时降级 MySQL，缓存缺失时按数据库重建。MySQL 唯一索引才是重复收藏的正确性兜底。
+- 搜索模块：搜索成功后将归一化关键词写入 daily、weekly、monthly 三个 ZSet，member 为关键词、score 为搜索次数，TTL 分别为 2、14、60 天；排行榜接口倒序读取 Top N。该数据只用于运营展示，Redis 缺失或异常时搜索主流程继续，热词接口返回空列表。当前固定 Key 只通过事件续期，没有自然日/周/月轮换，因此并非严格日历窗口榜。
+- 排行榜模块：资料热度使用 daily、weekly、monthly、all 四个 ZSet，member 为 `resourceId`、score 为实时热度。有效下载 `+5`、收藏 `+3`、取消收藏 `-3`，审核通过以 `ZINCRBY 0` 初始化，下架从四榜移除；查询时 Redis 只给候选 ID 和分数，资料公开状态和展示字段仍由 MySQL 校验，Redis 故障时按 `resource.hot_score` 快照降级。周期榜 TTL 为 2、14、60 天，总榜不设 TTL。
+- 审核模块：审核本身以 MySQL 状态机和审核记录为准；事务提交后才间接调用排行榜服务。审核通过初始化榜单成员，下架移除榜单成员，Redis 失败不能回滚已经提交的审核状态。
+- 下载模块：用户和 IP 限流分别使用 ZSet 滑动窗口，Lua 原子完成过期成员清理、计数、写入和续期；用户每分钟最多 10 次、IP 每分钟最多 30 次，Key TTL 为 120 秒，Redis 异常采用失败关闭。一次性下载票据使用 String，TTL 60 秒，只存随机票据的 SHA-256 摘要并绑定用户与下载记录，Lua 原子删除保证最多消费一次，异常同样失败关闭。`crp:dedup:download:{userId}:{resourceId}` 使用 String + 10 分钟 TTL 避免重复下载放大统计；首次计数才对下载增量 Hash 执行 `HINCRBY` 并更新热度，统计异常则跳过计数但不阻断已完成的下载主流程。
+- 下载增量同步：`crp:stats:resource:download:delta` 是不设 TTL 的 Hash，field 为资料 ID、value 为待落库增量。定时任务每 60 秒获取 Redisson 看门狗锁，以 Lua 原子执行 `RENAME delta -> syncing:{uuid}` 并设置 current 指针，让新下载写入新的 delta；同步 MySQL 成功后才 `HDEL`。MySQL 通过 `(batch_id, resource_id)` 唯一幂等明细和同事务原子累加避免“数据库已提交、Redis 确认失败”后的重复计数。
+- 总榜维护任务：Redis all 榜缺失时，从 MySQL 分批构建临时 ZSet，再用 `RENAME` 原子替换正式榜；每 5 分钟也会把 all 榜分数分批快照到 MySQL。重建用 Redisson 写锁，实时 `ZINCRBY`、下架移除和快照读取用同一读写锁体系，避免重建覆盖并发热度变更。
+
+职责边界可概括为：认证黑名单、限流和一次性下载票据属于安全关键依赖，失败时拒绝请求；MD5、收藏状态、搜索热词和排行榜属于可降级缓存或派生数据；下载增量属于需要可靠落库的缓冲数据，不能设置 TTL；分布式锁、Lua、UUID 批次和 MySQL 幂等表共同承担跨实例原子性与最终一致性。当前还需注意，去重 Key 的 `SETNX` 与下载增量 `HINCRBY` 不是同一原子操作，若前者成功而后者失败会漏记一次增量；收藏空集合不创建占位 Key，会让无收藏用户持续回查 MySQL。
+
+### 关联信息
+
+- 相关文件：`docs/05-redis-design.md`、`campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java`、`campus-resource-platform/src/main/java/com/john/campus/interceptor/JwtAuthenticationInterceptor.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/AuthServiceImpl.java`、`FileServiceImpl.java`、`ResourceServiceImpl.java`、`FavoriteServiceImpl.java`、`SearchServiceImpl.java`、`RankingServiceImpl.java`、`AuditServiceImpl.java`、`DownloadRateLimiterImpl.java`、`DownloadServiceImpl.java`、`DownloadDeltaSyncServiceImpl.java`、`DownloadDeltaPersistenceServiceImpl.java`、`HotRankingMaintenanceServiceImpl.java`
+- 验证方式：核对 Redis Key 常量、各 Service/Interceptor/Task 的真实读写路径、TTL、Lua、Redisson 锁和 MySQL 幂等落库代码；仅静态分析，未运行测试
