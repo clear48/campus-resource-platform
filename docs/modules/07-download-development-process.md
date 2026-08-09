@@ -14,7 +14,7 @@
 | 英文标识 | download |
 | 文档路径 | `docs/modules/07-download-development-process.md` |
 | 当前分支 | `dev` |
-| 当前状态 | 开发中，已完成文档初稿、下载记录实体与 Mapper、下载 Redis Key 常量 |
+| 当前状态 | 首版主功能已完成，步骤 9 测试待补充 |
 | 前置依赖模块 | 用户认证模块、资料模块、文件上传模块、审核模块、搜索模块 |
 | 下游模块 | 排行榜与定时任务模块（消费下载量增量和热度分） |
 | 接口前缀 | `/api/v1/resources/{resourceId}/download-records`、`/api/v1/download-records`、`/api/v1/users/me/download-records` |
@@ -194,7 +194,11 @@
 | `crp:rate:download:user:{userId}` | ZSet | 按用户下载限流（滑动窗口） | 限流窗口 + 60 秒 | 每次下载请求进入核心业务前 |
 | `crp:rate:download:ip:{ip}` | ZSet | 按 IP 下载限流（滑动窗口） | 限流窗口 + 60 秒 | 每次下载请求进入核心业务前 |
 | `crp:dedup:download:{userId}:{resourceId}` | String | 同用户同资料重复下载去重 | 10–30 分钟 | 首次计数后写入 |
-| `crp:stats:resource:download:delta` | Hash | 下载量临时增量（field = resourceId） | 不主动设置 TTL | 下载成功且通过去重判断后 `HINCRBY` |
+| `crp:download:ticket:{userId}:{downloadRecordId}:{ticketDigest}` | String | 一次性下载凭证，只保存随机票据 SHA-256 摘要防泄露 | 60 秒 | 创建下载记录时写入 |
+| `crp:stats:resource:download:delta` | Hash | 下载量临时增量（field = resourceId） | 不设 TTL | 下载成功且通过去重判断后 `HINCRBY` |
+| `crp:stats:resource:download:syncing:{batchId}` | Hash | 下载增量同步批次隔离数据（UUID 批次） | 按批次清理 | 定时任务隔离当前 delta 数据时写入 |
+| `crp:stats:resource:download:syncing:current` | String | 当前正在同步的 UUID 批次指针 | 不设 TTL | 定时任务隔离批次时设置 |
+| `crp:lock:sync:download-delta` | RLock | 下载增量定时同步分布式锁（Redisson） | 看门狗 | 定时任务执行前获取 |
 
 限流规则建议（`docs/05-redis-design.md` 第 7.3 节）：
 
@@ -209,7 +213,9 @@
 一致性策略：
 
 - 限流数据是临时风控数据，不同步 MySQL。
-- 下载量增量 `delta` Hash **不设 TTL**，由后续定时任务同步 MySQL 后主动 `HDEL`，避免任务异常时统计丢失。
+- 下载量增量 `delta` Hash **不设 TTL**，由定时任务同步 MySQL 后主动 `HDEL`，避免任务异常时统计丢失。
+- 下载量增量同步采用 **UUID 批次隔离**：定时任务先将 `delta` Hash 数据迁移至 `syncing:{batchId}` Hash 并设置 `syncing:current` 指针，后续处理 `syncing` 批次而非直接操作 `delta`，避免清理时误删新写入的增量。
+- 同步任务通过 `crp:lock:sync:download-delta` Redisson RLock 保证多实例互斥。
 - 下载失败不写下载量增量。
 
 排行榜联动（`docs/05-redis-design.md` 第 8.5 节）：下载成功计数时可对 `crp:rank:resource:hot:{period}` 执行 `ZINCRBY +5`。该 Key 归排行榜模块，是否纳入下载模块首版见第 17 节开发任务拆分。
@@ -275,10 +281,11 @@ DownloadController
   │           └── 下载量增量 HINCRBY crp:stats:resource:download:delta
   │
   ├── GET /download-records/{id}/file
-  │     └── DownloadService.loadFile(downloadRecordId)
+  │     └── DownloadService.loadFile(downloadRecordId, downloadTicket)
   │           ├── DownloadRecordMapper.selectById（校验归属）
+  │           ├── 校验 X-Download-Ticket 票据（一次性凭证防重放）
   │           ├── FileInfoMapper.selectNormalById（定位物理文件）
-  │           └── FileStorageService.loadAsResource(storagePath)（待补充）
+  │           └── FileStorageService.loadAsResource(storagePath)
   │
   └── GET /users/me/download-records
         └── DownloadService.listMyDownloadRecords(pageQuery)
@@ -469,13 +476,13 @@ DELETED(4)        不可下载 → 40901
 | T1 | 下载模块文档初稿 | `docs/modules/07-download-development-process.md` | 已完成 |
 | T2 | 实体 + Mapper | `DownloadRecord`、`DownloadRecordMapper(.java/.xml)` | 已完成 |
 | T3 | Redis Key 常量 | `RedisKeyConstants` 下载相关常量与方法 | 已完成 |
-| T4 | 下载限流器 | `DownloadRateLimiter` + 实现（Lua 滑动窗口） | 待开发 |
-| T5 | 下载 Service | `DownloadService` + `DownloadServiceImpl` | 待开发 |
-| T6 | 文件流读取能力 | `FileStorageService` 读流方法（或模块内实现） | 待开发 |
-| T7 | DTO / VO | `DownloadTicketVO`、`MyDownloadRecordVO` | 待开发 |
-| T8 | Controller | `DownloadController` 三接口 | 待开发 |
+| T4 | 下载限流器 | `DownloadRateLimiter` + 实现（Lua 滑动窗口） | 已完成 |
+| T5 | 下载 Service | `DownloadService` + `DownloadServiceImpl` | 已完成 |
+| T6 | 文件流读取能力 | `FileStorageService` 读流方法（或模块内实现） | 已完成 |
+| T7 | DTO / VO | `DownloadTicketVO`、`MyDownloadRecordVO` | 已完成 |
+| T8 | Controller | `DownloadController` 三接口 | 已完成 |
 | T9 | 测试 | Controller 测试 + 数据库集成测试 + 限流/去重测试 | 待开发 |
-| T10 | 文档同步 | API、Redis、进度、README、模块流程文档 | 待开发 |
+| T10 | 文档同步 | API、Redis、进度、README、模块流程文档 | 已完成 |
 
 > 是否纳入首版待定：下载成功时对 `crp:rank:resource:hot:{period}` 的热度 `ZINCRBY`。该 Key 归排行榜模块，建议下载模块首版先只写 `download:delta`，热度 ZSet 联动在排行榜模块统一落地，避免跨模块职责混淆。实现前需与需求确认并回填文档。
 

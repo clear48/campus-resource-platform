@@ -55,7 +55,7 @@
 - 不实现下载、收藏、排行榜。
 - 不实现举报、评论、内容安全自动识别。
 - 不新增生产数据库表或字段，首版复用 `sql/init.sql` 中已有 `resource` 和 `audit_record` 表。
-- 不接入 Redis 缓存；若后续资料详情缓存上线，审核通过、拒绝、下架时再补充缓存失效逻辑。
+- 审核模块不直接管理 Redis 实例或 Key，但在审核通过/拒绝/下架后通过 `ResourceDetailCacheService` 触发资料详情缓存失效、通过 `RankingService` 触发排行榜成员初始化和移除。
 
 ---
 
@@ -195,13 +195,15 @@ APPROVED(1)       -> OFFLINE(3)
 
 ## 7. 涉及 Redis Key
 
-首版审核模块暂不接入 Redis。
+审核模块不直接操作 Redis，而是通过 `ResourceDetailCacheService` 在审核状态变化后触发缓存失效；排行榜初始化/移除通过 `RankingService` 联动，涉及以下 Key：
 
-后续资料详情缓存上线后，审核模块需要在状态变化时删除或刷新：
-
-| Key | 类型 | 用途 |
-| --- | --- | --- |
-| `crp:cache:resource:detail:{resourceId}` | String | 资料公开详情缓存，审核状态变化后应失效 |
+| Key | 类型 | 用途 | 使用方式 |
+| --- | --- | --- | --- |
+| `crp:cache:resource:detail:{resourceId}` | String | 资料公开详情缓存，审核状态变化后失效 | `ResourceDetailCacheService.invalidateWithDelay()` 延迟删除（500ms/2s/5s 三次重试） |
+| `crp:rank:resource:hot:daily` | ZSet | 日热门资料榜，审核通过初始化、下架 ZREM | `RankingService.initializeApprovedResource()` / `removeOfflineResource()` |
+| `crp:rank:resource:hot:weekly` | ZSet | 周热门资料榜 | 同上 |
+| `crp:rank:resource:hot:monthly` | ZSet | 月热门资料榜 | 同上 |
+| `crp:rank:resource:hot:all` | ZSet | 总热门资料榜 | 同上 |
 
 ---
 
@@ -232,7 +234,9 @@ APPROVED(1)       -> OFFLINE(3)
 | vo | `AuditRecordVO` | 审核记录响应 |
 | mapper | `AuditRecordMapper` + XML | 写入和查询审核记录 |
 | mapper | `ResourceMapper` + XML | 补充待审核分页、状态更新 SQL |
-| service | `AuditService` / `AuditServiceImpl` | 审核状态流转和审计记录编排 |
+| service | `AuditService` / `AuditServiceImpl` | 审核状态流转和审计记录编排，事务提交后联动 `ResourceDetailCacheService` 缓存失效和 `RankingService` 排行榜成员管理 |
+| service | `ResourceDetailCacheService` | 审核状态变化后延迟失效资料详情缓存（复用已有基础设施） |
+| service | `RankingService` | 审核通过后初始化排行榜成员、下架后从排行榜移除（复用已有基础设施） |
 | controller | `AuditController` | 管理员审核接口入口 |
 
 ---
@@ -243,9 +247,11 @@ APPROVED(1)       -> OFFLINE(3)
 AuditController
   └── AuditService (AuditServiceImpl)
         ├── UserContextHolder（校验管理员身份，获取 auditorId）
-        ├── ResourceMapper（查询资料、分页待审核、更新状态）
+        ├── ResourceMapper（查询资料、分页待审核、状态更新）
         ├── AuditRecordMapper（写入/查询审核记录）
-        └── PageResult（封装分页响应）
+        ├── PageResult（封装分页响应）
+        ├── ResourceDetailCacheService（事务提交后延迟失效详情缓存）
+        └── RankingService（审核通过初始化排行榜成员、下架移除）
 ```
 
 Controller 只负责接收请求、触发参数校验和返回统一响应；状态机判断、事务和审计记录写入放在 Service 层。
@@ -460,8 +466,8 @@ flowchart TD
 ## 19. 待完成事项
 
 - 本模块首版功能已完成。
+- 审核通过、拒绝、下架后已通过 `ResourceDetailCacheService.invalidateWithDelay()` 触发缓存失效（500ms/2s/5s 三次重试），并通过 `RankingService` 联动排行榜成员初始化和移除。
 - 后续可补充审核列表关联上传者昵称、文件大小、分类名称等辅助信息。
-- 后续资料详情缓存上线后，审核通过、拒绝、下架需要删除或刷新 `crp:cache:resource:detail:{resourceId}`。
 - 后续搜索模块上线后，审核通过可触发搜索索引刷新；下架时需要移除公开搜索结果。
 
 ---
@@ -587,8 +593,7 @@ flowchart TD
 ## 24. 后续优化方向
 
 - 抽取统一管理员权限注解或拦截器。
-- 审核通过后主动删除或刷新资料详情缓存。
-- 审核通过后发送领域事件，驱动搜索索引、排行榜初始化。
+- 审核通过后发送领域事件，驱动搜索索引更新（当前缓存失效和排行榜联动已直接在审核 Service 中调用）。
 - 审核拒绝后支持用户修改资料并重新提交审核。
 - 审核列表关联上传者昵称、文件大小、分类名称等更多审核辅助信息。
 - 支持批量审核，但需要更严格的事务和部分失败处理策略。

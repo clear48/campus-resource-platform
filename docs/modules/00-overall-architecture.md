@@ -174,11 +174,12 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    subgraph L1["🎯 接口层 — Controller（10 个）"]
+    subgraph L1["🎯 接口层 — Controller（12 个）"]
         direction LR
         C_AUTH["AuthController<br/>POST /api/v1/auth/register<br/>POST /api/v1/auth/login<br/>POST /api/v1/auth/logout"]
         C_USER["UserController<br/>GET /api/v1/users/me"]
         C_CAT["CategoryController<br/>GET /api/v1/categories<br/>?parentId=0"]
+        C_HEALTH["HealthController<br/>GET /api/v1/health"]
         C_FILE["FileController<br/>POST /api/v1/files<br/>GET /api/v1/files/check"]
         C_RES["ResourceController<br/>POST /api/v1/resources<br/>GET /api/v1/resources/{id}<br/>GET /api/v1/users/me/resources"]
         C_AUDIT["AuditController<br/>GET /api/v1/admin/resources/pending-reviews<br/>POST .../audit-approvals<br/>POST .../audit-rejections<br/>POST .../offline-records<br/>GET .../audit-records<br/>GET .../review-file"]
@@ -354,12 +355,16 @@ stateDiagram-v2
 | `crp:rate:download:user:{userId}` | ZSet | 下载 | 用户下载限流 | 窗口+60s |
 | `crp:rate:download:ip:{ip}` | ZSet | 下载 | IP下载限流 | 窗口+60s |
 | `crp:dedup:download:{userId}:{rid}` | String | 下载 | 重复下载去重 | 10-30min |
+| `crp:download:ticket:{userId}:{downloadRecordId}:{ticketDigest}` | String | 下载 | 一次性下载凭证 | 5min |
 | `crp:stats:resource:download:delta` | Hash | 下载 | 下载量增量 | 不设TTL |
+| `crp:stats:resource:download:syncing:{batchId}` | Hash | 排行 | 下载增量同步批次详情 | 按批次清理 |
+| `crp:stats:resource:download:syncing:current` | String | 排行 | 当前同步批次ID | 不设TTL |
 | `crp:user:favorites:{userId}` | Set | 收藏 | 用户收藏集合缓存 | 30min |
 | `crp:rank:resource:hot:daily` | ZSet | 排行 | 日热门资料榜 | 2天 |
 | `crp:rank:resource:hot:weekly` | ZSet | 排行 | 周热门资料榜 | 14天 |
 | `crp:rank:resource:hot:monthly` | ZSet | 排行 | 月热门资料榜 | 60天 |
 | `crp:rank:resource:hot:all` | ZSet | 排行 | 总热门资料榜 | 不设TTL |
+| `crp:rank:resource:hot:all:rebuild:{batchId}` | ZSet | 排行 | all榜重建批次（RENAME原子替换） | 重建后清理 |
 | `crp:lock:sync:download-delta` | RLock | 排行 | 下载增量同步锁 | 看门狗 |
 | `crp:lock:sync:hot-rank-maintenance` | RReadWriteLock | 排行 | 总榜维护读写锁 | 看门狗 |
 
