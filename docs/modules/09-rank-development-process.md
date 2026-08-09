@@ -80,7 +80,7 @@
 
 ## 5. 涉及接口
 
-> 以下接口来自 `docs/api/api-reference.md` 第 9 节，当前均为设计接口，代码尚未实现。实际开发时如调整参数或返回结构，必须同步更新 API 文档和本文档。
+> 以下接口来自 `docs/api/api-reference.md` 第 9 节，均已实现。实际开发时如调整参数或返回结构，必须同步更新 API 文档和本文档。
 
 ### 5.1 获取热门资料排行榜
 
@@ -210,21 +210,21 @@ idx_resource_hot (status, hot_score, download_count)
 | `crp:rank:search:keyword:{period}` | ZSet | 搜索模块已写入 | 查询热门搜索词 Top N |
 | `crp:stats:resource:download:delta` | Hash | 下载模块持续写入，步骤 8 已消费 | 原子隔离后定时同步下载量到 MySQL |
 
-### 7.2 常量已定义但业务尚未使用的 Key
+### 7.2 本模块使用的 Key
 
 | Key | 结构 | TTL | 用途 |
 | --- | --- | --- | --- |
-| `crp:rank:resource:hot:daily` | ZSet | 2 天 | 日榜 |
-| `crp:rank:resource:hot:weekly` | ZSet | 14 天 | 周榜 |
-| `crp:rank:resource:hot:monthly` | ZSet | 60 天 | 月榜 |
-| `crp:rank:resource:hot:all` | ZSet | 不设置 | 总榜 |
-| `crp:lock:sync:download-delta` | Redisson RLock | 默认 30 秒看门狗超时，持锁客户端存活时自动续期 | 下载增量同步任务互斥锁 |
-| `crp:stats:resource:download:syncing:{batchId}` | Hash | UUID 批次按字段删除，失败时保留；旧 `active` 仅人工迁移 | 与实时 delta 隔离的待同步批次 |
-| `crp:stats:resource:download:syncing:current` | String | 不设置 TTL | 当前 UUID 批次指针，Hash 消失时清理陈旧值 |
-| `crp:lock:sync:hot-rank-maintenance` | Redisson RReadWriteLock | 默认 30 秒看门狗超时，持锁客户端存活时自动续期 | 重建使用写锁；快照和实时 all 榜写入使用读锁 |
-| `crp:rank:resource:hot:all:rebuild:active` | ZSet | 成功后 `RENAME` 为正式 all 榜；下次重建前清理遗留 | all 总榜原子替换前的临时构建结果 |
+| `crp:rank:resource:hot:daily` | ZSet | 2 天 | 日榜，实时 ZINCRBY 维护 |
+| `crp:rank:resource:hot:weekly` | ZSet | 14 天 | 周榜，实时 ZINCRBY 维护 |
+| `crp:rank:resource:hot:monthly` | ZSet | 60 天 | 月榜，实时 ZINCRBY 维护 |
+| `crp:rank:resource:hot:all` | ZSet | 不设置 | 总榜，实时 ZINCRBY 维护；缺失时由重建恢复 |
+| `crp:lock:sync:download-delta` | Redisson `RLock` | 看门狗自动续期 | 下载增量同步任务互斥锁（tryLock 不传 leaseTime） |
+| `crp:stats:resource:download:syncing:{batchId}` | Hash | UUID 批次按 field 删除，失败时保留 | Lua 原子隔离后的待同步批次；旧 `active` 仅人工迁移 |
+| `crp:stats:resource:download:syncing:current` | String | 不设置 TTL | 当前 UUID 批次指针，Hash 清空后 CAS 清理 |
+| `crp:lock:sync:hot-rank-maintenance` | Redisson `RReadWriteLock` | 看门狗自动续期 | 重建持写锁（独占）；快照和实时 all 榜 ZINCRBY/ZREM 持读锁（共享） |
+| `crp:rank:resource:hot:all:rebuild:active` | ZSet | 重建成功后 `RENAME` 为正式 all 榜 | all 总榜原子替换前的临时构建 Key |
 
-> 步骤 2 已在 `RedisKeyConstants` 中补充热门资料榜、同步锁和 syncing 批次常量及格式化方法；补强 P3 已将新批次改为 UUID Hash + current 指针。升级前遗留的固定 `syncing:active` 批次因状态不确定只保留告警，发布前需排空或人工核对。
+> 步骤 2 已在 `RedisKeyConstants` 中补充热门资料榜、同步锁和 syncing 批次常量及格式化方法；补强 P3 已将新批次改为 Lua 原子 `RENAME` delta → UUID Hash + `SET` current 指针。升级前遗留的固定 `syncing:active` 批次因无历史幂等记录，当前版本仅告警保留并要求发布前排空或人工核对。
 
 ### 7.3 热度权重与更新时机
 
@@ -266,7 +266,7 @@ idx_resource_hot (status, hot_score, download_count)
 | service/impl | `FavoriteServiceImpl` | 已维护收藏状态和 `favorite_count` |
 | service/impl | `AuditServiceImpl` | 已实现审核通过、下架状态流转，后续联动榜单初始化/移除 |
 | config | `WebMvcConfig` | 已放行 `/api/v1/rankings/**`，接口可匿名访问 |
-| application | `CampusResourcePlatformApplication` | 当前未启用 `@EnableScheduling` |
+| application | `CampusResourcePlatformApplication` | 步骤 8 已启用 `@EnableScheduling` |
 
 ### 8.2 本模块新增或计划新增类
 
@@ -305,7 +305,7 @@ idx_resource_hot (status, hot_score, download_count)
 
 ---
 
-## 9. 模块内部调用关系（规划）
+## 9. 模块内部调用关系
 
 ```text
 RankingController
@@ -320,39 +320,62 @@ RankingController
         └── RankingService.listHotSearchKeywords(query)
               └── Redis ZREVRANGE crp:rank:search:keyword:{period} WITHSCORES
 
+AdminRankingController
+  └── POST /admin/rankings/resources/hot/rebuild
+        └── AdminRankingService.rebuildAllHotRanking()
+              ├── 校验管理员身份（非管理员 → 40301）
+              └── HotRankingMaintenanceService.rebuildAllHotRanking()
+                    └── 写锁 lock() 阻塞等待 → 无条件执行完整重建
+
 DownloadServiceImpl（有效下载）
   └── RankingService.increaseForDownload(resourceId) → 四周期 ZINCRBY +5
+        └── all 榜 ZINCRBY 先获取维护读锁（lock 阻塞等待重建完成）
 
 FavoriteServiceImpl（事务提交成功后）
   ├── RankingService.increaseForFavorite(resourceId) → 四周期 ZINCRBY +3
+  │     └── all 榜 ZINCRBY 先获取维护读锁
   └── RankingService.decreaseForFavorite(resourceId) → 四周期 ZINCRBY -3
+        └── all 榜 ZINCRBY 先获取维护读锁
 
 AuditServiceImpl（MySQL 状态事务提交后）
   ├── 审核通过 → RankingService.initializeApprovedResource(resourceId)
   └── 下架 → RankingService.removeResource(resourceId)
 
-RankingSyncTask
+RankingSyncTask（定时 60s fixed-delay）
   └── DownloadDeltaSyncService.syncDownloadDeltas()
-        ├── Redisson RLock.tryLock() 获取 crp:lock:sync:download-delta（不传 leaseTime，启用看门狗）
-        ├── 优先续处理 syncing:active；否则原子 RENAME delta → syncing:active
-        ├── DownloadDeltaPersistenceService.persistDownloadDeltas()（MySQL 事务）
-        ├── 成功后仅 HDEL 本批已持久化字段，剩余字段留待下一轮
-        └── 失败保留 syncing:active；仅当前持锁线程执行 Redisson unlock
+        ├── Redisson RLock.tryLock()（不传 leaseTime，启用看门狗）
+        ├── 优先恢复 current 指向的 UUID 批次；否则 Lua 原子 RENAME delta → UUID Hash + SET current
+        ├── 检测 legacy syncing:active → 告警保留，不自动处理
+        ├── DownloadDeltaPersistenceService.persistDownloadDeltas(batchId, deltas)
+        │     ├── 逐条 INSERT 幂等明细 (batchId, resourceId, delta)
+        │     └── UPDATE resource SET download_count = download_count + delta
+        │     └── 同 batchId + resourceId 命中唯一键 → 校验 delta 一致后跳过累加
+        ├── MySQL 事务成功后 HDEL 已持久化 field → markDownloadDeltasConfirmed
+        ├── Hash 清空后 CAS 清理 current 指针
+        ├── 事务失败 → 保留 UUID 批次，同一 batchId 下轮重试
+        └── 仅当前持锁线程调用 Redisson unlock
 
-HotRankingMaintenanceTask
+HotRankingMaintenanceTask（定时 5min fixed-delay）
   ├── HotRankingMaintenanceService.rebuildAllHotRankingIfMissing()
-  │     ├── Redisson RLock.tryLock() 获取 hot-rank-maintenance 锁
-  │     ├── ResourceMapper 游标分页查询 APPROVED 资料
-  │     ├── 按 download*5 + favorite*3 + view*1 写入 rebuild:active
+  │     ├── RankingTaskExecutionMonitor 记录执行快照
+  │     ├── Redisson RReadWriteLock.writeLock().tryLock()（不等待）
+  │     ├── 锁内二次检查 all Key 是否存在
+  │     ├── ResourceMapper.selectApprovedResourcesAfterId 主键游标分页
+  │     ├── 按 download×5 + favorite×3 + view×1 写入临时 ZSet rebuild:active
   │     └── RENAME 临时 ZSet → 正式 all 榜
+  │
   └── HotRankingMaintenanceService.snapshotAllHotScores()
-        ├── 分批读取 all ZSet member 与 score
-        └── HotScoreSnapshotPersistenceService.persistApprovedHotScores()（MySQL 事务）
+        ├── RankingTaskExecutionMonitor 记录执行快照
+        ├── Redisson RReadWriteLock.readLock().tryLock()（不等待；重建持有写锁时跳过）
+        ├── 分批 ZRANGE all 榜 WITHSCORES
+        ├── extractValidHotScores 过滤脏 member
+        └── HotScoreSnapshotPersistenceService.persistApprovedHotScores(map)
+              └── @Transactional 逐批 UPDATE resource SET hot_score = ? WHERE id = ? AND status = 1
 ```
 
 ---
 
-## 10. 请求处理流程（规划）
+## 10. 请求处理流程
 
 ### 10.1 热门资料排行榜
 
@@ -375,7 +398,7 @@ HotRankingMaintenanceTask
 
 ---
 
-## 11. 数据流转流程（规划）
+## 11. 数据流转流程
 
 ### 11.1 下载行为到排行榜
 
@@ -386,13 +409,13 @@ flowchart TD
     B -- "是" --> D["HINCRBY 下载增量 +1"]
     D --> E{"增量写入是否成功？"}
     E -- "否" --> F["记录告警并跳过热度更新"]
-    E -- "是" --> G["旁路 best-effort 更新热门资料四周期 +5<br/>all 榜更新受维护读锁保护"]
-    E -- "是" --> H["定时任务独立隔离 UUID syncing 批次"]
-    G --> G1["周期更新可能部分成功<br/>失败仅记录日志"]
-    H --> I["MySQL 事务写幂等明细<br/>并原子累加 download_count"]
+    E -- "是" --> G["旁路 best-effort 更新热门资料四周期 +5<br/>all 榜 ZINCRBY 先获取维护读锁"]
+    E -- "是" --> H["定时任务 Lua 原子 RENAME delta → UUID Hash + SET current"]
+    G --> G1["周期更新部分失败仅记录日志<br/>all 榜读锁 lock 阻塞等待重建完成"]
+    H --> I["MySQL 事务先 INSERT 幂等明细<br/>再 UPDATE download_count += delta<br/>同 batchId+resourceId 命中唯一键则跳过累加"]
     I --> J{"事务提交成功？"}
-    J -- "否" --> K["保留批次，使用同一 batchId 重试"]
-    J -- "是" --> L["HDEL 已持久化字段<br/>批次清空后删除 current 指针"]
+    J -- "否" --> K["保留 UUID 批次，同一 batchId 下轮重试"]
+    J -- "是" --> L["HDEL 已持久化 field → markConfirmed<br/>Hash 清空后 CAS 清理 current 指针"]
 ```
 
 ### 11.2 收藏行为到排行榜
@@ -412,11 +435,13 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["定时快照任务触发"] --> B{"获得热门榜维护读锁？"}
-    B -- "否" --> C["重建进行中，跳过本轮"]
-    B -- "是" --> D["分批读取 Redis all 榜 member 与 score"]
-    D --> E["独立 MySQL 事务批量更新<br/>APPROVED 资料的 resource.hot_score"]
-    E --> F["搜索 hotScore 排序和 Redis 降级<br/>读取 MySQL 快照"]
+    A["定时快照任务触发<br/>RankingTaskExecutionMonitor 记录"] --> B{"readLock.tryLock 是否成功？"}
+    B -- "否" --> C["重建写锁持有中，跳过本轮"]
+    B -- "是" --> D["分批 ZRANGE all 榜 WITHSCORES<br/>extractValidHotScores 过滤脏 member"]
+    D --> E["独立 @Transactional 逐批 UPDATE<br/>SET hot_score = ? WHERE id = ? AND status = 1"]
+    E --> F{"某批事务失败？"}
+    F -- "是" --> G["当前批回滚，本轮终止<br/>已提交批次保留，下轮重新读取"]
+    F -- "否" --> H["搜索 hotScore 排序和 Redis 降级<br/>读取 MySQL 快照"]
 ```
 
 ### 11.4 总榜初始化/重建
@@ -424,20 +449,22 @@ flowchart TD
 ```mermaid
 flowchart TD
     A["all 榜缺失检查或管理员手动重建"] --> B{"触发来源"}
-    B -- "定时缺失检查" --> C{"tryLock 是否获得维护写锁？"}
+    B -- "定时缺失检查" --> C{"writeLock.tryLock 是否成功？"}
     C -- "否" --> D["跳过本轮"]
     C -- "是" --> C1{"锁内检查正式 all Key 是否存在？"}
     C1 -- "是" --> D1["结束本轮，不覆盖实时热度"]
     C1 -- "否" --> F["游标分页查询 APPROVED 资料"]
-    B -- "管理员手动重建" --> E["校验管理员并等待维护写锁"]
+    B -- "管理员手动重建" --> E["校验管理员身份<br/>writeLock.lock 阻塞等待"]
     E --> F
     F --> G{"是否存在 APPROVED 资料？"}
-    G -- "否" --> H["删除正式 all 榜"]
+    G -- "否" --> H["DELETE 正式 all 榜"]
     G -- "是" --> I["计算 hotScore<br/>download×5 + favorite×3 + view×1"]
-    I --> J["写入 rebuild:active 临时 ZSet"]
-    J --> K["RENAME 原子替换正式 all 榜"]
+    I --> J["ZADD 到 rebuild:active 临时 ZSet"]
+    J --> K["RENAME 临时 ZSet → 正式 all 榜<br/>原子替换，查询侧看不到半成品"]
     K --> L["不写 daily、weekly、monthly<br/>避免伪造周期历史"]
 ```
+
+> 重建期间实时 all 榜 ZINCRBY/ZREM 通过读锁 `lock()` 阻塞等待；快照通过读锁 `tryLock()` 跳过本轮。重建完成后实时写入和快照立即操作新 Key。
 
 ---
 
@@ -447,7 +474,7 @@ flowchart TD
 - `WebMvcConfig` 当前已放行 `/api/v1/rankings/**`，无需再次修改放行规则，除非真实接口路径发生变化。
 - 即使接口公开，Service/Mapper 仍必须固定过滤 `resource.status = 1`，不能依赖前端传状态。
 - 定时任务没有 HTTP 入口，不从用户上下文取身份。
-- 首版不提供手动触发同步的管理接口；若后续新增，必须要求管理员权限。
+- 管理员手动重建接口 `POST /api/v1/admin/rankings/resources/hot/rebuild` 要求管理员权限（`AdminRankingService` 校验 + Controller `@AdminOnly`）。
 
 ---
 
@@ -835,7 +862,7 @@ cd campus-resource-platform
 | 收藏模块 | 维护收藏数；真实收藏/取消贡献 +3/-3 热度 |
 | Redis 设计 | 规定 Key、数据结构、TTL 和降级策略 |
 | MySQL `resource` | 保存下载总数、收藏总数和热度分快照 |
-| 认证模块 | 排行榜查询公开，不依赖登录；后续手动任务接口才需要管理员权限 |
+| 认证模块 | 排行榜查询公开，不依赖登录；管理员手动重建接口需要管理员权限（`AdminRankingController` + `AdminRankingService`） |
 
 ---
 
@@ -853,6 +880,9 @@ cd campus-resource-platform
 10. Redis 故障如何降级：热门资料降级 MySQL `hot_score`，热门搜索词返回空列表，用户核心搜索/下载/收藏流程继续可用。
 11. 分类榜如何在不扩增 Redis Key 的情况下实现：从全局 ZSet 分段取候选，MySQL 批量校验分类并保持 Redis 顺序；流量上升后再评估分类维度 Key。
 12. 定时任务事务为什么放 Service：`@Scheduled` 只负责触发，事务方法通过 Spring 代理调用，避免同类自调用事务失效。
+13. 为什么总榜维护用读写锁而不是互斥锁：重建（写锁）和实时 ZINCRBY（读锁）是读者-写者关系——重建需要独占以安全 RENAME 替换 Key，但实时热度写入必须在重建完成后立即拿到锁操作新 Key，否则增量丢失。读锁之间不互斥，快照和实时写入可并发。
+14. 为什么快照用 tryLock 而实时写入用 lock：快照跳过一轮无感（5 分钟后重试），但用户的下载 +5 不能被阻塞跳过——实时写入用 lock 阻塞等待重建完成，保证增量不丢。
+15. 为什么热度快照 SQL 带 status=1：双重保险——Redis 中可能存在下架资料的残留 member，但快照不会把过期热度写回 MySQL 公开字段。
 
 ---
 
@@ -867,7 +897,7 @@ cd campus-resource-platform
 - 引入可配置权重和时间衰减，避免老资料长期占据总榜。
 - 增加任务执行指标、批次大小、失败次数、遗留 syncing Key 监控和告警。
 - 使用 Redis Cluster 时，为需要原子操作的相关 Key 设计一致的 hash tag，并将 RedissonClient 改为对应集群配置。
-- 补充管理员手动重建接口，并使用管理员权限和审计日志保护。
+- 补充管理员手动重建的审计日志保护。
 
 ---
 
