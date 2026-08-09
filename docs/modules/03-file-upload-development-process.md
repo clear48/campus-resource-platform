@@ -212,6 +212,40 @@ flowchart TD
 
 > 图中 Redis 只承担预检加速和上传后的缓存回填，写缓存失败仅记录告警，不影响已成功的数据库主流程；文件去重的最终正确性由 `uk_file_md5_size` 唯一索引保证。
 
+### 预检（`GET /api/v1/files/check`）数据流
+
+```mermaid
+flowchart TD
+    A2["客户端 GET /api/v1/files/check<br/>?fileMd5=xxx&fileSize=xxx"] --> B2["JWT 拦截器校验登录<br/>获取当前用户 ID"]
+    B2 --> C2["Controller 接收参数<br/>委托 FileService.checkByMd5AndSize()"]
+    C2 --> D2{"参数校验<br/>fileMd5 为 32 位十六进制<br/>fileSize ≥ 0"}
+    D2 -- "不合法" --> E2["抛出 BusinessException<br/>PARAM_ERROR → HTTP 400"]
+    D2 -- "合法" --> F2["读取 Redis 三态缓存<br/>FileMd5CacheService.get()"]
+
+    F2 --> G2{"缓存状态？"}
+    G2 -- "FOUND(fileId)" --> H2["查询 user_file_authorization<br/>当前用户是否已获授权？"]
+    G2 -- "NOT_FOUND" --> I2["负缓存命中<br/>直接返回不可秒传<br/>不查询 file_info 与授权表"]
+    G2 -- "ABSENT（含 Redis 异常）" --> J2["回源 MySQL<br/>按 uk_file_md5_size 查 file_info"]
+
+    J2 --> K2{"MySQL 是否命中？"}
+    K2 -- "命中" --> L2["写正缓存：普通 SET fileId<br/>TTL 6 小时，可覆盖旧负值"]
+    L2 --> H2
+    K2 -- "未命中" --> M2["写负缓存：SET NX NOT_FOUND<br/>TTL 5 分钟，不覆盖并发正值"]
+    M2 --> N2["返回 FileCheckVO<br/>secondUpload = false<br/>fileId = null"]
+
+    I2 --> N2
+
+    H2 --> O2{"当前用户已获授权？"}
+    O2 -- "是" --> P2["返回 FileCheckVO<br/>secondUpload = true<br/>携带 fileId"]
+    O2 -- "否" --> Q2["返回 FileCheckVO<br/>secondUpload = false<br/>不暴露 fileId"]
+```
+
+> 预检流程的核心设计决策：
+> - **Redis 三态**让大部分重复预检直接命中缓存，避免穿透数据库；负缓存用 `SET NX` 且短 TTL（5 分钟），不可覆盖并发上传写入的正值。
+> - **授权隔离**：即使全局文件存在，也只在当前用户有 `user_file_authorization` 记录时才返回可秒传，防止未授权用户嗅探 `fileId`。
+> - **降级策略**：Redis 读取异常 → 按 `ABSENT` 回源 MySQL；写缓存失败 → 仅告警，不影响预检主流程正确性。
+> - **坏值清理**：协议外字符串或非法数值在读取时被最佳努力 `evict` 删除，然后按 `ABSENT` 降级处理。
+
 ---
 
 ## 12. 权限校验

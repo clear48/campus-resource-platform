@@ -20,11 +20,9 @@ import com.john.campus.service.impl.ResourceDetailCacheServiceImpl;
 import com.john.campus.vo.ResourceDetailVO;
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
@@ -39,7 +37,6 @@ import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.scheduling.TaskScheduler;
 
 /**
  * 公开资料详情缓存单元测试，重点验证共享快照边界、坏值自愈和 Redis 故障降级。
@@ -55,8 +52,6 @@ class ResourceDetailCacheServiceImplTest {
     @Mock
     private ValueOperations<String, String> valueOperations;
     @Mock
-    private TaskScheduler taskScheduler;
-    @Mock
     private RedissonClient redissonClient;
     @Mock
     private RLock resourceLock;
@@ -67,7 +62,7 @@ class ResourceDetailCacheServiceImplTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
-        cacheService = new ResourceDetailCacheServiceImpl(stringRedisTemplate, objectMapper, taskScheduler);
+        cacheService = new ResourceDetailCacheServiceImpl(stringRedisTemplate, objectMapper);
     }
 
     @AfterEach
@@ -299,153 +294,25 @@ class ResourceDetailCacheServiceImplTest {
     }
 
     @Test
-    void invalidateWithoutRedissonShouldScheduleThreeRetriesAtConfiguredDelays() {
-        Instant before = Instant.now();
-        ArgumentCaptor<Runnable> taskCaptor = ArgumentCaptor.forClass(Runnable.class);
-        ArgumentCaptor<Instant> timeCaptor = ArgumentCaptor.forClass(Instant.class);
-        when(taskScheduler.schedule(taskCaptor.capture(), timeCaptor.capture()))
-                .thenReturn(org.mockito.Mockito.mock(ScheduledFuture.class));
-        when(stringRedisTemplate.delete(CACHE_KEY)).thenReturn(false);
-
-        cacheService.invalidateWithDelay(RESOURCE_ID);
+    void invalidateShouldDeleteCacheKey() {
+        cacheService.invalidate(RESOURCE_ID);
 
         verify(stringRedisTemplate).delete(CACHE_KEY);
-        verify(taskScheduler, times(3)).schedule(any(Runnable.class), any(Instant.class));
-        assertThat(timeCaptor.getAllValues())
-                .extracting(instant -> Duration.between(before, instant).toMillis())
-                .allSatisfy(delay -> assertThat(delay).isBetween(450L, 5_200L));
-        assertThat(timeCaptor.getAllValues().get(0).toEpochMilli() - before.toEpochMilli()).isBetween(450L, 700L);
-        assertThat(timeCaptor.getAllValues().get(1).toEpochMilli() - before.toEpochMilli()).isBetween(1_900L, 2_200L);
-        assertThat(timeCaptor.getAllValues().get(2).toEpochMilli() - before.toEpochMilli()).isBetween(4_900L, 5_200L);
     }
 
     @Test
-    void schedulingFailureShouldNotAffectImmediateInvalidation() {
-        when(taskScheduler.schedule(any(Runnable.class), any(Instant.class)))
-                .thenThrow(new IllegalStateException("scheduler unavailable"));
+    void invalidateShouldNotThrowWhenRedisFails() {
+        doThrow(new IllegalStateException("redis unavailable")).when(stringRedisTemplate).delete(CACHE_KEY);
 
-        assertThatCode(() -> cacheService.invalidateWithDelay(RESOURCE_ID)).doesNotThrowAnyException();
-        verify(stringRedisTemplate).delete(CACHE_KEY);
-        verify(taskScheduler, times(3)).schedule(any(Runnable.class), any(Instant.class));
+        assertThatCode(() -> cacheService.invalidate(RESOURCE_ID)).doesNotThrowAnyException();
     }
 
     @Test
-    void immediateLockedDeleteShouldScheduleThreeRetriesAndClearBypassWhenDeleteReturnsFalse() throws Exception {
-        when(redissonClient.getLock("crp:lock:cache:resource:detail:100")).thenReturn(resourceLock);
-        when(resourceLock.tryLock(2_000L, TimeUnit.MILLISECONDS)).thenReturn(true);
-        when(resourceLock.isHeldByCurrentThread()).thenReturn(true);
-        when(stringRedisTemplate.delete(CACHE_KEY)).thenReturn(false);
-        when(taskScheduler.schedule(any(Runnable.class), any(Instant.class)))
-                .thenReturn(org.mockito.Mockito.mock(ScheduledFuture.class));
-        ResourceDetailCacheService service = lockedCacheService();
+    void invalidateShouldSkipNonPositiveResourceId() {
+        cacheService.invalidate(0);
+        cacheService.invalidate(-1);
 
-        service.invalidateWithDelay(RESOURCE_ID);
-
-        InOrder inOrder = org.mockito.Mockito.inOrder(resourceLock, stringRedisTemplate);
-        inOrder.verify(resourceLock).tryLock(2_000L, TimeUnit.MILLISECONDS);
-        inOrder.verify(stringRedisTemplate).delete(CACHE_KEY);
-        inOrder.verify(resourceLock).isHeldByCurrentThread();
-        inOrder.verify(resourceLock).unlock();
-        verify(taskScheduler, times(3)).schedule(any(Runnable.class), any(Instant.class));
-
-        // Boolean false 表示 Key 原本不存在，但命令已成功，bypass 应在完整重试计划建立后清理。
-        org.mockito.Mockito.clearInvocations(stringRedisTemplate, redissonClient, resourceLock);
-        when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.get(CACHE_KEY)).thenReturn(null);
-        when(resourceLock.tryLock(2_000L, TimeUnit.MILLISECONDS)).thenReturn(false);
-        service.getOrLoad(RESOURCE_ID, () -> buildDetail(RESOURCE_ID, Resource.STATUS_APPROVED, null));
-        verify(stringRedisTemplate).opsForValue();
-        verify(redissonClient).getLock("crp:lock:cache:resource:detail:100");
-    }
-
-    @Test
-    void lockTimeoutShouldKeepBypassAndExecuteAllThreeRetries() throws Exception {
-        when(redissonClient.getLock("crp:lock:cache:resource:detail:100")).thenReturn(resourceLock);
-        when(resourceLock.tryLock(2_000L, TimeUnit.MILLISECONDS)).thenReturn(false);
-        when(stringRedisTemplate.delete(CACHE_KEY)).thenReturn(false);
-        ArgumentCaptor<Runnable> tasks = ArgumentCaptor.forClass(Runnable.class);
-        when(taskScheduler.schedule(tasks.capture(), any(Instant.class)))
-                .thenReturn(org.mockito.Mockito.mock(ScheduledFuture.class));
-        ResourceDetailCacheService service = lockedCacheService();
-
-        service.invalidateWithDelay(RESOURCE_ID);
-        tasks.getAllValues().forEach(Runnable::run);
-
-        verify(stringRedisTemplate, times(4)).delete(CACHE_KEY);
-        verify(resourceLock, times(4)).tryLock(2_000L, TimeUnit.MILLISECONDS);
-        assertBypassLoadsWithoutInfrastructure(service);
-    }
-
-    @Test
-    void lockFailureShouldKeepBypassAndExecuteAllThreeRetries() {
-        when(redissonClient.getLock("crp:lock:cache:resource:detail:100"))
-                .thenThrow(new IllegalStateException("redisson unavailable"));
-        when(stringRedisTemplate.delete(CACHE_KEY)).thenReturn(false);
-        ArgumentCaptor<Runnable> tasks = ArgumentCaptor.forClass(Runnable.class);
-        when(taskScheduler.schedule(tasks.capture(), any(Instant.class)))
-                .thenReturn(org.mockito.Mockito.mock(ScheduledFuture.class));
-        ResourceDetailCacheService service = lockedCacheService();
-
-        service.invalidateWithDelay(RESOURCE_ID);
-        tasks.getAllValues().forEach(Runnable::run);
-
-        verify(stringRedisTemplate, times(4)).delete(CACHE_KEY);
-        verify(redissonClient, times(4)).getLock("crp:lock:cache:resource:detail:100");
-        assertBypassLoadsWithoutInfrastructure(service);
-    }
-
-    @Test
-    void successfulRetryShouldClearBypassAndMakeLaterTasksNoOp() throws Exception {
-        when(redissonClient.getLock("crp:lock:cache:resource:detail:100")).thenReturn(resourceLock);
-        when(resourceLock.tryLock(2_000L, TimeUnit.MILLISECONDS)).thenReturn(false, true);
-        // 立即阶段未拿到锁，首次重试拿到锁后才允许释放。
-        when(resourceLock.isHeldByCurrentThread()).thenReturn(false, true);
-        // 降级删除与持锁删除都返回 false；后者仍代表 Redis 命令成功，应清理 bypass。
-        when(stringRedisTemplate.delete(CACHE_KEY)).thenReturn(false);
-        ArgumentCaptor<Runnable> tasks = ArgumentCaptor.forClass(Runnable.class);
-        when(taskScheduler.schedule(tasks.capture(), any(Instant.class)))
-                .thenReturn(org.mockito.Mockito.mock(ScheduledFuture.class));
-        ResourceDetailCacheService service = lockedCacheService();
-
-        service.invalidateWithDelay(RESOURCE_ID);
-        tasks.getAllValues().get(0).run();
-        tasks.getAllValues().get(1).run();
-        tasks.getAllValues().get(2).run();
-
-        verify(stringRedisTemplate, times(2)).delete(CACHE_KEY);
-        verify(resourceLock, times(2)).tryLock(2_000L, TimeUnit.MILLISECONDS);
-        verify(resourceLock).unlock();
-    }
-
-    @Test
-    void nullScheduledFutureShouldKeepBypassEvenAfterImmediateDeleteSucceeds() throws Exception {
-        when(redissonClient.getLock("crp:lock:cache:resource:detail:100")).thenReturn(resourceLock);
-        when(resourceLock.tryLock(2_000L, TimeUnit.MILLISECONDS)).thenReturn(true);
-        when(resourceLock.isHeldByCurrentThread()).thenReturn(true);
-        when(stringRedisTemplate.delete(CACHE_KEY)).thenReturn(false);
-        when(taskScheduler.schedule(any(Runnable.class), any(Instant.class))).thenReturn(null);
-        ResourceDetailCacheService service = lockedCacheService();
-
-        service.invalidateWithDelay(RESOURCE_ID);
-
-        verify(taskScheduler, times(3)).schedule(any(Runnable.class), any(Instant.class));
-        assertBypassLoadsWithoutInfrastructure(service);
-    }
-
-    @Test
-    void schedulingExceptionShouldKeepBypassEvenAfterImmediateDeleteSucceeds() throws Exception {
-        when(redissonClient.getLock("crp:lock:cache:resource:detail:100")).thenReturn(resourceLock);
-        when(resourceLock.tryLock(2_000L, TimeUnit.MILLISECONDS)).thenReturn(true);
-        when(resourceLock.isHeldByCurrentThread()).thenReturn(true);
-        when(stringRedisTemplate.delete(CACHE_KEY)).thenReturn(false);
-        when(taskScheduler.schedule(any(Runnable.class), any(Instant.class)))
-                .thenThrow(new IllegalStateException("scheduler unavailable"));
-        ResourceDetailCacheService service = lockedCacheService();
-
-        service.invalidateWithDelay(RESOURCE_ID);
-
-        verify(taskScheduler, times(3)).schedule(any(Runnable.class), any(Instant.class));
-        assertBypassLoadsWithoutInfrastructure(service);
+        verify(stringRedisTemplate, never()).delete(any(String.class));
     }
 
     private void assertInvalidSnapshotIsDeleted(ResourceDetailVO snapshot) throws Exception {
@@ -476,20 +343,6 @@ class ResourceDetailCacheServiceImplTest {
 
     private ResourceDetailCacheService lockedCacheService() {
         return new ResourceDetailCacheServiceImpl(
-                stringRedisTemplate, objectMapper, taskScheduler, redissonClient);
-    }
-
-    private void assertBypassLoadsWithoutInfrastructure(ResourceDetailCacheService service) {
-        org.mockito.Mockito.clearInvocations(stringRedisTemplate, valueOperations, redissonClient, resourceLock);
-        AtomicInteger loaderCalls = new AtomicInteger();
-
-        ResourceDetailVO result = service.getOrLoad(RESOURCE_ID, () -> {
-            loaderCalls.incrementAndGet();
-            return buildDetail(RESOURCE_ID, Resource.STATUS_APPROVED, null);
-        });
-
-        assertThat(result.resourceId()).isEqualTo(RESOURCE_ID);
-        assertThat(loaderCalls).hasValue(1);
-        verifyNoInteractions(stringRedisTemplate, valueOperations, redissonClient, resourceLock);
+                stringRedisTemplate, objectMapper, redissonClient);
     }
 }

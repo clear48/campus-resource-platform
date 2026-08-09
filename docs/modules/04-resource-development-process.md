@@ -1,7 +1,7 @@
 # 资料模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**首版及公开详情缓存增强已完成**。资料模块已实现创建资料、公开详情和我的上传列表三类能力；公开详情已接入 Redis Cache Aside，审核状态变更在 MySQL 提交后执行实例绕过、立即删除和 500ms/2s/5s 有限重试。
+> 当前状态：**首版及公开详情缓存增强已完成**。资料模块已实现创建资料、公开详情和我的上传列表三类能力；公开详情已接入 Redis Cache Aside，审核状态变更在 MySQL 提交后持锁 DELETE，降级直接删除，TTL 兜底。
 
 ---
 
@@ -167,7 +167,7 @@
 | `crp:cache:resource:detail:{resourceId}` | String | 缓存 `ResourceDetailVO` 公共 JSON 快照，TTL 30 分钟 + 随机 0-5 分钟 |
 | `crp:lock:cache:resource:detail:{resourceId}` | Redisson RLock | 串行化同一资料的 miss 回填与审核失效，不设置固定 leaseTime |
 
-缓存不保存 Entity，`favorited` 固定为 `null`。ID 不匹配、非 `APPROVED`、用户态字段非空或坏 JSON 会删除坏值并回源；Redis 故障只告警降级。不存在或不可见资料不做负缓存，统计字段变化由 TTL 自然刷新。首次 miss 最多等待约 2 秒获取每资料锁，只有持锁线程二次检查、执行 loader 并回填；竞争或 Redisson 异常路径只回源不回填。审核通过、拒绝、下架提交后先建立当前实例绕过，再执行立即删除和 500ms/2s/5s 有限持锁重试；只有同锁内删除成功且重试均成功调度才清除绕过，全部删除失败或任一调度失败则保留到 35 分钟上限。
+缓存不保存 Entity，`favorited` 固定为 `null`。ID 不匹配、非 `APPROVED`、用户态字段非空或坏 JSON 会删除坏值并回源；Redis 故障只告警降级。不存在或不可见资料不做负缓存，统计字段变化由 TTL 自然刷新。首次 miss 最多等待约 2 秒获取每资料锁，只有持锁线程二次检查、执行 loader 并回填；竞争或 Redisson 异常路径只回源不回填。审核通过、拒绝、下架提交后 `afterCommit` → `invalidate()` 持锁 DELETE（与 `getOrLoad()` 回填互斥）；锁超时（2s）降级直接删除，Redis 不可用仅告警，依赖 TTL（30~35分钟）兜底。
 
 ---
 
@@ -197,8 +197,8 @@
 | vo | `MyResourceVO` | 我的上传列表项 |
 | mapper | `ResourceMapper` + `ResourceMapper.xml` | `insert`、详情查询、我的上传分页、重复提交校验 |
 | service | `ResourceService` / `ResourceServiceImpl` | 资料创建、详情查询、我的上传列表业务编排 |
-| service | `ResourceDetailCacheService` / `ResourceDetailCacheServiceImpl` | 公开详情 JSON 缓存、坏值治理、每资料锁、实例绕过和有限失效重试 |
-| config | `ResourceDetailCacheConfig` | 隔离延迟删除调度器，并显式保留现有批任务默认调度器 |
+| service | `ResourceDetailCacheService` / `ResourceDetailCacheServiceImpl` | 公开详情 JSON 缓存、坏值治理、每资料锁回源与持锁失效、降级直接 DELETE、TTL 兜底 |
+| config | `ResourceDetailCacheConfig` | 显式保留默认调度器（已移除独立失效调度器） |
 | controller | `ResourceController` | 资料相关 HTTP 入口 |
 
 ---
@@ -385,8 +385,8 @@ flowchart TD
 - 步骤 8 已完成：新增 `ResourceControllerTest` 覆盖资料接口层和鉴权路径，新增 `ResourceDatabaseIntegrationTest` 覆盖真实 Mapper SQL 与 Service 数据库读写链路，更新 Postman 集合补充资料模块请求示例，并记录验证命令。
 - 步骤 9 已完成：同步 `docs/api/api-reference.md`、`docs/database/database-change-log.md`、`docs/06-project-progress.md` 和 `README.md`，资料模块已从规划状态更新为首版完成状态。
 - 步骤 10 已完成：根据当前真实代码校准本模块开发流程文档，补全状态、测试、文件清单、后续优化和下一阶段建议。
-- 公开详情缓存增强已完成：新增统一缓存 Service，详情查询接入 Cache Aside；审核状态提交后通过实例绕过、同锁删除和有限重试保护可见性，Redis 故障不改变 MySQL 主链路语义。
-- 最终并发审查修复已完成：miss 回填与审核失效共享每资料 Redisson 锁；立即删除及 500ms/2s/5s 重试均有 2 秒锁等待上限，失效失败期间当前实例禁止读写缓存。
+- 公开详情缓存增强已完成：新增统一缓存 Service，详情查询接入 Cache Aside；审核状态提交后通过持锁 DELETE（与回填互斥）和 TTL 兜底保护可见性，Redis 故障不改变 MySQL 主链路语义。
+- 最终并发审查修复已完成：miss 回填与审核失效共享每资料 Redisson 锁；持锁 DELETE 有 2 秒锁等待上限，锁超时降级直接 DELETE；Redis 不可用时依赖 TTL 兜底。
 
 ---
 
@@ -423,7 +423,7 @@ flowchart TD
 | 缓存合法命中 | 不回源 MySQL，返回的 `favorited` 为 `null` |
 | 缓存 ID/状态/用户态不合法或 JSON 损坏 | 删除坏值并回源 MySQL |
 | Redis 读写异常 | 告警并降级 MySQL，保留原业务错误语义 |
-| 审核状态提交成功 | 立即建立实例绕过并尝试持锁删除，失败后在 500ms、2s、5s 有限重试 |
+| 审核状态提交成功 | 持锁 DELETE，锁超时或 Redisson 不可用时降级直接 DELETE |
 | 并发 miss | 仅持锁线程二次检查并回填，竞争线程回源但不在锁外写缓存 |
 | loader 抛业务异常 | 只执行一次并原样传播，仍在 finally 安全释放当前线程持有的锁 |
 
@@ -467,7 +467,7 @@ flowchart TD
 | `ResourceDatabaseIntegrationTest` | 验证“我的上传”分页、状态筛选、总数统计和用户隔离 |
 | `ResourceDatabaseIntegrationTest` | 验证重复提交同一文件资料被真实数据库计数拦截 |
 | `ResourceDatabaseIntegrationTest` | 验证已删除文件、禁用分类不会被资料创建流程引用 |
-| `ResourceDetailCacheServiceImplTest` | 24 个用例覆盖 JSON/TTL、污染值治理、Redisson 回源锁、锁降级、实例绕过与 500ms/2s/5s 有限重试 |
+| `ResourceDetailCacheServiceImplTest` | 24 个用例覆盖 JSON/TTL、污染值治理、Redisson 回源锁、锁降级、持锁 DELETE 与降级直接删除 |
 | `ResourceServiceImplCacheTest` | 4 个用例覆盖缓存命中不查库、miss loader 回源、`40401`/`40901` 原错误语义 |
 | `ResourceDetailCacheConfigTest` | 2 个用例覆盖独立详情失效调度器与默认定时任务调度器 Bean |
 | `AuditServiceImplTest` | 4 个用例覆盖审核通过、拒绝、下架仅在事务提交后失效详情缓存，并保持排行榜回调隔离 |
@@ -523,15 +523,15 @@ flowchart TD
 | `campus-resource-platform/src/main/java/com/john/campus/service/ResourceDetailCacheService.java` | 定义公开详情缓存读取、回填和有限失效重试边界 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/impl/ResourceDetailCacheServiceImpl.java` | 实现 JSON 公共快照、TTL 抖动、坏值治理和 Redis 故障降级 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/impl/AuditServiceImpl.java` | 审核状态事务提交后优先触发公开详情缓存失效 |
-| `campus-resource-platform/src/main/java/com/john/campus/config/ResourceDetailCacheConfig.java` | 提供独立延迟删除调度器并保留默认批任务调度器 |
+| `campus-resource-platform/src/main/java/com/john/campus/config/ResourceDetailCacheConfig.java` | 显式保留默认调度器（已移除独立失效调度器） |
 | `campus-resource-platform/src/main/java/com/john/campus/controller/ResourceController.java` | 新增资料接口入口，提供创建资料、公开详情和我的上传列表接口 |
 | `campus-resource-platform/src/main/java/com/john/campus/config/WebMvcConfig.java` | 放行公开资料详情路径 `/api/v1/resources/*`，同时保留创建资料接口登录保护 |
 | `campus-resource-platform/pom.xml` | 新增 H2 测试依赖，用于本地可重复的数据库集成测试 |
 | `campus-resource-platform/src/test/java/com/john/campus/controller/ResourceControllerTest.java` | 新增资料 Controller 层 MockMvc 测试，覆盖核心接口、鉴权路径和异常映射 |
 | `campus-resource-platform/src/test/java/com/john/campus/service/ResourceDatabaseIntegrationTest.java` | 新增资料数据库集成测试，覆盖真实 SQL 写入、读取、分页、重复提交和关联校验 |
-| `campus-resource-platform/src/test/java/com/john/campus/service/ResourceDetailCacheServiceImplTest.java` | 覆盖详情缓存、回源锁、故障降级、实例绕过和有限失效重试 |
+| `campus-resource-platform/src/test/java/com/john/campus/service/ResourceDetailCacheServiceImplTest.java` | 覆盖详情缓存、回源锁、故障降级、持锁 DELETE 和降级直接删除 |
 | `campus-resource-platform/src/test/java/com/john/campus/service/ResourceServiceImplCacheTest.java` | 覆盖资料详情 Cache Aside 编排与原业务异常语义 |
-| `campus-resource-platform/src/test/java/com/john/campus/config/ResourceDetailCacheConfigTest.java` | 验证独立缓存失效调度器不会替代默认任务调度器 |
+| `campus-resource-platform/src/test/java/com/john/campus/config/ResourceDetailCacheConfigTest.java` | 验证默认调度器 Bean 存在且配置正确 |
 | `campus-resource-platform/src/test/java/com/john/campus/service/AuditServiceImplTest.java` | 补充审核事务提交后的详情缓存失效断言 |
 | `campus-resource-platform/src/test/resources/sql/resource-db-test-schema.sql` | 新增资料模块测试用最小表结构，供 H2 MySQL 模式初始化数据库 |
 | `docs/api/postman/campus-resource-platform.postman_collection.json` | 新增资料模块 Postman 分组，覆盖创建、公开详情、我的上传列表和异常场景 |
@@ -565,7 +565,7 @@ flowchart TD
 - 如何校验资源可见性：公开详情只返回 `APPROVED` 状态，其他状态只在我的上传列表中展示给上传者。
 - 如何避免重复提交：同一用户、同一文件、待审核或已通过资料需要业务校验。
 - 为什么详情缓存只保存公共 VO：避免 Entity 内部字段和用户 `favorited` 状态进入共享缓存，消除跨用户数据污染风险。
-- 如何处理缓存一致性：审核状态先提交 MySQL，当前实例立即绕过缓存，再执行同锁立即删除及 500ms/2s/5s 有限重试；统计快照接受 TTL 内短暂陈旧并自然刷新。
+- 如何处理缓存一致性：审核状态先提交 MySQL，事务提交后 `invalidate()` 持锁 DELETE 缓存 Key（与 `getOrLoad()` 回填互斥）；锁超时降级直接删除，依赖 TTL 兜底；统计快照接受 TTL 内短暂陈旧并自然刷新。
 - 如何消除慢回源旧值回填：miss 与失效共享每资料锁，持锁后二次检查；锁外回源只返回、不回填。
 - 如何保证 Redis 故障不放大：缓存读写、删除、坏值清理和调度全部告警降级，MySQL 仍决定不存在与可见性错误语义。
 

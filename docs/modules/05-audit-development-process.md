@@ -199,7 +199,8 @@ APPROVED(1)       -> OFFLINE(3)
 
 | Key | 类型 | 用途 | 使用方式 |
 | --- | --- | --- | --- |
-| `crp:cache:resource:detail:{resourceId}` | String | 资料公开详情缓存，审核状态变化后失效 | `ResourceDetailCacheService.invalidateWithDelay()` 延迟删除（500ms/2s/5s 三次重试） |
+| `crp:cache:resource:detail:{resourceId}` | String | 资料公开详情缓存，审核状态变化后失效 | `ResourceDetailCacheService.invalidate()` 持锁 DELETE，与回填互斥 |
+| `crp:lock:cache:resource:detail:{id}` | —（Redisson 锁） | 缓存回填与失效的互斥锁 | `getOrLoad()` 回填时持锁读 MySQL；`invalidate()` 持锁 DELETE |
 | `crp:rank:resource:hot:daily` | ZSet | 日热门资料榜，审核通过初始化、下架 ZREM | `RankingService.initializeApprovedResource()` / `removeOfflineResource()` |
 | `crp:rank:resource:hot:weekly` | ZSet | 周热门资料榜 | 同上 |
 | `crp:rank:resource:hot:monthly` | ZSet | 月热门资料榜 | 同上 |
@@ -235,7 +236,7 @@ APPROVED(1)       -> OFFLINE(3)
 | mapper | `AuditRecordMapper` + XML | 写入和查询审核记录 |
 | mapper | `ResourceMapper` + XML | 补充待审核分页、状态更新 SQL |
 | service | `AuditService` / `AuditServiceImpl` | 审核状态流转和审计记录编排，事务提交后联动 `ResourceDetailCacheService` 缓存失效和 `RankingService` 排行榜成员管理 |
-| service | `ResourceDetailCacheService` | 审核状态变化后延迟失效资料详情缓存（复用已有基础设施） |
+| service | `ResourceDetailCacheService` | 审核状态变化后失效资料详情缓存（持锁 DELETE，复用已有基础设施） |
 | service | `RankingService` | 审核通过后初始化排行榜成员、下架后从排行榜移除（复用已有基础设施） |
 | controller | `AuditController` | 管理员审核接口入口 |
 
@@ -250,7 +251,7 @@ AuditController
         ├── ResourceMapper（查询资料、分页待审核、状态更新）
         ├── AuditRecordMapper（写入/查询审核记录）
         ├── PageResult（封装分页响应）
-        ├── ResourceDetailCacheService（事务提交后延迟失效详情缓存）
+        ├── ResourceDetailCacheService（事务提交后直接 DELETE 详情缓存，与回填互斥）
         └── RankingService（审核通过初始化排行榜成员、下架移除）
 ```
 
@@ -314,47 +315,111 @@ Controller 只负责接收请求、触发参数校验和返回统一响应；状
 
 ```mermaid
 flowchart TD
-    A["管理员发起审核请求"] --> B["JWT 校验登录"]
-    B --> C{"当前用户是否为管理员？"}
-    C -- "否" --> X1["返回 FORBIDDEN"]
+    A["管理员发起审核请求"] --> B["JWT 拦截器校验登录"]
+    B --> C{"isAdmin()?"}
+    C -- "否" --> E403["40301 FORBIDDEN"]
     C -- "是" --> D{"请求类型"}
 
-    D -- "待审核列表" --> E["校验筛选与分页参数"]
-    E --> F["查询 status = PENDING_REVIEW 的资料"]
-    F --> G["返回 PageResult"]
+    D -- "GET 待审核列表" --> L1["校验筛选与分页参数"]
+    L1 --> L2["ResourceMapper 分页查询 status=0"]
+    L2 --> L3["组装 PendingReviewResourceVO → PageResult"]
 
-    D -- "审核文件" --> H{"资料存在且为 PENDING_REVIEW？"}
-    H -- "否" --> X2["返回不存在或状态非法错误"]
-    H -- "是" --> I["按 resource.file_id 查询正常文件"]
-    I --> J["校验存储根目录与文件可读性"]
-    J --> K["按安全类型返回 inline 或 attachment<br/>设置 no-store 与 nosniff"]
+    D -- "GET 审核记录" --> R1["校验 resourceId 存在"]
+    R1 --> R2["AuditRecordMapper 按时间倒序查询"]
+    R2 --> R3["组装 AuditRecordVO → List"]
 
-    D -- "通过、拒绝或下架" --> L["查询资料并校验原因与前置状态"]
-    L --> M{"状态流转是否合法？"}
-    M -- "通过：0 → 1" --> N1["条件更新为 APPROVED"]
-    M -- "拒绝：0 → 2" --> N2["条件更新为 REJECTED"]
-    M -- "下架：1 → 3" --> N3["条件更新为 OFFLINE"]
-    M -- "否" --> X3["返回 RESOURCE_STATUS_INVALID"]
+    D -- "GET 审核文件" --> F1["校验 resourceId 存在且 status=PENDING_REVIEW"]
+    F1 --> F2["按 file_id 查询 FileInfo → FileStorageService"]
+    F2 --> F3{"MIME 类型"}
+    F3 -- "PDF/图片/纯文本" --> F4["inline + no-store + nosniff"]
+    F3 -- "其他格式" --> F5["attachment + no-store + nosniff"]
 
-    N1 --> O{"更新行数是否为 1？"}
-    N2 --> O
-    N3 --> O
-    O -- "否" --> X3
-    O -- "是" --> P["同一事务插入 audit_record"]
-    P --> Q{"事务是否提交成功？"}
-    Q -- "否" --> R["回滚状态更新与审核记录"]
-    Q -- "是" --> S["提交后失效资料详情缓存"]
-    S --> T{"审核动作"}
-    T -- "通过" --> U["初始化热门资料榜成员"]
-    T -- "下架" --> V["从热门资料榜移除成员"]
-    T -- "拒绝" --> W["无需更新排行榜"]
-    U --> Y["派生数据异常仅告警<br/>不回滚审核事务"]
-    V --> Y
-    W --> Y
-    Y --> Z["返回 AuditResultVO"]
+    D -- "POST 状态变更" --> MUT["→ 见「状态变更事务流程」图"]
 ```
 
-> 状态条件更新与 `audit_record` 写入必须位于同一 MySQL 事务；详情缓存和排行榜属于事务提交后的派生更新，失败不会反向回滚已提交的审核结果。
+### 状态变更事务流程
+
+```mermaid
+flowchart TD
+    A2["POST 状态变更请求"] --> B2["JWT 校验 + isAdmin()"]
+    B2 --> C2{"变更类型"}
+
+    C2 -- "审核通过" --> AP1["校验 resourceId 存在 + auditReason ≤ 500"]
+    AP1 --> AP2{"status == PENDING_REVIEW?"}
+    AP2 -- "否" --> E1["40901"]
+    AP2 -- "是" --> AP_TXN["@Transactional"]
+
+    AP_TXN --> AP3["UPDATE status=APPROVED, approved_at=NOW()<br/>WHERE id=? AND status=PENDING_REVIEW"]
+    AP3 --> AP4{"affectedRows == 1?"}
+    AP4 -- "否" --> AP_RB["回滚 → 40901"]
+    AP4 -- "是" --> AP5["INSERT audit_record<br/>action=1, before=0, after=1"]
+    AP5 --> AP6["事务提交"]
+
+    C2 -- "审核拒绝" --> RJ1["校验 resourceId 存在 + rejectReason 必填"]
+    RJ1 --> RJ2{"status == PENDING_REVIEW?"}
+    RJ2 -- "否" --> E2["40901"]
+    RJ2 -- "是" --> RJ_TXN["@Transactional"]
+
+    RJ_TXN --> RJ3["UPDATE status=REJECTED, reject_reason=?<br/>WHERE id=? AND status=PENDING_REVIEW"]
+    RJ3 --> RJ4{"affectedRows == 1?"}
+    RJ4 -- "否" --> RJ_RB["回滚 → 40901"]
+    RJ4 -- "是" --> RJ5["INSERT audit_record<br/>action=2, before=0, after=2"]
+    RJ5 --> RJ6["事务提交"]
+
+    C2 -- "下架" --> OF1["校验 resourceId 存在 + offlineReason 必填"]
+    OF1 --> OF2{"status == APPROVED?"}
+    OF2 -- "否" --> E3["40901"]
+    OF2 -- "是" --> OF_TXN["@Transactional"]
+
+    OF_TXN --> OF3["UPDATE status=OFFLINE, offline_reason=?, offline_at=NOW()<br/>WHERE id=? AND status=APPROVED"]
+    OF3 --> OF4{"affectedRows == 1?"}
+    OF4 -- "否" --> OF_RB["回滚 → 40901"]
+    OF4 -- "是" --> OF5["INSERT audit_record<br/>action=3, before=1, after=3"]
+    OF5 --> OF6["事务提交"]
+
+    AP6 --> POST["事务提交后派生操作"]
+    RJ6 --> POST
+    OF6 --> POST
+
+    POST --> P1["ResourceDetailCacheService<br/>invalidate() 直接 DELETE 缓存"]
+    P1 --> P2{"审核动作"}
+    P2 -- "通过" --> P3["RankingService<br/>initializeApprovedResource()"]
+    P2 -- "下架" --> P4["RankingService<br/>removeOfflineResource()"]
+    P2 -- "拒绝" --> P5["无"]
+    P3 --> P6["派生异常仅告警，不回滚事务"]
+    P4 --> P6
+    P5 --> P6
+    P6 --> RESULT["返回 AuditResultVO"]
+```
+
+> **关键设计要点：**
+> 
+> - **事务边界**：`resource` 状态条件更新与 `audit_record` 写入必须在同一 `@Transactional` 事务内完成；`affectedRows == 0` 时回滚事务并返回 `40901`，防止并发重复操作。
+> - **事务提交后派生操作**：`ResourceDetailCacheService.invalidate()`（直接 DELETE 缓存 Key）和 `RankingService`（排行榜成员初始化/移除）在事务成功提交后执行，失败仅告警不回滚审核事务。
+> - **状态机强校验**：审核通过/拒绝的前置状态必须是 `PENDING_REVIEW`，下架的前置状态必须是 `APPROVED`；SQL 层使用 `WHERE id = ? AND status = ?` 做条件更新，Service 层在事务开启前再做一次状态校验，双重保障。
+> - **权限边界**：所有接口统一经过 JWT 登录校验 → `requireAdmin()` 角色校验 → 业务逻辑，未登录返回 `40101`，非管理员返回 `40301`。
+
+### 缓存失效
+
+审核事务提交后，`ResourceDetailCacheService.invalidate()` 删除对应的 Redis Key。与 `getOrLoad()` 使用**同一把 Redisson 每资料锁**（`crp:lock:resource:detail:{id}`），保证 DELETE 和回填之间严格有序——要么在回填之前完成，要么等回填结束后再删，不会交错执行。
+
+```mermaid
+flowchart TD
+    TRIGGER["AuditServiceImpl 事务提交后<br/>→ afterCommit → invalidate(resourceId)"]
+    TRIGGER --> CHECK{"resourceId > 0?"}
+    CHECK -- "否" --> SKIP["跳过（非法 ID 告警）"]
+    CHECK -- "是" --> RC{"redissonClient 可用?"}
+    RC -- "否" --> DEL2["直接 DELETE（无锁）"]
+    RC -- "是" --> LOCK{"tryLock(2s)?"}
+    LOCK -- "获锁" --> DEL1["持锁 DELETE<br/>保证与 getOrLoad 回填有序"]
+    DEL1 --> UNLOCK["释放锁 → 完成"]
+    LOCK -- "超时/中断/异常" --> DEL3["降级：直接 DELETE<br/>接受极低概率脏缓存窗口"]
+    DEL2 --> DONE["缓存已删除，下次查询回源 MySQL"]
+    DEL3 --> DONE
+    UNLOCK --> DONE
+```
+
+> **为什么需要锁：** 下架操作（APPROVED → OFFLINE）存在一个并发窗口——慢查询在事务提交前读到旧 `APPROVED` 状态，在 DELETE 之后才回填 Redis，`cachePublicDetail()` 的护卫逻辑只拒绝非 APPROVED 状态，旧的 APPROVED 值会通过校验。持锁 DELETE 消除了这个窗口。锁超时时降级为直接 DELETE，依赖 TTL（30~35min）兜底。
 
 ---
 
@@ -466,7 +531,7 @@ flowchart TD
 ## 19. 待完成事项
 
 - 本模块首版功能已完成。
-- 审核通过、拒绝、下架后已通过 `ResourceDetailCacheService.invalidateWithDelay()` 触发缓存失效（500ms/2s/5s 三次重试），并通过 `RankingService` 联动排行榜成员初始化和移除。
+- 审核通过、拒绝、下架后已通过 `ResourceDetailCacheService.invalidate()` 直接 DELETE 缓存 Key，失败依赖 TTL 兜底；通过 `RankingService` 联动排行榜成员初始化和移除。
 - 后续可补充审核列表关联上传者昵称、文件大小、分类名称等辅助信息。
 - 后续搜索模块上线后，审核通过可触发搜索索引刷新；下架时需要移除公开搜索结果。
 

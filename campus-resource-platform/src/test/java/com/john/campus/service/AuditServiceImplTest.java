@@ -85,7 +85,7 @@ class AuditServiceImplTest {
         verifyNoInteractions(rankingService, resourceDetailCacheService);
         TransactionSynchronizationUtils.triggerAfterCommit();
         verify(rankingService).initializeApprovedResource(100L);
-        verify(resourceDetailCacheService).invalidateWithDelay(100L);
+        verify(resourceDetailCacheService).invalidate(100L);
     }
 
     @Test
@@ -103,7 +103,7 @@ class AuditServiceImplTest {
 
         verifyNoInteractions(resourceDetailCacheService);
         TransactionSynchronizationUtils.triggerAfterCommit();
-        verify(resourceDetailCacheService).invalidateWithDelay(100L);
+        verify(resourceDetailCacheService).invalidate(100L);
     }
 
     @Test
@@ -125,7 +125,7 @@ class AuditServiceImplTest {
         verifyNoInteractions(rankingService, resourceDetailCacheService);
         TransactionSynchronizationUtils.triggerAfterCommit();
         verify(rankingService).removeOfflineResource(100L);
-        verify(resourceDetailCacheService).invalidateWithDelay(100L);
+        verify(resourceDetailCacheService).invalidate(100L);
     }
 
     @Test

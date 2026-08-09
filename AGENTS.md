@@ -31,7 +31,10 @@
 
 ## 多 Agent 协作入口
 
-- 用户明确要求多 Agent，或任务涉及完整业务模块、数据库/Redis、事务、并发、安全以及跨 3 个以上强关联文件时，主 Agent 应按 `docs/08-multi-agent-collaboration.md` 调度项目级 Subagent。
+- 用户明确要求多 Agent，或任务涉及完整业务模块、数据库/Redis、事务、并发、安全以及跨 3 个以上强关联文件时，主 Agent 应按以下配置调度项目级 Subagent：
+  - Codex 环境：`docs/08-multi-agent-collaboration.md` + `.codex/agents/*.toml`
+  - Claude Code 环境：`.claude/skills/multi-agent.md`（技能）+ `.claude/agents/*.md`（Agent 定义）
+  - 迁移说明见 `docs/09-codex-to-claude-code-migration.md`
 - 所有 Subagent 必须遵守本文件与 `docs/AGENTS.md`；主 Agent 对最终范围、代码、测试、提交和推送负责。
 - 同一时刻只允许一个 Agent 写入生产代码；只读分析和审查可以并行，测试 Agent 原则上只写测试目录。
 - Subagent 共享当前工作区，不等同于独立 Git 分支；两个独立功能确需并行写入时使用独立 Worktree。

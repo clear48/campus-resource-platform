@@ -1,0 +1,35 @@
+{
+  "$schema": "https://claude.ai/settings.local.schema.json",
+  "_comment": "多 Agent 协作配置 —— 从 .codex/config.toml 迁移。原 Codex 字段映射说明见下方。",
+
+  "_codex_migration_notes": {
+    "enabled": "Claude Code 中 Agent 始终可用，无需显式启用。",
+    "max_concurrent_threads_per_session": 4,
+    "_max_concurrent_note": "Claude Code 的 Workflow 系统内置并发控制（默认最多 16 个并行 Agent），无需单独配置该值。",
+    "max_depth": 1,
+    "_max_depth_note": "Claude Code 的 workflow() 嵌套已限制为 1 层，与 Codex max_depth=1 等效。",
+    "interrupt_message": true,
+    "_interrupt_message_note": "Claude Code 默认在中断时向 Agent 上下文写入说明消息。",
+    "job_max_runtime_seconds": 1800,
+    "_job_max_runtime_note": "Claude Code Agent 默认有超时控制，无需显式设置。"
+  },
+
+  "permissions": {
+    "allow": [
+      "Bash(mvn test:*)",
+      "Bash(mvn clean:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(npm install:*)",
+      "Bash(yarn add:*)",
+      "Bash(pip install:*)"
+    ],
+    "_note": "子 Agent 默认不允许提交/推送/安装依赖；主 Agent 在测试通过后执行提交。"
+  }
+}

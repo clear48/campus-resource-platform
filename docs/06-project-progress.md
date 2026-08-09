@@ -198,7 +198,7 @@
 | 管理员权限 | 已完成 | JWT 拦截器保证登录，`AuditServiceImpl.requireAdmin()` 校验 `role = 2` |
 | 事务一致性 | 已完成 | 审核通过、拒绝、下架使用 `@Transactional(rollbackFor = Exception.class)` |
 | 并发兜底 | 已完成 | 状态更新 SQL 带旧状态条件，影响行数为 0 时返回非法状态流转 |
-| 详情缓存失效 | 已完成 | 提交后建立当前实例最长 35 分钟绕过，同锁立即删除并在 500ms/2s/5s 有限重试；全部失败时跨实例仍由 TTL 兜底 |
+| 详情缓存失效 | 已完成 | 提交后 `invalidate()` 持锁 DELETE（与 `getOrLoad()` 回填互斥）；锁超时降级直接删除，Redis 不可用仅告警，依赖 TTL（30~35分钟）兜底 |
 
 涉及表：`resource`、`audit_record`。
 

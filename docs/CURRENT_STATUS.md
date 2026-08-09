@@ -11,9 +11,9 @@
 ## 公开资料详情缓存（2026-08-07）
 
 - `GET /api/v1/resources/{resourceId}` 已接入 `crp:cache:resource:detail:{resourceId}` Cache Aside，缓存值为 `ResourceDetailVO` 公共 JSON，`favorited` 固定为 `null`，TTL 为 30 分钟 + 随机 0-5 分钟。
-- 缓存读取会拒绝 ID 不匹配、非 `APPROVED`、用户态字段非空和坏 JSON；Redis 读写/删除/调度异常只告警并回源 MySQL，不做负缓存。
-- miss 回填与审核失效共享 `crp:lock:cache:resource:detail:{resourceId}`；最多等待约 2 秒，持锁后二次检查，竞争/Redisson 异常路径只回源不回填。
-- 审核状态提交后当前实例先绕过缓存，再同锁立即删除并在 500ms/2s/5s 有限重试；只有同锁删除成功才清除绕过，全部失败则保留到 35 分钟 TTL 上限。
+- 缓存读取会拒绝 ID 不匹配、非 `APPROVED`、用户态字段非空和坏 JSON；Redis 读写/删除异常只告警并回源 MySQL，不做负缓存。
+- miss 回填与审核失效共享 `crp:lock:cache:resource:detail:{id}`；最多等待约 2 秒，持锁后二次检查，竞争/Redisson 异常路径只回源不回填。
+- 审核状态提交后 `afterCommit` → `invalidate()` 持锁 DELETE；与 `getOrLoad()` 回填互斥，锁超时（2s）降级直接删除，Redis 不可用仅告警，依赖 TTL（30~35分钟）兜底。
 - 最终验证已完成：缓存专项 34/34、资料/审核相关回归 74/74、Spring 上下文 1/1、后端全量 155/155 均通过。
 
 ## 多 Agent 项目初始化 Skill（2026-08-05）

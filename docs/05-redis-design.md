@@ -60,7 +60,7 @@ crp:stats:resource:download:delta
 
 ## 4. 资料详情缓存
 
-当前已在公开详情接口落地：`ResourceServiceImpl` 把 MySQL 查询封装为 loader，`ResourceDetailCacheServiceImpl.getOrLoad` 统一负责 Cache Aside、每资料互斥锁、二次检查、JSON 序列化、TTL、坏值治理、故障降级和审核状态变更后的同锁失效与有限重试。
+当前已在公开详情接口落地：`ResourceServiceImpl` 把 MySQL 查询封装为 loader，`ResourceDetailCacheServiceImpl.getOrLoad` 统一负责 Cache Aside、每资料互斥锁、二次检查、JSON 序列化、TTL、坏值治理、故障降级和审核状态变更后的事务提交后同锁 DELETE，与 getOrLoad 回填互斥。
 
 ### 4.1 Key 设计
 
@@ -121,10 +121,10 @@ String，存储 JSON 字符串。
 | 触发动作 | 处理方式 |
 | --- | --- |
 | 查询资料详情，缓存未命中 | 查询 MySQL，结果写入 Redis |
-| 审核通过 | MySQL 提交后建立实例绕过，立即尝试删除，并在 500ms、2s、5s 有限重试 |
-| 审核拒绝 | MySQL 提交后建立实例绕过，立即尝试删除，并在 500ms、2s、5s 有限重试 |
-| 下架资料 | MySQL 提交后建立实例绕过，立即尝试删除，并在 500ms、2s、5s 有限重试 |
-| 修改资料标题、简介、分类、标签 | 先更新 MySQL，再删除缓存 |
+| 审核通过 | MySQL 提交后持锁 DELETE 缓存 Key，锁超时时降级直接删除，Redis 不可用仅告警 |
+| 审核拒绝 | MySQL 提交后持锁 DELETE 缓存 Key，锁超时时降级直接删除，Redis 不可用仅告警 |
+| 下架资料 | MySQL 提交后持锁 DELETE 缓存 Key，锁超时时降级直接删除，Redis 不可用仅告警 |
+| 修改资料标题、简介、分类、标签 | 先更新 MySQL，再调用 invalidate() 删除缓存 |
 | 下载量、收藏数变化 | 可不立即更新详情缓存，由 TTL 自然刷新或异步刷新 |
 
 ### 4.6 MySQL 一致性处理
@@ -137,23 +137,27 @@ String，存储 JSON 字符串。
 4. 锁竞争超时、线程中断或 Redisson 异常时直接执行一次 MySQL loader 并返回，但绝不在锁外回填，避免慢请求越过审核失效写回旧值。
 5. 更新资料状态或基础信息时，先更新 MySQL，再删除 Redis 缓存。
 
-审核通过、审核拒绝、下架均已复用 `AuditServiceImpl.runAfterCommit`，详情缓存失效回调先于排行榜回调注册且异常相互隔离。失效开始即在当前实例写入最长 35 分钟的绕过标记，绕过有效时 `getOrLoad` 只执行一次 MySQL loader，禁止读取和回填详情缓存。
+审核通过、审核拒绝、下架均已复用 `AuditServiceImpl.runAfterCommit`，详情缓存失效回调先于排行榜回调注册且异常相互隔离。失效时直接调用 `invalidate(resourceId)`：
 
 ```text
-更新 MySQL -> 当前实例绕过缓存 -> 立即持锁删除 -> 500ms / 2s / 5s 有限持锁重试
+更新 MySQL → 事务提交 → afterCommit → invalidate() → tryLock(2s) → 持锁 DELETE
+                                                    ↓ 锁超时/异常
+                                                 降级直接 DELETE
 ```
 
-立即删除和三次重试获取同一把资源锁时最多等待约 2 秒。只有在同锁内成功执行 Redis 删除命令，才能清除本轮实例绕过；锁超时、中断或 Redisson 异常时虽然仍会最佳努力直接删除，但不能证明旧 reader 已结束，因此保留绕过并继续后续重试。全部失败或调度失败时，绕过最长保留到详情缓存 TTL 上限并在后续访问时懒清理。
+`invalidate()` 与 `getOrLoad()` 使用**同一把 Redisson 每资料锁**（`crp:lock:resource:detail:{id}`），保证 DELETE 和回填之间严格有序——要么在回填之前完成，要么等回填结束后再删，不会在回填过程中交错执行。
 
-500ms、2s、5s 重试使用独立 `resourceDetailCacheTaskScheduler` 单线程池；现有 `@Scheduled` 批任务继续使用名为 `taskScheduler` 的默认调度器，二者不会互相阻塞，不创建裸线程。
+锁超时（2秒）、线程中断或 Redisson 异常时降级为直接 `stringRedisTemplate.delete()`，接受极低概率的脏缓存窗口；此时依赖 TTL（30 分钟 + 0~5 分钟随机抖动，最长约 35 分钟）兜底过期。
 
-缓存读取会校验 `resourceId` 与 Key 一致、`status = APPROVED` 且 `favorited = null`。ID 不匹配、非公开状态、用户态字段非空、坏 JSON 都会触发坏值删除并回源 MySQL。Redis 读取、写入、删除或延迟任务调度异常只记录告警并降级，不改变公开详情原有的参数非法、资料不存在和状态不可见错误语义。
+`cachePublicDetail()` 的护卫逻辑（`isValidPublicSnapshot()`）要求 `status == APPROVED` 且 `favorited == null`，下架场景中旧 APPROVED 值因持锁 DELETE 先于或后于回填而不会残留。
 
-当前不缓存不存在或不可见资料，不使用空对象或哨兵值做负缓存，避免扩大协议并保留现有 `40401` / `40901` 语义。`downloadCount`、`favoriteCount`、`hotScore` 等统计快照不做实时删改，由 30-35 分钟 TTL 自然刷新。
+锁释放前检查 `RLock.isHeldByCurrentThread()`，只有当前线程实际持锁时才 `unlock`；锁不设置固定 leaseTime，复用 Redisson 看门狗续期。
 
-锁释放前会检查 `RLock.isHeldByCurrentThread()`，只有当前线程实际持锁时才 `unlock`；锁不设置固定 leaseTime，复用项目现有 Redisson 看门狗续期。
+缓存读取会校验 `resourceId` 与 Key 一致、`status = APPROVED` 且 `favorited = null`。ID 不匹配、非公开状态、用户态字段非空、坏 JSON 都会触发坏值删除并回源 MySQL。Redis 读写、删除异常只记录告警并降级，不改变公开详情原有的参数非法、资料不存在和状态不可见错误语义。
 
-实例绕过表只能保护当前应用实例。Redis 与 Redisson 同时故障时，其他实例仍可能暂时读取残留值，最终由详情缓存 35 分钟 TTL 上限兜底。
+当前不缓存不存在或不可见资料，不使用空对象或哨兵值做负缓存，避免扩大协议并保留现有 `40401` / `40901` 语义。`downloadCount`、`favoriteCount`、`hotScore` 等统计快照不做实时删改，由 30~35 分钟 TTL 自然刷新。
+
+`invalidate()` 中的 `deleteQuietly` 不检查 Redis 删除返回值（Boolean false 表示 Key 本就不存在，Redis 命令仍成功完成且已达到失效目标；null 在 RESP2 协议下仅出现在连接异常场景，此时 catch 分支已覆盖）。Redis 与 Redisson 同时故障时 `deleteQuietly` 仅告警，缓存残留由 TTL 兜底。
 
 ### 4.7 为什么选择 String
 

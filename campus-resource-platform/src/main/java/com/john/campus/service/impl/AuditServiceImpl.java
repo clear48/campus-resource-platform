@@ -240,11 +240,11 @@ public class AuditServiceImpl implements AuditService {
     }
 
     /**
-     * 缓存失效与审核事务解耦：只在提交成功后触发，缓存组件内部负责立即删除和延迟第二次删除。
+     * 缓存失效与审核事务解耦：只在提交成功后触发，直接 DELETE 缓存 Key。
      */
     private void invalidateDetailCacheAfterCommit(long resourceId) {
         if (resourceDetailCacheService != null) {
-            runAfterCommit("失效公开资料详情缓存", () -> resourceDetailCacheService.invalidateWithDelay(resourceId));
+            runAfterCommit("失效公开资料详情缓存", () -> resourceDetailCacheService.invalidate(resourceId));
         }
     }
 

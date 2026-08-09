@@ -213,7 +213,7 @@ flowchart TD
             IN_JWT["JwtUtils<br/>generateToken() · parseToken()<br/>getUserId() · getRole() · getJti()<br/>getRemainingSeconds()"]
             IN_FS["FileStorageService<br/>calculateMd5() · store()<br/>loadAsResource() · delete()<br/>UUID 命名 · 路径穿越防护"]
             IN_MD5["FileMd5CacheService<br/>FOUND / NOT_FOUND / ABSENT<br/>正缓存 6h SET · 负缓存 5min SET NX<br/>坏值清理 · fail-open 降级"]
-            IN_DETAIL["ResourceDetailCacheService<br/>Cache Aside · JSON 快照<br/>Redisson 每资料锁 回源<br/>审核后 500ms/2s/5s 删除重试"]
+            IN_DETAIL["ResourceDetailCacheService<br/>Cache Aside · JSON 快照<br/>Redisson 每资料锁 回源<br/>审核后持锁 DELETE，降级直接删除，TTL 兜底"]
             IN_LIMIT["DownloadRateLimiter<br/>ZSet 滑动窗口 · Lua 原子<br/>用户 10次/分 · IP 30次/分<br/>fail-close 拒绝下载"]
             IN_SYNC["DownloadDeltaSyncServiceImpl<br/>UUID 批次隔离 · Redisson RLock<br/>→ DownloadDeltaPersistenceService<br/>MySQL 原子累加 · 幂等明细 HDEL"]
             IN_HOT["HotRankingMaintenanceServiceImpl<br/>all 榜缺失重建 · RENAME 原子替换<br/>热度快照 → hot_score 回写<br/>Redisson RReadWriteLock"]

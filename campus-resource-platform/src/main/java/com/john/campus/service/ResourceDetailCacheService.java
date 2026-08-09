@@ -26,7 +26,7 @@ public interface ResourceDetailCacheService {
     void cachePublicDetail(ResourceDetailVO resourceDetail);
 
     /**
-     * 审核状态提交后执行同锁立即失效；失败时按有限延迟计划重试并在当前实例绕过缓存。
+     * 审核状态提交后直接删除缓存；Redis 不可用时仅告警，依赖 TTL 兜底过期。
      */
-    void invalidateWithDelay(long resourceId);
+    void invalidate(long resourceId);
 }
