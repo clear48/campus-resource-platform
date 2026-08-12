@@ -271,3 +271,23 @@ Key 仍为 `crp:cache:file:md5:{fileMd5}:{fileSize}`，兼容历史纯数字正�
 - 相关提交：`67d2a0c6 feat(file): add md5 negative cache`、`ddead6f6 docs(file): clarify cache test record`
 - 相关文件：`campus-resource-platform/src/main/java/com/john/campus/service/FileMd5CacheService.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileMd5CacheServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileAuthorizationServiceImpl.java`、`campus-resource-platform/src/test/java/com/john/campus/service/FileMd5CacheServiceImplTest.java`、`campus-resource-platform/src/test/java/com/john/campus/service/FileServiceImplTest.java`、`docs/05-redis-design.md`
 - 验证方式：核对当前 `dev` 分支上述提交后的缓存协议、预检/上传调用链、事务代理边界、Mapper 状态条件和测试用例；本轮为代码解释，未重复运行测试，引用实现交付时 21 项专项及 173 项全量测试结果
+## 2026-08-12 10:00:00 | 文件上传模块中 Redis 的实际作用
+
+### 问题 1
+
+根据当前项目的实际代码总结文件上传模块中redis的作用
+
+### 答案 1
+
+当前文件上传模块只使用一个 Redis String Key：`crp:cache:file:md5:{fileMd5}:{fileSize}`。它缓存“MD5 + 文件大小”对应的全局物理文件候选结果：正值是十进制 `file_info.id`，TTL 为 6 小时；负值是哨兵 `NOT_FOUND`，TTL 为 5 分钟。缓存读取分为 `FOUND`、`NOT_FOUND`、`ABSENT` 三态：正值命中可跳过 `file_info` 查询，但仍必须查询 MySQL `user_file_authorization`，只有当前用户已经获得文件引用授权才返回可秒传和 `fileId`；负值命中直接返回不可秒传，以减少重复无效预检穿透；缓存未命中、坏值或 Redis 读取异常则回源 MySQL。坏值会最佳努力删除。
+
+Redis 的主要作用是加速 `GET /api/v1/files/check` MD5 预检、防止同一不存在文件反复穿透数据库，并在数据库查询命中、新文件及授权事务提交成功、真实上传命中既有文件后回填正缓存。负缓存使用 `SET NX`，避免数据库旧未命中结果覆盖并发上传已写入的正值；正缓存使用普通 `SET`，可覆盖旧负缓存。Redis 写入或删除异常只记录告警，不回滚已提交的数据库主流程。
+
+Redis 不承担最终文件去重、文件内容或路径存储、MD5 计算、用户文件授权、引用计数事务或分布式锁。真实 `POST /api/v1/files` 上传不会读取该缓存，而是服务端计算 MD5 后直接查询 MySQL；全局物理去重最终由 `file_info` 的唯一索引 `uk_file_md5_size(file_md5, file_size)` 保证，并发唯一键冲突时会删除本请求多余落盘文件，再转为秒传。用户是否可引用文件由 MySQL `user_file_authorization` 判定，所以全局缓存命中不等于当前用户有权限。
+
+边界方面，`evict(md5, size)` 已实现，但当前没有真实文件删除/恢复入口调用，主动失效尚未闭环，只能依赖 TTL；若上传数据库事务已成功但正缓存写入失败，同时旧负缓存仍存在，预检最多可能出现 5 分钟假阴性，但真实上传仍查 MySQL，不影响最终去重。MD5 缓存服务本身在 Redis 异常时会回源 MySQL，但请求前置 JWT 拦截器也使用 Redis 检查 Token 黑名单且未在此处降级，因此不能笼统表述为“Redis 整体不可用时上传仍正常”。当前预检允许任意非负 `fileSize`，随机 MD5/大小组合仍可能放大 MySQL 查询和 Redis 负缓存数量，短负缓存只能防同 Key 重复穿透。
+
+### 关联信息
+
+- 相关文件：`campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileMd5CacheServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileAuthorizationServiceImpl.java`、`campus-resource-platform/src/main/resources/mapper/FileInfoMapper.xml`、`campus-resource-platform/src/main/resources/mapper/UserFileAuthorizationMapper.xml`、`sql/init.sql`
+- 验证方式：`campus-resource-platform\\mvnw.cmd '-Dtest=FileServiceImplTest,FileMd5CacheServiceImplTest' test`，共 21 项测试通过；另结合生产代码、SQL 和两个只读 Subagent 交叉核查。未连接真实 Redis，未验证真实 TTL/NX 与 Redis/MySQL 并发。
