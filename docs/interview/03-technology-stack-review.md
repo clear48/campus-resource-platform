@@ -11,7 +11,7 @@
 | MyBatis | `mybatis-spring-boot-starter` 3.0.5 | Mapper 接口、XML SQL、结果映射、动态 SQL |
 | MySQL | 8.x | 权威业务数据、事务、索引、约束 |
 | Spring Data Redis | Boot Starter | String、Set、Hash、ZSet、Lua |
-| Redisson | 4.6.1 | 分布式锁、读写锁、看门狗续期 |
+| Redisson | 4.6.1 | 下载同步锁、排行榜维护读写锁、公开详情每资料锁、看门狗续期 |
 | JJWT | 0.12.6 | JWT 签发、验签和 Claims |
 | BCrypt | `spring-security-crypto` | 密码哈希与校验 |
 | Maven | Maven Wrapper | 构建与测试 |
@@ -67,7 +67,7 @@ ThreadLocal 必须清理，因为 Tomcat 线程会复用；不清理可能让下
 | 文件首次上传 | `file_info` + 用户文件授权 | MD5 计算和文件 IO |
 | 文件内容去重 | 引用计数 + 用户文件授权 | 文件查询 |
 | 资料创建 | 校验后的 `resource` 插入 | 无重要外部副作用 |
-| 审核 | 资料条件状态更新 + 审核记录 | 提交后更新 Redis 榜单 |
+| 审核 | 资料条件状态更新 + 审核记录 | 提交后失效详情缓存；通过/下架再初始化或移除榜单成员 |
 | 收藏 | 收藏关系 + `favorite_count` | 提交后更新缓存和榜单 |
 | 下载增量 | 幂等明细 + `download_count` 原子累加 | Redis 批次隔离和确认 |
 | 热度快照 | 单批 `hot_score` 更新 | Redis 榜单读取 |
@@ -149,7 +149,9 @@ OR tags LIKE '%keyword%'
 | Key 模板 | 结构 | TTL | 用途 | Redis 失败策略 |
 | --- | --- | --- | --- | --- |
 | `crp:auth:token:blacklist:{jti}` | String | Token 剩余时间 | 退出后立即失效 | 鉴权关键链路，失败关闭 |
-| `crp:cache:file:md5:{md5}:{size}` | String | 6 小时 | MD5 到 fileId 缓存 | 回查 MySQL |
+| `crp:cache:file:md5:{md5}:{size}` | String | 正值 6 小时；`NOT_FOUND` 5 分钟 | `FOUND/NOT_FOUND/ABSENT` 三态 MD5 预检缓存 | 无结论或异常时回查 MySQL |
+| `crp:cache:resource:detail:{resourceId}` | String(JSON) | 30～35 分钟 | 不含用户态字段的公开详情快照 | 读写失败保留 MySQL 结果或回源 |
+| `crp:lock:cache:resource:detail:{resourceId}` | Redisson Lock | 看门狗 | 同一资料的热点回填与审核后失效互斥 | 最多等待 2 秒，失败直接回源/删除且不在锁外回填 |
 | `crp:user:favorites:{userId}` | Set | 30 分钟 | 收藏状态 | 回查 MySQL |
 | `crp:rank:search:keyword:{period}` | ZSet | 2/14/60 天 | 热门搜索词 | 写失败跳过，读失败返回空 |
 | `crp:rank:resource:hot:{period}` | ZSet | 2/14/60 天；all 无 TTL | 热门资料 | 写失败跳过，读失败降级 MySQL |
@@ -162,6 +164,7 @@ OR tags LIKE '%keyword%'
 | `crp:stats:resource:download:syncing:current` | String | 无 | 当前批次指针 | Lua 比较删除 |
 | `crp:lock:sync:download-delta` | Redisson Lock | 看门狗 | 多实例同步互斥 | 抢锁失败跳过本轮 |
 | `crp:lock:sync:hot-rank-maintenance` | Redisson ReadWriteLock | 看门狗 | 总榜重建与实时写协调 | 按操作等待或跳过 |
+| `crp:rank:resource:hot:all:rebuild:{batchId}` | ZSet | 重建完成后原子替换或清理 | all 总榜重建临时结果 | 不对查询侧暴露半成品 |
 
 Redis Key 全部集中在 `RedisKeyConstants`，避免业务代码拼错前缀和层级。
 
@@ -171,7 +174,7 @@ Redis Key 全部集中在 `RedisKeyConstants`，避免业务代码拼错前缀�
 
 | 结构 | 选择原因 |
 | --- | --- |
-| String | 黑名单、去重和票据只需要“Key 是否存在”和 TTL |
+| String | 黑名单、去重和票据需要“Key 是否存在”和 TTL；公开详情用 JSON 保存共享快照 |
 | Set | 收藏状态只需要唯一成员和 `SISMEMBER` |
 | Hash | 多个资料的下载增量适合集中按 field 原子累加 |
 | ZSet | 排行榜需要按 score 排序；滑动窗口需要按时间戳删除和计数 |
@@ -221,8 +224,9 @@ Redisson `RLock` 提供可重入锁、持有者校验和看门狗自动续期；
 | 数据 | 权威源 | 一致性策略 |
 | --- | --- | --- |
 | 用户收藏关系和计数 | MySQL | MySQL 同事务；提交后更新 Redis，失败时读回源 |
-| 审核状态和流水 | MySQL | MySQL 同事务；提交后更新可重建排行榜 |
+| 审核状态和流水 | MySQL | MySQL 同事务；提交后失效详情缓存，通过/下架再维护可重建排行榜 |
 | 文件去重 | MySQL 唯一索引 | Redis 仅加速候选定位，最终查 MySQL |
+| 公开资料详情 | MySQL | Cache Aside；公共快照互斥回填，审核事务提交后同锁删除，TTL 兜底 |
 | 热门资料 | Redis 实时，MySQL 快照兜底 | 写失败可重建，定时回写快照 |
 | 下载量 | Redis 增量 + MySQL 最终值 | 批次隔离、事务幂等、提交后确认 |
 | JWT 黑名单 | Redis | 安全关键短期状态，Redis 异常失败关闭 |
@@ -340,7 +344,7 @@ flowchart TD
 
 - 搜索 `%LIKE%` 在大数据量下性能有限；
 - 本地文件存储不适合多实例直接共享；
-- 资料详情缓存设计存在于文档，但代码尚未实现；
+- 资料详情缓存已经实现，但不存在或不可见资料不做负缓存；Redis/锁故障或锁等待超时时直接回源且不回填，失效删除失败仍依赖 30～35 分钟 TTL 兜底；
 - 浏览量没有真实写入链，热度公式中的浏览权重暂时缺少事件来源；
 - Redis 周期榜当前通过 TTL 保留窗口，不是按自然日/自然周精确切桶；
 - 下载成功记录在实际文件传输完成前写入，成功时点仍可优化；

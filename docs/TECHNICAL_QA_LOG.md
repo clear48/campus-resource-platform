@@ -291,3 +291,20 @@ Redis 不承担最终文件去重、文件内容或路径存储、MD5 计算、�
 
 - 相关文件：`campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileMd5CacheServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileAuthorizationServiceImpl.java`、`campus-resource-platform/src/main/resources/mapper/FileInfoMapper.xml`、`campus-resource-platform/src/main/resources/mapper/UserFileAuthorizationMapper.xml`、`sql/init.sql`
 - 验证方式：`campus-resource-platform\\mvnw.cmd '-Dtest=FileServiceImplTest,FileMd5CacheServiceImplTest' test`，共 21 项测试通过；另结合生产代码、SQL 和两个只读 Subagent 交叉核查。未连接真实 Redis，未验证真实 TTL/NX 与 Redis/MySQL 并发。
+
+## 2026-08-12 10:17:11 | 面试文档与当前代码一致性更新
+
+### 问题 1
+
+更新 `docs/interview` 目录下与当前项目代码冲突的文档描述。
+
+### 答案 1
+
+已依据当前 `dev` 分支生产代码校准全部 7 份面试文档。主要更正包括：文件 MD5 预检已采用 `FOUND`、`NOT_FOUND`、`ABSENT` 三态缓存，正缓存 TTL 为 6 小时、负缓存 TTL 为 5 分钟且使用 `SET NX`；真实上传不读取 Redis，最终去重仍由 MySQL 唯一键保证。公开资料详情缓存也已落地，使用 Redis String 保存公共 JSON 快照，TTL 为 30～35 分钟，并以每资料 Redisson 锁、持锁后二次检查和审核事务提交后失效来控制击穿与一致性；审核通过、拒绝、下架都会失效详情缓存，只有通过和下架联动排行榜。
+
+同时更正了 Redis 认证边界：登录签发本身不查询 Redis，受保护接口的 Token 黑名单校验与退出登录才依赖 Redis；补全当前 Redis Key、Service 和测试规模，并把前端描述更新为已覆盖主要用户与管理流程，但健康检查和审核文件预览尚未接入页面。测试口径不再沿用旧的 124/124：本轮后端缓存相关专项 49 项全部通过；后端全量共执行 167 项，其中 158 项通过、9 项因本机 MySQL `localhost:3306` 未启动而发生连接错误；前端因依赖未安装，`vitest` 与 `vue-tsc` 命令不可用，未宣称本轮通过。
+
+### 关联信息
+
+- 相关文件：`docs/interview/00-document-generation-plan.md`、`docs/interview/01-project-background-and-value.md`、`docs/interview/02-modules-and-business-flows.md`、`docs/interview/03-technology-stack-review.md`、`docs/interview/04-interview-question-bank.md`、`docs/interview/05-limitations-and-improvement-roadmap.md`、`docs/interview/README.md`
+- 验证方式：核对当前生产代码、SQL、前端路由/API 与测试源文件；运行 49 项后端缓存相关专项测试、后端全量测试、Markdown 相对链接和代码围栏检查，并完成只读交叉复核。

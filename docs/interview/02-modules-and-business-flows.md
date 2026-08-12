@@ -2,7 +2,7 @@
 
 ## 1. 整体架构
 
-项目是前后端分离的单体应用。Vue 3 前端用于演示，Spring Boot 后端负责最终业务规则和权限边界，MySQL 保存权威数据，Redis 处理高频、实时或短生命周期数据，本地目录保存物理文件。
+项目是前后端分离的单体应用。Vue 3 + TypeScript + Vite + Element Plus 前端已覆盖注册登录、搜索详情、上传、个人中心以及审核、下架和榜单运维等主要页面；健康检查和管理员审核文件预览尚未接入页面。Spring Boot 后端负责最终业务规则和权限边界，MySQL 保存权威数据，Redis 处理高频、实时或短生命周期数据，本地目录保存物理文件。
 
 ```mermaid
 flowchart LR
@@ -35,8 +35,8 @@ Controller：接收请求、参数绑定、返回统一响应
 | 认证 | 注册、登录、退出、当前用户 | `user` | JWT 黑名单 | 密码安全、Token 立即失效、ThreadLocal 清理 |
 | 分类 | 启用分类查询 | `category` | 无 | 只返回启用分类和稳定排序 |
 | 文件 | 上传、MD5 预检、秒传 | `file_info`、`user_file_authorization` | MD5 缓存 | IO 与事务边界、并发去重、用户引用权限 |
-| 资料 | 创建、详情、我的上传 | `resource` | 无 | 待审核强制状态、归属隔离、重复提交 |
-| 审核 | 待审列表、通过、拒绝、下架、流水、审核文件 | `resource`、`audit_record` | 提交后更新排行榜 | 状态机、并发条件更新、审计事务、管理员权限 |
+| 资料 | 创建、详情、我的上传 | `resource` | 公开详情 JSON 缓存、每资料 Redisson 锁 | 待审核强制状态、归属隔离、缓存击穿收口、审核后失效 |
+| 审核 | 待审列表、通过、拒绝、下架、流水、审核文件 | `resource`、`audit_record` | 提交后失效详情缓存；通过/下架联动排行榜 | 状态机、并发条件更新、审计事务、管理员权限 |
 | 搜索 | 多条件检索、分页、排序 | `resource` | 热门搜索词 ZSet | 公开状态过滤、动态 SQL、排序白名单 |
 | 收藏 | 收藏、取消、状态、列表 | `favorite`、`resource` | 用户收藏 Set、热度 ZSet | 唯一索引、状态条件更新、计数一致性 |
 | 下载 | 限流、记录、票据、取流、历史 | `download_record`、`resource`、`file_info` | 限流、票据、去重、下载增量、热度 | 两段式访问、重放防护、最终一致性 |
@@ -163,18 +163,30 @@ sequenceDiagram
 
     U->>C: GET /files/check(md5, size)
     C->>S: checkByMd5AndSize
-    S->>R: 查询 MD5 缓存
-    alt 缓存未命中
+    S->>R: 查询 MD5 三态缓存
+    alt FOUND(fileId)
+        S->>DB: 校验当前用户文件授权
+        alt 已授权
+            S-->>U: secondUpload = true
+        else 未授权
+            S-->>U: secondUpload = false，不暴露 fileId
+        end
+    else NOT_FOUND
+        S-->>U: secondUpload = false，不查文件表和授权表
+    else ABSENT（含 Redis 异常或坏值）
         S->>DB: 按 md5 + size 查询
-        S->>R: 回填 fileId，TTL 6 小时
+        alt 文件存在
+            S->>R: SET fileId，TTL 6 小时
+            S->>DB: 校验当前用户文件授权
+        else 文件不存在
+            S->>R: SET NX NOT_FOUND，TTL 5 分钟
+        end
     end
-    S->>DB: 校验当前用户文件授权
-    alt 已授权
-        S-->>U: secondUpload = true
-    else 未授权或文件不存在
+    alt 预检未返回可秒传
         U->>C: POST /files
         C->>S: upload
         S->>S: 大小/扩展名校验并计算 MD5
+        S->>DB: 直接查询 md5 + size，不读取 Redis 缓存
         alt 内容已存在
             S->>DB: 增加引用并建立用户授权
         else 新文件
@@ -184,6 +196,7 @@ sequenceDiagram
                 S->>FS: 删除本次落盘文件
             end
         end
+        S->>R: 授权/入库事务成功后回填 fileId
     end
 ```
 
@@ -192,6 +205,7 @@ sequenceDiagram
 - MD5 是内容指纹，不信任前端传值，实际上传时由服务端重新计算；
 - 唯一键是 `(file_md5, file_size)`，降低单独 MD5 碰撞或错误带来的风险；
 - 全局文件存在不等于任何用户都有权引用，因此单独设计授权表；
+- `NOT_FOUND` 负缓存只能抑制同一 `MD5 + size` 的重复穿透，不能替代对随机高基数预检的限流；
 - 文件 IO 不放进长事务，避免占用数据库连接；失败通过补偿删除处理；
 - 当前只对白名单扩展名做主要类型校验，MIME 只记录，尚未做文件内容嗅探。
 
@@ -227,9 +241,9 @@ stateDiagram-v2
 2. Mapper 执行 `WHERE id = ? AND status = 旧状态` 的条件更新；
 3. 检查更新行数，0 行表示被并发请求抢先处理；
 4. 在同一事务插入 `audit_record`；
-5. 事务提交后更新 Redis 排行榜派生数据。
+5. 事务提交后失效公开详情缓存；审核通过时初始化热门资料成员，下架时移除成员，拒绝不更新榜单。
 
-“提交后再写 Redis”避免 MySQL 回滚但排行榜已经提前变化。
+“提交后再写 Redis”避免 MySQL 回滚但详情缓存或排行榜已经提前变化。公开详情缓存只保存不含 `favorited` 用户态字段的 `APPROVED` 公共快照，TTL 为 30 分钟加 0～5 分钟抖动；热点未命中使用每资料 Redisson 锁二次检查后回填，Redis/锁异常或 2 秒等待超时时直接回源且不在锁外回填。
 
 ## 8. 搜索流程
 
@@ -357,8 +371,8 @@ Redis 资料榜不可用时降级到 MySQL `hot_score` 快照。需要诚实说�
 | 主题 | 入口 |
 | --- | --- |
 | JWT | `JwtAuthenticationInterceptor`、`JwtUtils`、`AuthServiceImpl` |
-| 文件 | `FileServiceImpl`、`FileAuthorizationServiceImpl`、`FileStorageServiceImpl` |
-| 资料 | `ResourceServiceImpl`、`ResourceMapper.xml` |
+| 文件 | `FileServiceImpl`、`FileMd5CacheServiceImpl`、`FileAuthorizationServiceImpl`、`FileStorageServiceImpl` |
+| 资料 | `ResourceServiceImpl`、`ResourceDetailCacheServiceImpl`、`ResourceMapper.xml` |
 | 审核 | `AuditServiceImpl`、`AuditRecordMapper.xml` |
 | 搜索 | `SearchServiceImpl`、`ResourceMapper.xml` |
 | 收藏 | `FavoriteServiceImpl`、`FavoriteMapper.xml` |
