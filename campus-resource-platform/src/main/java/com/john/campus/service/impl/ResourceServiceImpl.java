@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -132,7 +133,12 @@ public class ResourceServiceImpl implements ResourceService {
         }
 
         Resource resource = buildPendingResource(dto, uploaderId);
-        resourceMapper.insert(resource);
+        try {
+            resourceMapper.insert(resource);
+        } catch (DuplicateKeyException ex) {
+            // 前置查询负责友好提示，数据库条件唯一索引负责封住并发“同时查不到、同时插入”的竞态。
+            throw new BusinessException(ErrorCode.DATA_DUPLICATE, "已提交过相同文件的待审核或已通过资料");
+        }
         return toCreateVO(resource);
     }
 

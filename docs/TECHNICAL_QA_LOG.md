@@ -308,3 +308,68 @@ Redis 不承担最终文件去重、文件内容或路径存储、MD5 计算、�
 
 - 相关文件：`docs/interview/00-document-generation-plan.md`、`docs/interview/01-project-background-and-value.md`、`docs/interview/02-modules-and-business-flows.md`、`docs/interview/03-technology-stack-review.md`、`docs/interview/04-interview-question-bank.md`、`docs/interview/05-limitations-and-improvement-roadmap.md`、`docs/interview/README.md`
 - 验证方式：核对当前生产代码、SQL、前端路由/API 与测试源文件；运行 49 项后端缓存相关专项测试、后端全量测试、Markdown 相对链接和代码围栏检查，并完成只读交叉复核。
+
+## 2026-08-12 10:35:00 | 项目全部事务使用场景与原因
+
+### 问题 1
+
+根据文件内容解释项目中所有使用到事务的场景（为什么使用事务）
+
+### 答案 1
+
+当前生产代码共有 11 个 `@Transactional` 方法（6 个实现类），另有收藏模块 3 个 `TransactionTemplate.execute` 调用点。声明式事务都配置 `rollbackFor = Exception.class`，未显式配置传播级别、隔离级别、`readOnly`、超时或独立事务，因此采用 Spring 默认 `REQUIRED` 和数据源默认隔离级别。
+
+真正依赖多步原子性的场景包括：审核通过、拒绝和下架将 `resource` 状态流转与 `audit_record` 留痕放在同一事务，避免状态已变但无审计记录；收藏、取消收藏和唯一键冲突后的恢复事务把 `favorite` 关系状态与 `resource.favorite_count` 增减放在同一事务，避免关系与汇总计数不一致；首次文件上传授权把 `file_info` 与 `user_file_authorization` 同时提交，内容去重授权把 `ref_count` 自增与用户授权同时提交；下载增量落库把 `(batch_id, resource_id)` 幂等明细与 `download_count` 原子累加放在同一事务，并让一个批次任一资料失败时全部回滚；热度快照把同一批次多个 `hot_score` 更新作为一个提交单元。
+
+事务边界外的副作用经过专门隔离：审核的详情缓存失效和排行榜更新注册为 `afterCommit`；收藏的 Redis Set 与排行榜热度在 `TransactionTemplate` 返回后更新；文件 MD5、落盘与删除不进入数据库事务，入库失败用删除文件补偿；下载增量的 Redis 批次隔离、HDEL 确认位于 MySQL 事务外，通过稳定批次 ID、唯一键与保留失败批次实现幂等重试；热度快照只事务化 MySQL 批次，不回滚 Redis 实时榜。这些都不是 MySQL 与 Redis/文件系统的分布式事务。
+
+其余事务收益相对有限：注册目前只有一条用户 INSERT，主要统一异常回滚边界，账号唯一性实际靠数据库唯一索引；登录目前只有一条 `last_login_at` UPDATE，但若后续 JWT 签发失败，事务可撤销登录时间；资料创建当前只 INSERT 一条 `resource`，事务包住前置校验与写入，但无法解决“先查重复、后插入”的并发竞争，仍需数据库唯一约束才可彻底保证业务去重；下载增量确认目前是一条批量 UPDATE，单条 SQL 本身已原子，事务更多提供统一服务边界。Redis Lua、`SET NX`、数据库单条 `UPDATE count = count + delta` 和唯一索引属于各自存储内的原子性/并发保护，不能等同于 Spring 事务。
+
+测试代码另有 `AuditServiceDatabaseIntegrationTest` 使用 `@Transactional(propagation = NOT_SUPPORTED)`，目的不是业务事务，而是关闭测试框架外围回滚事务，让被测 Service 的真实提交与回滚边界可被观察。当前审核集成测试明确验证审核记录插入失败时资料状态更新会回滚；下载增量也有数据库集成测试。收藏、文件授权、热度快照等仍主要依靠单元测试或 Mapper 测试，真实事务代理/并发覆盖程度不完全相同。
+
+### 关联信息
+
+- 相关文件：`campus-resource-platform/src/main/java/com/john/campus/service/impl/AuditServiceImpl.java`、`AuthServiceImpl.java`、`FavoriteServiceImpl.java`、`FileAuthorizationServiceImpl.java`、`FileServiceImpl.java`、`DownloadDeltaPersistenceServiceImpl.java`、`DownloadDeltaSyncServiceImpl.java`、`HotScoreSnapshotPersistenceServiceImpl.java`、`HotRankingMaintenanceServiceImpl.java`、`ResourceServiceImpl.java`，以及对应 Mapper XML、`sql/init.sql`
+- 验证方式：扫描全部生产 Java/XML/SQL 中的声明式与程序式事务 API，逐项核对 Service 调用链、Mapper SQL、唯一约束、Redis/文件边界和事务测试；仅静态分析，未修改业务代码、未运行测试
+
+## 2026-08-13 10:37:39 | 防止用户重复提交同一资料
+
+### 问题 1
+
+**如何防止用户重复提交同一资料**
+
+### 答案 1
+
+应把“重复”拆成物理文件重复和资料业务记录重复两层处理。当前项目的物理文件层已经在服务端计算文件 MD5，并以 `file_info(file_md5, file_size)` 唯一索引作为最终并发兜底；普通命中直接秒传，并发插入冲突时删除本请求的多余落盘文件、查询赢家记录后转为秒传。Redis 的 `crp:cache:file:md5:{fileMd5}:{fileSize}` 只加速预检，不承担最终正确性。若面向恶意碰撞风险较高的场景，应考虑改用 SHA-256；只看文件名、标题或客户端上报哈希都不可靠。
+
+资料业务层当前把“同一用户、同一 `fileId`，且已有状态为待审核 `0` 或已通过 `1` 的资料”定义为重复。`ResourceServiceImpl.create` 在插入前调用 `countActiveByUploaderAndFileId` 查询，命中后抛出 `DATA_DUPLICATE`；已有数据库集成测试覆盖普通顺序重复提交。这能拦截常规重复请求，但 `resource` 表目前只有普通索引，没有对应唯一约束，两个并发请求仍可能同时查到 0 后各自插入；`@Transactional` 不能消除这种“先查后写”竞争。
+
+彻底方案应保留 Service 前置查重以返回友好错误，同时在 MySQL 增加最终唯一兜底。由于业务允许资料被拒绝或下架后再次提交，不能直接对 `(uploader_id, file_id)` 建普通唯一索引，也不能对 `(uploader_id, file_id, status)` 建唯一索引（它仍允许同一文件同时存在一条待审核和一条已通过记录）。适合 MySQL 8 的方案是增加生成列，例如状态为 `0/1` 时生成固定值 `1`，其他状态生成 `NULL`，再建立 `(uploader_id, file_id, active_duplicate_guard)` 唯一索引；MySQL 唯一索引允许多条 `NULL`，从而只限制一条有效资料。插入时还应捕获该唯一键产生的 `DuplicateKeyException` 并统一转换为 `DATA_DUPLICATE`。上线前需先清理存量有效重复数据，再执行迁移，并补充真实数据库并发测试，验证多请求竞争时只有一条成功。
+
+前端在请求期间禁用提交按钮、增加防抖，以及使用一次性请求号或幂等键，可以改善重复点击体验；Redis `SET NX` 或分布式锁也可削峰，但锁可能过期或不可用，不能代替数据库唯一约束。若产品允许同一个文件以不同标题或课程发布成多份资料，则应先调整“同一资料”的业务唯一维度，不能直接沿用当前 `(uploader_id, file_id)` 规则。
+
+### 关联信息
+
+- 相关文件：`campus-resource-platform/src/main/java/com/john/campus/service/impl/ResourceServiceImpl.java`、`FileServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/mapper/ResourceMapper.java`、`campus-resource-platform/src/main/resources/mapper/ResourceMapper.xml`、`sql/init.sql`、`campus-resource-platform/src/test/java/com/john/campus/service/ResourceDatabaseIntegrationTest.java`
+- 验证方式：核对当前 `dev` 分支的资料创建、文件去重、Mapper SQL、数据库索引和重复提交集成测试；本轮仅静态分析并追加问答归档，未修改业务代码、未运行测试
+
+## 2026-08-13 11:00:28 | 本机 MySQL 增加资料条件唯一约束
+
+### 问题 1
+
+访问本机MySQL增加条件唯一约束
+
+### 答案 1
+
+已访问本机 MySQL 8.0.45 的 `campus_resource_platform`，在变更前确认 `resource` 共 3 行，待审核/已通过的有效重复组为 0。随后先使用 `mysqldump --single-transaction` 备份 `resource` 表到系统临时目录，再执行可重复迁移 `sql/migrations/20260813_resource_active_duplicate_guard.sql`；迁移连续执行两次均成功，未修改现有 3 条资料的业务字段。
+
+`resource` 新增 STORED 生成列 `active_duplicate_guard`：`status IN (0, 1)` 时生成 `1`，其他状态生成 `NULL`；新增唯一索引 `uk_resource_active_duplicate (uploader_id, file_id, active_duplicate_guard)`。该约束保证同一用户、同一物理文件最多存在一条待审核或已通过资料，同时利用唯一索引允许多个 `NULL` 的语义，使拒绝、下架、删除后的历史记录可以共存并允许重新提交。迁移会先检查存量有效重复组，存在冲突时用 `SIGNAL` 主动中止，不自动删除或修改业务数据。
+
+应用层继续保留 `countActiveByUploaderAndFileId` 前置查重以返回友好提示，并在 `ResourceServiceImpl.create` 捕获并发插入产生的 `DuplicateKeyException`，统一转换为 `DATA_DUPLICATE`。初始化 SQL、H2 MySQL 模式测试结构、数据库设计/变更记录、资料模块状态和分支交接文档已同步更新。
+
+本机事务探针验证：两条拒绝资料可使用相同用户/文件组合；插入第二条有效资料被唯一索引拒绝；回滚后探针残留为 0。资料数据库、Service 和 Controller 专项测试 27/27 通过，后端全量测试 169/169 通过，其中包括真实 MySQL 的审核事务集成测试。回滚数据库结构时应先执行 `ALTER TABLE resource DROP INDEX uk_resource_active_duplicate`，再删除 `active_duplicate_guard` 生成列；回滚会重新暴露并发重复提交风险。
+
+### 关联信息
+
+- 相关文件：`sql/init.sql`、`sql/migrations/20260813_resource_active_duplicate_guard.sql`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/ResourceServiceImpl.java`、`campus-resource-platform/src/test/resources/sql/resource-db-test-schema.sql`、`campus-resource-platform/src/test/java/com/john/campus/service/ResourceDatabaseIntegrationTest.java`、`campus-resource-platform/src/test/java/com/john/campus/service/ResourceServiceImplCacheTest.java`、`docs/database/database-design.md`、`docs/database/database-change-log.md`
+- 验证方式：本机 MySQL 结构/数据预检、迁移连续执行两次、information_schema 结构核验、事务回滚探针、`.\\mvnw.cmd '-Dtest=ResourceDatabaseIntegrationTest,ResourceServiceImplCacheTest,ResourceControllerTest' test`（27/27）和 `.\\mvnw.cmd test`（169/169）

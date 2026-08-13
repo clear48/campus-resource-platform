@@ -1,5 +1,14 @@
 # 分支交接记录
 
+## 2026-08-13 资料有效状态条件唯一约束
+
+- 分支：`dev`；`resource` 新增生成列 `active_duplicate_guard` 和唯一索引 `uk_resource_active_duplicate (uploader_id, file_id, active_duplicate_guard)`。
+- 待审核/已通过资料的生成值固定为 `1`，从数据库层阻止同一用户、同一文件出现第二条有效资料；拒绝/下架/删除生成 `NULL`，允许后续重新提交。
+- `ResourceServiceImpl.create` 保留前置查重，并把并发插入产生的 `DuplicateKeyException` 转换为 `DATA_DUPLICATE`。
+- 存量库迁移为 `sql/migrations/20260813_resource_active_duplicate_guard.sql`，执行前检查有效重复组，支持重复执行；回滚顺序为先删唯一索引、再删生成列。
+- 本机 MySQL 8.0.45 的 `campus_resource_platform` 已完成迁移，执行前 3 条资料、有效重复组 0；迁移前表备份位于系统临时目录，不纳入 Git。
+- 验证：资料数据库/Service/Controller 专项测试 27/27、后端全量 169/169 通过；本机迁移连续执行两次成功，事务探针验证第二条有效资料被拒绝、无效资料可共存且回滚后无残留。
+
 ## 2026-08-07 文件 MD5 三态与负缓存
 
 - 分支：`dev`；新增 `FileMd5CacheService` / `FileMd5CacheServiceImpl`，继续使用 `RedisKeyConstants.fileMd5Cache(md5, size)`，缓存正值为十进制 `fileId`，负值为固定 `NOT_FOUND`。

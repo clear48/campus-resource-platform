@@ -28,6 +28,7 @@ import org.mybatis.spring.boot.test.autoconfigure.MybatisTest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.jdbc.Sql;
@@ -300,6 +301,27 @@ class ResourceDatabaseIntegrationTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("code")
                 .isEqualTo(ErrorCode.DATA_DUPLICATE.getCode());
+        assertThat(resourceMapper.countActiveByUploaderAndFileId(CURRENT_USER_ID, FILE_ID)).isEqualTo(1L);
+    }
+
+    @Test
+    void databaseShouldEnforceConditionalUniqueConstraintForActiveResources() {
+        insertCategory(CATEGORY_ID, "计算机基础", 1);
+        insertFile(FILE_ID, 1);
+        LocalDateTime createdAt = LocalDateTime.of(2026, 1, 2, 10, 0);
+        insertResource(100L, CURRENT_USER_ID, FILE_ID, CATEGORY_ID, Resource.STATUS_PENDING_REVIEW,
+                "已有待审核资料", createdAt);
+
+        // 待审核和已通过共享同一个有效标记，数据库必须拒绝任意组合的第二条有效资料。
+        assertThatThrownBy(() -> insertResource(
+                101L, CURRENT_USER_ID, FILE_ID, CATEGORY_ID, Resource.STATUS_APPROVED,
+                "并发插入的已通过资料", createdAt.plusMinutes(1)))
+                .isInstanceOf(DuplicateKeyException.class);
+
+        // 无效状态生成 NULL；MySQL/H2 唯一索引允许多条 NULL，因此拒绝后仍可重新提交。
+        jdbcTemplate.update("UPDATE `resource` SET status = ? WHERE id = ?", Resource.STATUS_REJECTED, 100L);
+        insertResource(102L, CURRENT_USER_ID, FILE_ID, CATEGORY_ID, Resource.STATUS_PENDING_REVIEW,
+                "拒绝后重新提交", createdAt.plusMinutes(2));
         assertThat(resourceMapper.countActiveByUploaderAndFileId(CURRENT_USER_ID, FILE_ID)).isEqualTo(1L);
     }
 

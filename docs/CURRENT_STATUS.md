@@ -1,5 +1,13 @@
 # 当前项目状态
 
+## 资料有效状态条件唯一约束（2026-08-13）
+
+- `resource` 新增生成列 `active_duplicate_guard`：待审核/已通过生成 `1`，拒绝/下架/删除生成 `NULL`。
+- 唯一索引 `uk_resource_active_duplicate (uploader_id, file_id, active_duplicate_guard)` 作为并发重复提交的数据库最终兜底；Service 保留前置查重，并把插入唯一键冲突转换为 `DATA_DUPLICATE`。
+- 已新增可重复迁移 `sql/migrations/20260813_resource_active_duplicate_guard.sql`；迁移遇到存量有效重复组会主动中止，不自动修改业务数据。
+- 本机 MySQL 8.0.45 的 `campus_resource_platform` 已完成迁移并重复执行验证；迁移前 `resource` 备份保存在系统临时目录。
+- H2 MySQL 模式已同步生成列/唯一索引，资料专项回归 27/27、后端全量 169/169 通过。
+
 ## 文件 MD5 三态与负缓存（2026-08-07）
 
 - 已抽取 `FileMd5CacheService` 统一管理 `crp:cache:file:md5:{fileMd5}:{fileSize}`；正值为十进制 `fileId`，固定负哨兵为 `NOT_FOUND`，读取结果为 `FOUND` / `NOT_FOUND` / `ABSENT` 三态。

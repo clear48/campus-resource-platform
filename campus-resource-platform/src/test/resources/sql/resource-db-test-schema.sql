@@ -58,6 +58,7 @@ CREATE TABLE `resource` (
   file_id BIGINT NOT NULL,
   uploader_id BIGINT NOT NULL,
   status TINYINT NOT NULL DEFAULT 0,
+  active_duplicate_guard TINYINT GENERATED ALWAYS AS (CASE WHEN status IN (0, 1) THEN 1 ELSE NULL END),
   reject_reason VARCHAR(500),
   offline_reason VARCHAR(500),
   view_count BIGINT NOT NULL DEFAULT 0,
@@ -69,6 +70,7 @@ CREATE TABLE `resource` (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
+  UNIQUE KEY uk_resource_active_duplicate (uploader_id, file_id, active_duplicate_guard),
   KEY idx_resource_status_created (status, created_at),
   KEY idx_resource_uploader_status (uploader_id, status, created_at),
   KEY idx_resource_file (file_id)

@@ -1,5 +1,19 @@
 # 数据库变更记录
 
+## 2026-08-13 资料有效状态条件唯一约束
+
+### 变更结论
+
+为 `resource` 增加生成列 `active_duplicate_guard` 和唯一索引 `uk_resource_active_duplicate (uploader_id, file_id, active_duplicate_guard)`。待审核和已通过状态生成固定值 `1`，数据库因此只允许同一用户、同一文件存在一条有效资料；拒绝、下架、删除状态生成 `NULL`，保留重新提交能力。
+
+### 迁移与兼容性
+
+- 初始化库结构已更新 `sql/init.sql`；存量库执行可重复迁移 `sql/migrations/20260813_resource_active_duplicate_guard.sql`。
+- 迁移会先检查 `status IN (0, 1)` 的存量重复组；存在冲突时主动中止，不自动删除或修改业务数据。
+- Service 仍保留插入前查重以提供友好错误，同时捕获唯一键冲突并统一转换为 `DATA_DUPLICATE`，解决并发“先查后插”的竞态。
+- 迁移要求 MySQL 8.x；测试库的 H2 MySQL 模式同步使用生成列和唯一索引验证约束语义。
+- 回滚时先删除唯一索引，再删除生成列；回滚会重新暴露并发重复提交风险，应同时回滚依赖该约束的应用版本。
+
 ## 2026-07-15 用户文件引用授权隔离
 
 ### 变更结论

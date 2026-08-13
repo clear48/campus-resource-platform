@@ -177,6 +177,7 @@
 | `file_id` | BIGINT | 非空 | 文件 ID |
 | `uploader_id` | BIGINT | 非空 | 上传用户 ID |
 | `status` | TINYINT | 非空 | 审核状态：0 待审核，1 已通过，2 已拒绝，3 已下架，4 已删除 |
+| `active_duplicate_guard` | TINYINT | 生成列，可空 | 状态为待审核/已通过时生成 1，其余状态生成 NULL，用于条件唯一约束 |
 | `reject_reason` | VARCHAR(500) | 可空 | 最近一次拒绝原因 |
 | `offline_reason` | VARCHAR(500) | 可空 | 最近一次下架原因 |
 | `view_count` | BIGINT | 非空 | 浏览次数 |
@@ -193,6 +194,7 @@
 | 索引 | 类型 | 字段 | 作用 |
 | --- | --- | --- | --- |
 | `PRIMARY` | 主键 | `id` | 唯一标识资料 |
+| `uk_resource_active_duplicate` | 唯一索引 | `uploader_id`, `file_id`, `active_duplicate_guard` | 并发下防止同一用户对同一文件产生多条有效资料 |
 | `idx_resource_status_created` | 普通索引 | `status`, `created_at` | 审核列表、公开资料列表 |
 | `idx_resource_category_status` | 普通索引 | `category_id`, `status`, `created_at` | 按分类筛选已通过资料 |
 | `idx_resource_uploader_status` | 普通索引 | `uploader_id`, `status`, `created_at` | 查询用户上传记录 |
@@ -203,6 +205,8 @@
 ### 7.3 设计说明
 
 - `status` 是资料审核状态机的核心字段，避免项目变成普通 CRUD。
+- `active_duplicate_guard` 利用唯一索引允许多个 `NULL` 的语义，只约束待审核和已通过资料；拒绝、下架或删除后仍允许重新提交。
+- Service 前置查重用于返回友好提示，`uk_resource_active_duplicate` 才是并发重复提交的最终兜底。
 - `reject_reason` 和 `offline_reason` 保存最近原因，完整历史保存在 `audit_record`。
 - `download_count`、`favorite_count`、`hot_score` 与 Redis 配合：Redis 负责实时统计和排行榜，MySQL 保存最终落库结果或快照。
 - `idx_resource_status_created` 服务“待审核资料列表”和“公开资料列表”两个核心查询。
@@ -358,10 +362,11 @@ CREATE TABLE `category` (
 
 唯一索引用于保证字段组合不能重复。
 
-本项目两个重要唯一索引：
+本项目的重要唯一索引包括：
 
 - `user.username` 唯一，防止账号重复。
 - `favorite.user_id + favorite.resource_id` 唯一，防止重复收藏。
+- `resource.uploader_id + resource.file_id + active_duplicate_guard` 唯一，只限制同一用户、同一文件的待审核或已通过资料。
 
 收藏唯一索引非常重要，因为即使前端重复点击、接口重试或并发请求，数据库也能兜底保证同一用户不会产生两条相同收藏关系。
 

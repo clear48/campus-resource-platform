@@ -2,6 +2,7 @@ package com.john.campus.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -9,7 +10,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
 import com.john.campus.common.ErrorCode;
+import com.john.campus.common.LoginUser;
+import com.john.campus.common.UserContextHolder;
+import com.john.campus.dto.ResourceCreateDTO;
 import com.john.campus.entity.Category;
+import com.john.campus.entity.FileInfo;
 import com.john.campus.entity.Resource;
 import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.CategoryMapper;
@@ -22,12 +27,14 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.function.Supplier;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.dao.DuplicateKeyException;
 
 /**
  * 资料详情缓存编排测试，验证缓存与数据库的优先级以及错误语义不被缓存接入改变。
@@ -59,6 +66,42 @@ class ResourceServiceImplCacheTest {
                 categoryMapper,
                 userFileAuthorizationMapper,
                 cacheServiceProvider);
+    }
+
+    @AfterEach
+    void clearUserContext() {
+        UserContextHolder.clear();
+    }
+
+    @Test
+    void createShouldTranslateConcurrentUniqueConflictToBusinessDuplicate() {
+        long uploaderId = 1L;
+        long fileId = 20L;
+        long categoryId = 10L;
+        FileInfo fileInfo = new FileInfo();
+        fileInfo.setId(fileId);
+        Category category = new Category();
+        category.setId(categoryId);
+        ResourceCreateDTO dto = new ResourceCreateDTO();
+        dto.setTitle("Java 并发资料");
+        dto.setFileId(fileId);
+        dto.setCategoryId(categoryId);
+        dto.setCourseName("Java 程序设计");
+        dto.setResourceType(Resource.TYPE_COURSEWARE);
+
+        UserContextHolder.set(new LoginUser(uploaderId, 1, "test-jti"));
+        when(fileInfoMapper.selectNormalById(fileId)).thenReturn(fileInfo);
+        when(userFileAuthorizationMapper.exists(uploaderId, fileId)).thenReturn(true);
+        when(categoryMapper.selectEnabledById(categoryId)).thenReturn(category);
+        when(resourceMapper.countActiveByUploaderAndFileId(uploaderId, fileId)).thenReturn(0L);
+        doThrow(new DuplicateKeyException("uk_resource_active_duplicate"))
+                .when(resourceMapper).insert(any(Resource.class));
+
+        assertThatThrownBy(() -> resourceService.create(dto))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("已提交过相同文件的待审核或已通过资料")
+                .extracting("code")
+                .isEqualTo(ErrorCode.DATA_DUPLICATE.getCode());
     }
 
     @Test

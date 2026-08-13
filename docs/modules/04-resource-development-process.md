@@ -1,5 +1,12 @@
 # 资料模块开发流程文档
 
+## 2026-08-13 并发重复提交数据库兜底
+
+- 原有 `countActiveByUploaderAndFileId` 前置查重继续用于友好提示，唯一索引负责最终并发正确性。
+- `resource.active_duplicate_guard` 在状态为待审核或已通过时生成 `1`，其他状态生成 `NULL`；唯一索引 `uk_resource_active_duplicate (uploader_id, file_id, active_duplicate_guard)` 只限制有效资料。
+- `ResourceServiceImpl.create` 捕获并发唯一键冲突并返回 `DATA_DUPLICATE`，避免数据库异常直接暴露给接口调用方。
+- 初始化 SQL、存量迁移、H2 测试结构和数据库文档均已同步；不修改 HTTP 接口、DTO、Redis Key 或前端请求。
+
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
 > 当前状态：**首版及公开详情缓存增强已完成**。资料模块已实现创建资料、公开详情和我的上传列表三类能力；公开详情已接入 Redis Cache Aside，审核状态变更在 MySQL 提交后持锁 DELETE，降级直接删除，TTL 兜底。
 
