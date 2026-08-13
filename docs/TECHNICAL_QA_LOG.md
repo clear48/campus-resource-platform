@@ -373,3 +373,24 @@ Redis 不承担最终文件去重、文件内容或路径存储、MD5 计算、�
 
 - 相关文件：`sql/init.sql`、`sql/migrations/20260813_resource_active_duplicate_guard.sql`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/ResourceServiceImpl.java`、`campus-resource-platform/src/test/resources/sql/resource-db-test-schema.sql`、`campus-resource-platform/src/test/java/com/john/campus/service/ResourceDatabaseIntegrationTest.java`、`campus-resource-platform/src/test/java/com/john/campus/service/ResourceServiceImplCacheTest.java`、`docs/database/database-design.md`、`docs/database/database-change-log.md`
 - 验证方式：本机 MySQL 结构/数据预检、迁移连续执行两次、information_schema 结构核验、事务回滚探针、`.\\mvnw.cmd '-Dtest=ResourceDatabaseIntegrationTest,ResourceServiceImplCacheTest,ResourceControllerTest' test`（27/27）和 `.\\mvnw.cmd test`（169/169）
+
+## 2026-08-13 11:13:25 | 项目关键索引的作用
+
+### 问题 1
+
+详细讲解项目中关键索引的作用。
+
+### 答案 1
+
+项目索引主要承担三类职责：主键索引负责按 ID 定位、批量回表和游标分页；普通联合索引负责按业务维度过滤并尽量同时满足排序；业务唯一索引不仅加速等值查询，更是并发条件下的数据正确性约束。InnoDB 的二级索引叶子节点包含主键，因此多个列表 SQL 的末尾 `ORDER BY id` 通常可由已有联合索引的隐含主键尾列维持稳定顺序，无需机械地把 `id` 再写入每个索引。
+
+最关键的业务唯一索引包括：`user` 的用户名、邮箱和手机号唯一键封住并发注册；`uk_file_md5_size(file_md5, file_size)` 保证同一物理内容只入库一次，并让并发失败请求删除多余落盘文件后转为秒传；`uk_user_file_authorization(user_id, file_id)` 配合 `INSERT IGNORE` 保证用户文件授权幂等；`uk_resource_active_duplicate(uploader_id, file_id, active_duplicate_guard)` 利用生成列在待审核/已通过时取 `1`、其他状态取 `NULL`，只限制有效资料并允许拒绝、下架、删除后重新提交；`uk_favorite_user_resource(user_id, resource_id)` 保证重复收藏不会生成两条关系；`uk_download_delta_sync_batch_resource(batch_id, resource_id)` 是 Redis 下载增量重试的 MySQL 幂等栅栏，避免 MySQL 已提交而 Redis 确认失败后重复累计下载量。Service 的前置查询只负责友好提示，最终并发裁决仍由唯一索引完成。
+
+明确服务当前查询的普通联合索引包括：`idx_category_parent_status(parent_id, status, sort_order)` 支撑启用分类列表；`idx_resource_status_created(status, created_at)` 支撑待审核列表和公开资料默认时间排序；`idx_resource_category_status(category_id, status, created_at)` 支撑分类下已通过资料；`idx_resource_uploader_status(uploader_id, status, created_at)` 支撑带状态的“我的上传”；`idx_resource_hot(status, hot_score, download_count)` 支撑 Redis 不可用时的 MySQL 总热榜；`idx_favorite_user_status_created(user_id, status, created_at)` 支撑收藏列表与缓存重建；`idx_download_user_created(user_id, created_at)` 支撑个人下载历史；`idx_audit_resource_created(resource_id, created_at)` 支撑资料审核轨迹。联合索引遵循最左前缀：例如分类索引不能替代仅按 `status` 的查询；“我的上传”不传 `status` 时虽然可用 `uploader_id` 前缀过滤，却无法越过未约束的中间列继续用 `created_at` 完成全状态排序，数据量大时可能出现 `filesort`。
+
+当前还存在需用真实数据验证的性能边界：公开搜索的标题、简介、课程和标签使用前导 `%LIKE%` 或列函数，普通 B+Tree 基本不能完成有效定位，`idx_resource_course_status` 对现有课程模糊搜索帮助有限；下载量、收藏量排序没有完全匹配的联合索引；带分类的 MySQL 热榜也缺少同时覆盖分类过滤和热度排序的索引。部分下载、审核、反向授权和清理索引在当前生产 Mapper 中没有直接查询消费，属于未来报表或清理预留，会增加写放大，但不能只凭静态分析删除，应结合 `EXPLAIN ANALYZE`、慢日志和索引使用统计决策。项目使用逻辑外键，没有物理外键及其自动索引，索引也不负责验证关联数据存在。
+
+### 关联信息
+
+- 相关文件：`sql/init.sql`、`sql/migrations/20260813_resource_active_duplicate_guard.sql`、`campus-resource-platform/src/main/resources/mapper/*.xml`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/AuthServiceImpl.java`、`FileServiceImpl.java`、`ResourceServiceImpl.java`、`FavoriteServiceImpl.java`、`DownloadDeltaPersistenceServiceImpl.java`、`docs/database/database-design.md`
+- 验证方式：静态核对初始化 SQL、3 个迁移脚本、9 个生产 Mapper XML、关键 Service 调用链和数据库设计文档；未连接数据库执行真实 `EXPLAIN ANALYZE`，未修改业务代码、未运行测试
