@@ -982,3 +982,19 @@ README 可自然补充英文一句话介绍，覆盖 Java backend internship pro
 修改后可使用 user:clear48 topic:spring-boot、user:clear48 实习 in:description、user:clear48 限流 in:readme 验证对应字段能否检索到仓库；出现搜索结果不等于热门关键词排名靠前。优先顺序为 About / Topics → 真实截图或演示 → 一篇有内容的技术文章。本轮只提供建议并按规则归档，未修改远程仓库设置或发布站外内容。
 
 依据：GitHub 官方 https://docs.github.com/en/search-github/searching-on-github/searching-for-repositories 与 https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/classifying-your-repository-with-topics 。
+
+## 2026-09-19 | 项目名称调整与 GitHub 展示设置落地
+
+### 问题 1
+
+完成About 和 Topics  ，并把项目标题的智能搜索改为普通的搜索（删去智能两个字）
+
+### 答案 1
+
+已通过 GitHub API 更新仓库 About 简介，并重新读取验证：独立开发的 Java 后端实习项目｜校园资料共享与检索平台｜Spring Boot 3 + MyBatis + MySQL + Redis + Vue 3｜文件去重、审核事务、Lua 限流、幂等统计与面试复盘。
+
+已设置并回读确认 12 个 Topics：java、spring-boot、mybatis、mysql、redis、redisson、vue3、jwt、file-upload、rate-limiting、backend、learning-project。
+
+项目名称按“删去智能”统一为“校园资料共享与检索平台”。同步根 README、前端首页与说明、当前项目文档、Postman 集合描述及 Agent 配置中的项目名，并把面试复盘中依赖旧名称的现状说明调整为 MySQL 多条件检索、排序和热度统计。保留独立开发声明。历史问答不改写，未来智能检索规划与错误表述示例仍保留；此前日志中的旧项目名称只反映当时状态，当前以新名称为准。
+
+验证：npm run test:unit -- src/views/HomeView.test.ts 为 2/2 通过；npm run build 通过，保留既有大于 500 kB 产物提示；旧完整项目名仅留在历史问答中；Agent TOML、Postman JSON 解析和 git diff --check 均通过。本轮仅修改展示文本与 GitHub 元数据，未改后端业务、API、SQL、Redis 行为或仓库英文地址，因此未重复运行后端测试。

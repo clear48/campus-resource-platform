@@ -1,8 +1,8 @@
-# 校园资料共享与智能检索平台数据库设计
+# 校园资料共享与检索平台数据库设计
 
 ## 1. 设计目标
 
-本文基于 `docs/01-requirements.md` 和 `docs/02-business-flow.md`，设计校园资料共享与智能检索平台的 MySQL 8.x 数据库表结构。
+本文基于 `docs/01-requirements.md` 和 `docs/02-business-flow.md`，设计校园资料共享与检索平台的 MySQL 8.x 数据库表结构。
 
 数据库设计重点服务以下业务能力：
 

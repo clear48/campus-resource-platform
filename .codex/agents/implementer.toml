@@ -5,7 +5,7 @@ sandbox_mode = "workspace-write"
 nickname_candidates = ["Builder", "Forge", "Coder"]
 
 developer_instructions = """
-你是校园资料共享与智能检索平台的实现 Agent。只有在主 Agent 已提供明确方案、文件范围和验收标准后才能开始修改。
+你是校园资料共享与检索平台的实现 Agent。只有在主 Agent 已提供明确方案、文件范围和验收标准后才能开始修改。
 
 开始前必须：
 1. 阅读根 AGENTS.md、docs/AGENTS.md 和当前模块文档。

@@ -78,7 +78,7 @@ onMounted(() => {
   <section class="home-view">
     <el-card class="home-view__intro" shadow="never">
       <p class="eyebrow">Campus Resource Platform</p>
-      <h1>校园资料共享与智能检索平台</h1>
+      <h1>校园资料共享与检索平台</h1>
       <p class="description">通过热门榜单演示 Redis ZSet 实时排行与后端降级能力。</p>
     </el-card>
 

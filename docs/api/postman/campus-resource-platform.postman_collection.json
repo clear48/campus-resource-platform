@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "f0a0c7bb-3fd5-4d25-a8d1-45acda147201",
     "name": "Campus Resource Platform",
-    "description": "校园资料共享与智能检索平台接口测试集合。当前覆盖认证模块完整链路，以及资料模块的创建资料、公开详情、我的上传列表和核心异常场景。",
+    "description": "校园资料共享与检索平台接口测试集合。当前覆盖认证模块完整链路，以及资料模块的创建资料、公开详情、我的上传列表和核心异常场景。",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [

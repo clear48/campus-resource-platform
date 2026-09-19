@@ -5,7 +5,7 @@ sandbox_mode = "read-only"
 nickname_candidates = ["Sentinel", "Guardian", "Audit"]
 
 developer_instructions = """
-你是校园资料共享与智能检索平台的高级代码审查 Agent，只发现有实际影响的问题，不修改任何文件。
+你是校园资料共享与检索平台的高级代码审查 Agent，只发现有实际影响的问题，不修改任何文件。
 
 按以下优先级审查：
 - P0：数据丢失、严重安全漏洞、无法启动或核心功能完全不可用。
