@@ -964,3 +964,21 @@ JWT 表示登录身份，下载记录用于审计追溯，下载票据则表示�
 本轮验证：Markdown 本地链接 / 锚点 46 个及代码围栏检查通过，7 段 PowerShell 示例语法解析通过，git diff --check 通过；前端 npm run test:unit 为 31 个文件、66 个用例通过，npm run build 通过并保留既有产物体积警告。后端 mvnw.cmd test 执行 169 个用例，其中 160 个通过，9 个审核集成测试因本机 MySQL Connection refused 出错，不能声称全量测试通过。本次修改仅限文档，未改变接口、数据库或 Redis 行为。
 
 GitHub 元数据核查：仓库已公开，默认分支为 dev；本轮在 dev 提交推送即可更新首页 README，无需修改 main 或仓库可见性。具体提交与推送结果以最终答复为准。
+
+## 2026-09-19 | 提高项目在 GitHub 的可检索性
+
+### 问题 1
+
+如何让我的项目更容易被检索到
+
+### 答案 1
+
+核查 GitHub 公开仓库元数据：仓库已公开，简介仍为“校园资料共享与智能检索平台 Java 后端项目”，Topics 为空，Homepage 为空。当前优先补充 About 简介与相关 Topics。GitHub 官方说明普通仓库搜索默认匹配仓库名称、简介与 Topics；README 内容需使用 in:readme 搜索限定符，因此仅扩充 README 不能覆盖所有默认搜索场景。
+
+建议简介：“独立开发的 Java 后端实习项目｜校园资料共享平台｜Spring Boot 3 + MyBatis + MySQL + Redis + Vue 3｜文件去重、审核事务、Lua 限流、幂等统计与面试复盘”。在仓库首页 About 齿轮中修改 Description 与 Topics。推荐真实相关 Topics：java、spring-boot、mybatis、mysql、redis、redisson、vue3、jwt、file-upload、rate-limiting、backend、learning-project。不添加项目尚未实现的 AI、RAG、Elasticsearch 或微服务标签，不建议仅为关键词更改现有仓库名。
+
+README 可自然补充英文一句话介绍，覆盖 Java backend internship project、campus resource sharing platform 等表达；保持中英文介绍与当前能力一致。补充真实页面截图和短演示，可帮助访问者理解功能并判断是否收藏，但不能保证提升搜索排名。面向目标读者发布有具体实现内容的技术文章，例如 Redis + Lua 下载限流、MySQL 条件唯一约束与重复提交、Redis 下载统计幂等落库，并链接仓库，作为站外发现入口；不承诺收录时间或 Star 数量。
+
+修改后可使用 user:clear48 topic:spring-boot、user:clear48 实习 in:description、user:clear48 限流 in:readme 验证对应字段能否检索到仓库；出现搜索结果不等于热门关键词排名靠前。优先顺序为 About / Topics → 真实截图或演示 → 一篇有内容的技术文章。本轮只提供建议并按规则归档，未修改远程仓库设置或发布站外内容。
+
+依据：GitHub 官方 https://docs.github.com/en/search-github/searching-on-github/searching-for-repositories 与 https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/classifying-your-repository-with-topics 。
