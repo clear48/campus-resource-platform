@@ -352,4 +352,13 @@ npm run build
 Remove-Item Env:MYSQL_PASSWORD, Env:REDIS_PASSWORD, Env:JWT_SECRET -ErrorAction SilentlyContinue
 ```
 
+不依赖终端的关闭方法(按端口动态查找进程，强制关闭前端和后端)：
+
+```powershell
+Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+    Where-Object { $_.LocalPort -in 5173,8080 } |
+    Select-Object -ExpandProperty OwningProcess -Unique |
+    ForEach-Object { Stop-Process -Id $_ -Force }
+```
+
 相关文档：[接口文档](api/api-reference.md)、[Redis 设计](05-redis-design.md)、[前端运行说明](../frontend/README.md)、[前端接口映射](frontend/03-api-mapping.md)。
