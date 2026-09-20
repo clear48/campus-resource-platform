@@ -1016,3 +1016,21 @@ README 可自然补充英文一句话介绍，覆盖 Java backend internship pro
 
 - 相关文件：`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`AuditServiceImpl.java`、`SearchServiceImpl.java`、`RankingServiceImpl.java`、`DownloadRateLimiterImpl.java`、`DownloadServiceImpl.java`、`DownloadDeltaSyncServiceImpl.java`
 - 验证方式：对照当前 `dev` 分支源码与 `docs/CURRENT_STATUS.md`、`docs/05-redis-design.md`、模块开发文档进行静态核查；本轮未修改业务代码，未运行测试。
+
+## 2026-09-20 18:54:03 | 精简简历主要工作描述
+
+### 问题 1
+
+适当缩减文本量，只保留必要信息。
+
+### 答案 1
+
+- **文件上传与去重：** 实现 MD5 + 文件大小预检和重复文件秒传，通过 Redis 缓存与 MySQL 唯一索引避免重复存储及并发重复入库。
+- **审核与数据一致性：** 实现资料审核、拒绝、下架和操作留痕，通过事务及提交后缓存失效解决并发审核和脏缓存问题。
+- **检索与榜单：** 实现多条件检索和多周期热门榜单，通过排序白名单、Redis ZSet 与 MySQL 有效性校验保证结果安全准确。
+- **下载与计数：** 实现用户/IP 限流、一次性下载票据和去重计数，通过 Redis 聚合、幂等同步降低写库压力并防止重复计数。
+
+### 关联信息
+
+- 相关文件：`docs/TECHNICAL_QA_LOG.md`
+- 验证方式：沿用上一轮已完成的源码与项目文档静态核查结论；本轮仅压缩简历表述，未修改业务代码，未运行测试。
