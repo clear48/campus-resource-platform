@@ -998,3 +998,21 @@ README 可自然补充英文一句话介绍，覆盖 Java backend internship pro
 项目名称按“删去智能”统一为“校园资料共享与检索平台”。同步根 README、前端首页与说明、当前项目文档、Postman 集合描述及 Agent 配置中的项目名，并把面试复盘中依赖旧名称的现状说明调整为 MySQL 多条件检索、排序和热度统计。保留独立开发声明。历史问答不改写，未来智能检索规划与错误表述示例仍保留；此前日志中的旧项目名称只反映当时状态，当前以新名称为准。
 
 验证：npm run test:unit -- src/views/HomeView.test.ts 为 2/2 通过；npm run build 通过，保留既有大于 500 kB 产物提示；旧完整项目名仅留在历史问答中；Agent TOML、Postman JSON 解析和 git diff --check 均通过。本轮仅修改展示文本与 GitHub 元数据，未改后端业务、API、SQL、Redis 行为或仓库英文地址，因此未重复运行后端测试。
+
+## 2026-09-20 18:44:14 | 简历主要工作突出功能与问题解决
+
+### 问题 1
+
+这是简历上关于该项目的描述，将主要工作部分按以下要求整改后输出文本：重点说明项目实现了什么功能，解决了什么问题。
+
+### 答案 1
+
+- **文件上传与去重：** 实现文件上传、MD5 + 文件大小预检及重复文件秒传，使用 Redis 三态缓存减少无效查库，并由 MySQL 联合唯一索引兜底并发写入，避免相同文件重复存储和并发重复入库。
+- **资料审核与状态一致性：** 实现待审核、通过、拒绝、下架的完整状态流转和审核留痕，通过旧状态条件更新、事务提交状态与审核流水，提交后失效详情缓存并同步榜单，解决并发审核覆盖、跨表不一致及脏缓存问题。
+- **多条件检索与热门榜单：** 实现关键词、分类、课程、类型、标签等组合检索及日/周/月/总榜；对排序字段进行白名单校验，利用 Redis ZSet 维护热点候选并回查 MySQL 过滤、补齐和恢复顺序，保证只展示有效资料且榜单结果稳定。
+- **下载安全与计数：** 实现用户/IP 滑动窗口限流、60 秒一次性下载票据和重复下载去重；下载量先在 Redis 聚合，再通过 Redisson 锁、Lua 原子批次隔离及幂等记录同步 MySQL，降低高频写库压力，避免恶意刷量和失败重试导致重复计数。
+
+### 关联信息
+
+- 相关文件：`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`AuditServiceImpl.java`、`SearchServiceImpl.java`、`RankingServiceImpl.java`、`DownloadRateLimiterImpl.java`、`DownloadServiceImpl.java`、`DownloadDeltaSyncServiceImpl.java`
+- 验证方式：对照当前 `dev` 分支源码与 `docs/CURRENT_STATUS.md`、`docs/05-redis-design.md`、模块开发文档进行静态核查；本轮未修改业务代码，未运行测试。
