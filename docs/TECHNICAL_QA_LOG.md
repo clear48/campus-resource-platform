@@ -1160,3 +1160,20 @@ DNS 最小配置为给业务域名创建指向云服务器公网 IP 的 A 记录
 
 - 相关文件：`campus-resource-platform/src/main/java/com/john/campus/common/JwtUtils.java`、`campus-resource-platform/src/main/resources/application.yaml`、`campus-resource-platform/pom.xml`、`README.md`、`docs/07-project-runbook.md`
 - 验证方式：静态核对 JWT 构造校验、配置绑定、Java 版本声明与启动手册；检查 8080 端口，结果无监听；未修改业务代码，未实际注入用户环境变量或启动服务
+
+## 2026-09-21 10:29:46 | 写入用户级 JWT 密钥
+
+### 问题 1
+
+将至少 32 字节的随机 `JWT_SECRET` 写入用户环境变量。
+
+### 答案 1
+
+已使用系统加密安全随机数生成器生成 48 个随机字节，并转为 Base64 字符串写入 Windows 当前用户作用域的 `JWT_SECRET`。写入后重新从用户环境读取并验证：变量存在，UTF-8 长度为 64 字节，满足项目至少 32 字节的要求。整个过程未输出或写入日志真实密钥，日志仅记录脱敏后的作用域和长度。
+
+用户级环境变量会被之后启动的新进程读取；已打开的 PowerShell 不会自动刷新环境块，需要重新打开终端，或在当前窗口执行 `$env:JWT_SECRET = [Environment]::GetEnvironmentVariable('JWT_SECRET', 'User')` 后再启动后端。替换 JWT 密钥会使旧 Token 无法继续通过验签。
+
+### 关联信息
+
+- 影响范围：Windows 当前用户环境变量 `JWT_SECRET`；未修改前端、后端源代码或仓库配置
+- 验证方式：通过 .NET `Environment.GetEnvironmentVariable` 从 `User` 作用域回读，仅验证存在性、UTF-8 字节长度和最小长度条件，不输出密钥内容
