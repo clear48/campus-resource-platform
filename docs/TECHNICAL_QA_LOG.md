@@ -1058,3 +1058,26 @@ README 可自然补充英文一句话介绍，覆盖 Java backend internship pro
 - 依据：`campus-resource-platform/pom.xml`、`application.yaml`、`FileStorageServiceImpl.java`、`WebMvcConfig.java`、`DownloadController.java`、`frontend/package.json`、`vite.config.ts`、`sql/init.sql`、`sql/migrations/` 与 `docs/07-project-runbook.md`。
 - 当前仓库尚无 Dockerfile、Compose、Nginx 生产配置或 CI 工作流；本轮仅做只读架构分析并追加问答日志，未修改业务代码，未运行测试。
 - 分支 `dev`，分析前 HEAD 为 `d2b99e89`，工作区初始干净并与 `origin/dev` 一致。
+
+## 2026-09-21 | 推荐域名结构
+
+### 问题 1
+
+推荐域名结构
+
+### 答案 1
+
+首版推荐使用单一业务域名和同源 API 路径。例如个人已有主域名 `example.com` 时，项目使用 `campus.example.com`，前端地址为 `https://campus.example.com/`，接口继续使用 `https://campus.example.com/api/v1/**`，管理端继续使用 `https://campus.example.com/admin/**`。如果为项目单独购买域名，则使用 `https://example-project.com/` 作为唯一正式入口，并将 `www.example-project.com` 通过 301 重定向到主域名。
+
+同源结构与当前前端 `VITE_API_BASE_URL=/api/v1`、Spring Boot `/api/v1` 接口前缀和 Nginx 反向代理方式完全匹配，不需要额外处理跨域、预检请求或多域名证书，也方便未来改用 HttpOnly Cookie。管理员页面只是同一 SPA 的路由，权限最终由后端控制，因此不需要单独建立 `admin.` 子域名。受保护文件也不应通过公开 `files.` 域名绕过现有 JWT 和一次性下载票据；接入私有对象存储后，才考虑 `files.example.com` 或 `download.example.com` 配合短期签名 URL。
+
+环境建议明确隔离：生产环境使用 `campus.example.com`，预发布环境使用 `campus-staging.example.com`；两套环境各自使用 `/api/v1`，并使用独立数据库、Redis、JWT 密钥和上传目录。开发环境继续使用 `localhost`，不要把 `dev.` 指向生产数据。监控、数据库、Redis 和管理工具不建立公网业务域名，优先仅通过内网、VPN或 SSH 隧道访问。
+
+DNS 最小配置为给业务域名创建指向云服务器公网 IP 的 A 记录；使用独立项目域名时，再给 `www` 创建 CNAME 并重定向到主域名。TLS 证书覆盖实际对外入口和预发布域名。域名命名应简短、易拼写、能体现 campus/resource/share 等业务含义，避免把 `java`、`springboot`、端口号或具体部署技术写进域名。
+
+只有在未来需要第三方开放 API、移动端独立网关或前后端由不同团队和基础设施独立发布时，才建议拆分为 `app.example.com` 与 `api.example.com`；届时需要重新配置生产 CORS、可信来源、TLS、限流和 API 网关策略。
+
+### 关联信息
+
+- 依据：`frontend/.env.example`、`frontend/src/utils/request.ts`、`frontend/src/router/index.ts` 及后端各 Controller 的 `/api/v1` 路径。
+- 本轮仅追加问答日志，不修改前端、后端、接口、数据库、Redis 或部署配置；工作区原有前端未提交修改保持不变。
