@@ -1177,3 +1177,26 @@ DNS 最小配置为给业务域名创建指向云服务器公网 IP 的 A 记录
 
 - 影响范围：Windows 当前用户环境变量 `JWT_SECRET`；未修改前端、后端源代码或仓库配置
 - 验证方式：通过 .NET `Environment.GetEnvironmentVariable` 从 `User` 作用域回读，仅验证存在性、UTF-8 字节长度和最小长度条件，不输出密钥内容
+
+## 2026-09-21 | 阿里云域名购买后的上线步骤
+
+### 问题 1
+
+我已经购买了阿里云的域名 campusshare.online，接下来该怎么做
+
+### 答案 1
+
+先在阿里云域名控制台确认 `campusshare.online` 已完成域名持有者实名认证并且状态正常。当前 DNS 实测显示域名已经使用阿里云 `dns21.hichina.com`、`dns22.hichina.com` 权威 DNS，但根域名尚无 A 记录；这是尚未绑定服务器时的正常状态，不应随意填写临时 IP。
+
+下一步必须先选择服务器地域。若目标是尽快上线用于简历展示，可选择阿里云中国香港或其他非中国内地节点，通常无需先完成 ICP 备案；若主要面向中国内地用户并准备长期运行，应购买满足备案条件的中国内地 ECS，先在阿里云完成 ICP 备案，网站对外开通后再按要求办理公安联网备案。正式购买前还应在阿里云备案工具中检测 `.online` 后缀、域名实名主体和服务器是否符合备案要求，不能仅凭域名已经注册成功推断一定可备案。
+
+服务器建议从受支持的 Linux LTS、2 核 4 GB、固定公网 IPv4 和至少 40 GB 云盘起步。安全组只向公网开放 80/443；22 仅允许自己的固定 IP；8080、3306、6379 不开放公网。当前项目推荐在一台服务器中用 Docker Compose 运行 Nginx、单实例 Spring Boot、MySQL 和 Redis，并为 MySQL、Redis 与上传文件配置独立持久卷。
+
+取得服务器公网 IP 后，在阿里云云解析 DNS 添加：根域名 A 记录，主机记录 `@` 指向公网 IPv4；`www` 可添加 CNAME 指向 `campusshare.online`，并在 Nginx 中 301 跳转到根域名。API 继续使用 `https://campusshare.online/api/v1/**`，管理端使用 `/admin/**`，不需要 `api` 子域名。解析生效后再签发并安装覆盖 `campusshare.online` 与实际使用别名的 HTTPS 证书，配置 HTTP 跳转 HTTPS。
+
+域名解析前还需为仓库补齐后端和前端 Dockerfile、`docker-compose.yml`、Nginx 配置、生产环境变量、持久卷、CORS 与可信代理配置、MySQL/Redis readiness、备份与回滚方案。完成全量测试和数据库迁移演练后再启动容器、配置 DNS 和 HTTPS，最后走通注册、登录、上传、审核、搜索、收藏、下载和排行榜，并验证重启及联合备份恢复。
+
+### 关联信息
+
+- 阿里云官方依据：域名实名认证、公网 DNS A 记录、个人网站 ICP 备案、ECS 安全组及 Nginx SSL 证书部署文档。
+- 当前仓库仍没有 Dockerfile、Compose、Nginx 生产配置或 CI 工作流；本轮仅提供方案并追加问答日志，不修改业务代码。
