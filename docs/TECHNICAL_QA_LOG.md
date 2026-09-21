@@ -1220,3 +1220,25 @@ DNS 最小配置为给业务域名创建指向云服务器公网 IP 的 A 记录
 - 修改文件：`docs/DEPLOYMENT_HANDOFF.md`、`docs/TECHNICAL_QA_LOG.md`。
 - 验证：13 个本地 Markdown 链接全部存在；22 个代码围栏配对；敏感信息模式未命中；`git diff --check` 通过。
 - 本轮未修改接口、数据库、Redis、前端或后端业务代码，因此未运行 Maven 或 npm 测试。
+
+## 2026-09-21 | 2 GB 服务器内存可行性评估
+
+### 问题 1
+
+当前项目服务器 2G 内存是否满足
+
+### 答案 1
+
+如果 Nginx、Spring Boot、MySQL、Redis 和 Docker 全部部署在同一台服务器，2 GB 只能在访问量很低、严格限制各组件内存并且不在服务器上编译的条件下勉强运行，不能视为稳定满足。当前项目还包含 Redisson、定时任务、文件上传与下载、缓存和数据库连接，`application.yaml` 也没有显式配置 JVM、Hikari 连接池或数据库内存上限，直接使用默认配置存在内存抖动、Swap、容器重启或 Linux OOM Kill 风险。
+
+粗略预算为：系统和 Docker/Nginx 约 350～600 MB；Spring Boot 进程即使把 Java 堆限制在 512 MB，连同 Metaspace、线程栈、直接内存和本地库，实际 RSS 仍可能达到约 650～900 MB；MySQL 在收紧缓冲池和连接数后约 300～500 MB；Redis 及其数据约 80～200 MB。总量已经接近或超过 2 GB，缺少突发流量、文件处理、备份和系统页缓存所需余量。
+
+当前推荐保持 2 核 4 GB。若预算只能购买 2 GB，应把它限定为低流量演示环境，并同时满足：镜像和前端产物在本地或 CI 构建；JVM 从 `-Xms128m -Xmx512m` 起步并监控实际 RSS；限制 Hikari 最大连接数；将 MySQL `innodb_buffer_pool_size` 从约 256 MB 起步并限制连接数；限制 Redis `maxmemory`，但由于 Redis 承载 JWT 黑名单、下载票据和计数等安全/业务数据，淘汰策略优先使用 `noeviction` 并监控写入失败，不能简单采用 `allkeys-lru`；不在同机运行 Prometheus、Grafana、Jenkins 等组件；配置 1～2 GB Swap 作为故障缓冲但不把它当作可用内存；上线后持续观察容器峰值、Swap、OOM 和磁盘 IO。
+
+如果 MySQL 和 Redis 改用独立托管服务，2 GB 只运行 Nginx 与受限 JVM 后端则基本可用。若服务器还要执行 Maven/npm 构建、数据库备份压缩或监控服务，建议至少 4 GB，条件允许时选择 8 GB。对当前一体化 Docker Compose 方案，2 核 4 GB 是更合理的最低起步配置。
+
+### 关联信息
+
+- 依据：`campus-resource-platform/pom.xml`、`application.yaml` 和 `docs/DEPLOYMENT_HANDOFF.md`；当前应用使用 Java 17、Spring Boot、MySQL、Redis、Redisson及定时任务，且尚无生产内存限额配置。
+- 本轮为静态资源预算评估，未在目标云服务器上进行真实压测或峰值测量；最终容量应以上线后的监控数据为准。
+- 本轮未修改业务代码或部署配置，未运行 Maven/npm 测试。
