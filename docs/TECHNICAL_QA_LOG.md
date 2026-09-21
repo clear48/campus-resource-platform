@@ -1120,3 +1120,22 @@ DNS 最小配置为给业务域名创建指向云服务器公网 IP 的 A 记录
 - 相关文件：`frontend/index.html`、`frontend/src/styles/index.css`、`frontend/src/layouts/DefaultLayout.vue`、`frontend/src/layouts/AdminLayout.vue`、`frontend/src/views/HomeView.vue`、`frontend/src/views/LoginView.vue`、`frontend/src/views/RegisterView.vue` 及对应测试。
 - 文档更新：`docs/frontend/02-page-design.md`、`docs/CURRENT_STATUS.md`、`docs/BRANCH_HANDOFF.md`。
 - 验证方式：UI 专项测试、前端全量测试、Vite 生产构建、差异空白检查与真实浏览器响应式检查。
+
+## 2026-09-21 10:22:20 | Vite 开发代理连接后端被拒绝
+
+### 问题 1
+
+解释以下本地启动输出的原因：PowerShell 配置加载耗时，`npm ci` 出现 `glob@10.5.0` 弃用警告和 5 个漏洞，Vite 启动后多次请求排行榜接口时报 `connect ECONNREFUSED 127.0.0.1:8080`。
+
+### 答案 1
+
+前端安装和 Vite 启动均已成功，页面可由 `http://localhost:5173/` 访问。真正的运行错误发生在 API 代理链路：`frontend/.env.development` 将 `/api/v1` 请求交给 Vite，再由 `frontend/vite.config.ts` 转发至 `http://127.0.0.1:8080`；核查时 8080 端口没有监听进程，因此 TCP 建连阶段立即返回 `ECONNREFUSED`。这不是接口路径、Controller、Redis 或浏览器跨域错误，当前应先启动 Spring Boot 后端，或在后端使用其他端口时修改 `VITE_API_PROXY_TARGET` 并重启 Vite。后端默认端口由 `application.yaml` 的 `${SERVER_PORT:8080}` 决定，启动后可用 `Invoke-RestMethod http://127.0.0.1:8080/api/v1/health` 验证。
+
+首页 `HomeView.vue` 在 `onMounted` 时各请求一次热门资料和热门搜索词；切换榜单周期及点击错误提示中的“重新加载”也会再次发起对应请求。Axios 请求封装没有自动重试，因此日志中的多次报错代表页面重新挂载或用户触发了再次加载，不是 Vite 自动重试；仅凭日志不能唯一确定每一次对应的界面操作。
+
+`npm ci` 依据 `package-lock.json` 完成了可复现安装，弃用告警不会让安装失败。`glob@10.5.0` 来自开发测试依赖链 `@vue/test-utils -> js-beautify -> glob`，不是项目直接依赖。`npm audit` 报告的 5 项为当前锁文件中的依赖或传递依赖问题：Vitest/@vitest/mocker、brace-expansion、PostCSS、nanoid；它们与 8080 连接失败无关，但仍应另开依赖维护任务，在升级后运行单元测试和生产构建验证，不宜在不了解锁文件变化时直接盲目执行修复。PowerShell 的 4440 毫秒表示个人/系统配置脚本启动耗时，`(base)` 表明 Conda 基础环境被自动激活，这不是本次 Vite 报错；Vite 的首次依赖优化 `bundling dependencies` 也是正常行为。
+
+### 关联信息
+
+- 相关文件：`frontend/.env.development`、`frontend/vite.config.ts`、`frontend/src/utils/request.ts`、`frontend/src/views/HomeView.vue`、`frontend/package-lock.json`、`campus-resource-platform/src/main/resources/application.yaml`、`docs/07-project-runbook.md`
+- 验证方式：检查 Git 分支与工作区；执行 `Get-NetTCPConnection -LocalPort 8080 -State Listen`，结果无监听；执行 `npm ls glob --all`、`npm audit --json` 和相关依赖树检查；静态核对代理、请求层、首页加载逻辑和后端端口配置；未启动服务，未运行测试
