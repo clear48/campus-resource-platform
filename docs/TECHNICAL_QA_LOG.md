@@ -1034,3 +1034,27 @@ README 可自然补充英文一句话介绍，覆盖 Java backend internship pro
 
 - 相关文件：`docs/TECHNICAL_QA_LOG.md`
 - 验证方式：沿用上一轮已完成的源码与项目文档静态核查结论；本轮仅压缩简历表述，未修改业务代码，未运行测试。
+
+## 2026-09-21 | 项目部署上线思路与技术栈
+
+### 问题 1
+
+我想将该项目部署上线，给出思路和相应的技术栈
+
+### 答案 1
+
+当前项目最适合先采用单机容器化部署：域名和 HTTPS 请求进入 Nginx；Nginx 托管 Vue 构建后的静态文件，对 `/api/v1` 反向代理到单实例 Spring Boot；MySQL 8、Redis 及上传文件分别使用持久卷。建议选用一台受支持 Linux LTS 云服务器，起步资源为 2 核 4 GB，并使用 Docker、Docker Compose、Nginx、Let's Encrypt、Java 17、MySQL 8 和 Redis 6/7。该方案成本和运维复杂度较低，符合当前个人展示项目的规模，也保留完整的前后端、缓存、数据库、文件上传和定时任务能力；现阶段没有必要引入 Kubernetes、微服务、消息队列或 Elasticsearch。
+
+生产请求链路建议为：浏览器 → HTTPS/Nginx → Vue SPA 或 `/api/v1` → Spring Boot → MySQL/Redis/本地持久卷。前端生产环境不运行 Vite 开发服务器，而是执行 `npm ci`、单元测试和 `npm run build`，由 Nginx 提供 `frontend/dist`；由于使用 Vue History 路由，Nginx 必须配置 `try_files ... /index.html`。上传请求上限需与应用保持一致，Nginx `client_max_body_size` 至少为 60 MB。后端通过环境变量注入数据库、Redis、JWT 和上传目录配置，8080、3306、6379 均不直接暴露公网。
+
+当前文件存储是上线架构的主要约束：文件写入本地磁盘，数据库保存规范化绝对路径。因此首版后端只部署一个实例，容器内上传路径固定为稳定位置并挂载持久卷；数据库与上传目录必须联合备份和恢复。Windows 旧数据迁往 Linux 时不能直接沿用数据库中的 Windows 路径。后续需要水平扩容时，应先实现 MinIO、OSS 或 S3 的 `FileStorageService`，再使用多后端实例、负载均衡、托管 MySQL 和高可用 Redis。
+
+上线前必须完成：新增后端和前端 Dockerfile、Compose、Nginx 配置及生产环境配置；限制当前允许任意来源的 CORS；让 Nginx 覆盖并清洗转发 IP，避免客户端伪造 `X-Forwarded-For` 绕过下载限流；配置强随机 JWT 密钥、最小权限 MySQL 用户、Redis 密码与持久化；新库执行 `sql/init.sql`，旧库备份后依次演练三份迁移并核查旧下载同步批次；补充能探测 MySQL、Redis 的 readiness，现有 `/api/v1/health` 只代表应用进程存活；制定数据库、Redis、上传目录、日志、备份恢复和回滚方案。
+
+推荐发布顺序为：准备域名和 Linux 主机 → 创建生产配置与持久卷 → 在数据库副本演练迁移 → 运行后端全量测试、打包及前端测试构建 → 构建镜像并启动 Compose → 配置 Nginx 与 HTTPS → 走通注册、登录、上传、审核、搜索、收藏、下载和排行榜 → 验证重启后数据不丢 → 演练联合备份恢复。正式方案可再增加 GitHub Actions、镜像扫描、Spring Boot Actuator、Prometheus/Grafana 和集中日志，但这些不是首版上线的前置条件。
+
+### 关联信息
+
+- 依据：`campus-resource-platform/pom.xml`、`application.yaml`、`FileStorageServiceImpl.java`、`WebMvcConfig.java`、`DownloadController.java`、`frontend/package.json`、`vite.config.ts`、`sql/init.sql`、`sql/migrations/` 与 `docs/07-project-runbook.md`。
+- 当前仓库尚无 Dockerfile、Compose、Nginx 生产配置或 CI 工作流；本轮仅做只读架构分析并追加问答日志，未修改业务代码，未运行测试。
+- 分支 `dev`，分析前 HEAD 为 `d2b99e89`，工作区初始干净并与 `origin/dev` 一致。
