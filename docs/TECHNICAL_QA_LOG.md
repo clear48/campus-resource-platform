@@ -1139,3 +1139,24 @@ DNS 最小配置为给业务域名创建指向云服务器公网 IP 的 A 记录
 
 - 相关文件：`frontend/.env.development`、`frontend/vite.config.ts`、`frontend/src/utils/request.ts`、`frontend/src/views/HomeView.vue`、`frontend/package-lock.json`、`campus-resource-platform/src/main/resources/application.yaml`、`docs/07-project-runbook.md`
 - 验证方式：检查 Git 分支与工作区；执行 `Get-NetTCPConnection -LocalPort 8080 -State Listen`，结果无监听；执行 `npm ls glob --all`、`npm audit --json` 和相关依赖树检查；静态核对代理、请求层、首页加载逻辑和后端端口配置；未启动服务，未运行测试
+
+## 2026-09-21 10:27:14 | 后端因 JWT 密钥缺失启动失败
+
+### 问题 1
+
+解释执行 `.\mvnw.cmd spring-boot:run` 后，Spring Boot 创建 `jwtUtils` 失败、抛出 `JWT secret must be configured`，但 Maven 末尾仍显示 `BUILD SUCCESS` 的原因及处理方式。
+
+### 答案 1
+
+本次后端启动失败的直接原因是当前 PowerShell 会话没有为应用提供 `JWT_SECRET`。`application.yaml` 将 `app.jwt.secret` 绑定为 `${JWT_SECRET:}`，缺失时得到空字符串；`JwtUtils` 构造方法会在密钥为空、使用已公开的历史默认值或 UTF-8 长度少于 32 字节时主动抛出异常，防止应用使用不安全密钥运行。因此 Tomcat 虽已初始化到 8080，但 Spring ApplicationContext 随后取消刷新并停止 Tomcat，核查时 8080 仍无监听，前端代理会继续收到 `ECONNREFUSED`。
+
+应在启动后端的同一个 PowerShell 窗口生成仅供本地会话使用的随机密钥并写入 `$env:JWT_SECRET`，同时按运行手册配置 MySQL、Redis 和上传目录变量，然后重新运行 `.\mvnw.cmd spring-boot:run`。推荐使用 48 个随机字节再转 Base64，满足项目至少 32 个 UTF-8 字节的要求；该环境变量只在当前 PowerShell 进程及其子进程中有效，不应写入仓库。更换密钥会使此前签发的 Token 失效。启动后应分别访问后端 `http://127.0.0.1:8080/api/v1/health` 和前端代理 `http://127.0.0.1:5173/api/v1/health` 验证链路。修复密钥后若 MySQL 或 Redis 不可用，应用或具体业务请求可能继续暴露下一层连接错误。
+
+日志末尾的 `BUILD SUCCESS` 只说明 Maven 生命周期及 `spring-boot:run` 外层任务正常结束，并不能证明 Spring ApplicationContext 启动成功或服务仍在监听。当前启用了 Spring Boot DevTools，实际应用运行在 `restartedMain`；其启动异常已经由日志明确记录，判断成功应以出现 `Started CampusResourcePlatformApplication`、终端保持运行、8080 存在监听并且健康检查成功为准。`No active profile set`、`Found 0 Redis repository interfaces`、`Nothing to compile` 都不是本次失败原因。
+
+附件中应用由 Java 24.0.2 启动，而项目 `pom.xml` 声明的基线是 Java 17；这不是本次 JWT 异常的直接原因，但为保持开发与部署一致，建议使用项目约定的 JDK 17。核查终端当前 `java -version` 为 Java 21，说明不同 PowerShell 会话可能加载了不同 `JAVA_HOME` 或 PATH，应在实际启动窗口中再次检查。
+
+### 关联信息
+
+- 相关文件：`campus-resource-platform/src/main/java/com/john/campus/common/JwtUtils.java`、`campus-resource-platform/src/main/resources/application.yaml`、`campus-resource-platform/pom.xml`、`README.md`、`docs/07-project-runbook.md`
+- 验证方式：静态核对 JWT 构造校验、配置绑定、Java 版本声明与启动手册；检查 8080 端口，结果无监听；未修改业务代码，未实际注入用户环境变量或启动服务
