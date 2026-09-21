@@ -70,32 +70,48 @@ async function submitRegister() {
 
 <template>
   <main class="auth-page">
-    <el-card class="auth-card" shadow="never">
-      <h1>注册账号</h1>
-      <p class="auth-card__description">创建账号后可登录平台并提交课程资料。</p>
+    <section class="auth-shell auth-shell--register" aria-labelledby="register-title">
+      <div class="auth-shell__story">
+        <RouterLink class="auth-shell__brand" to="/">校园资料共享平台</RouterLink>
+        <div>
+          <p class="eyebrow">Join the Community</p>
+          <h2>从一份资料开始，共建校园知识库</h2>
+          <p>创建普通用户账号后即可提交课程资料。新资料统一进入待审核状态，通过后再面向校园公开。</p>
+        </div>
+        <ul class="auth-shell__trust-list">
+          <li>密码加密存储</li>
+          <li>账号信息唯一校验</li>
+        </ul>
+      </div>
 
-      <el-alert v-if="errorMessage" class="auth-card__alert" type="error" :title="errorMessage" :closable="false" show-icon />
+      <el-card class="auth-card auth-card--register" shadow="never">
+        <RouterLink class="auth-card__home-link" to="/">← 返回首页</RouterLink>
+        <h1 id="register-title">注册账号</h1>
+        <p class="auth-card__description">创建账号后可登录平台并提交课程资料。</p>
 
-      <el-form ref="registerFormRef" :model="registerForm" :rules="registerRules" label-position="top" @submit.prevent="submitRegister">
-        <el-form-item label="账号" prop="username">
-          <el-input v-model="registerForm.username" placeholder="建议使用学号" autocomplete="username" />
-        </el-form-item>
-        <el-form-item label="密码" prop="password">
-          <el-input v-model="registerForm.password" placeholder="8 到 50 个字符" type="password" autocomplete="new-password" show-password />
-        </el-form-item>
-        <el-form-item label="昵称" prop="nickname">
-          <el-input v-model="registerForm.nickname" placeholder="请输入昵称" autocomplete="name" />
-        </el-form-item>
-        <el-form-item label="邮箱" prop="email">
-          <el-input v-model="registerForm.email" placeholder="选填" autocomplete="email" />
-        </el-form-item>
-        <el-form-item label="手机号" prop="phone">
-          <el-input v-model="registerForm.phone" placeholder="选填" autocomplete="tel" />
-        </el-form-item>
-        <el-button class="auth-card__submit" type="primary" native-type="submit" :loading="loading">注册</el-button>
-      </el-form>
+        <el-alert v-if="errorMessage" class="auth-card__alert" type="error" :title="errorMessage" :closable="false" show-icon />
 
-      <p class="auth-card__link">已有账号？<RouterLink to="/login">去登录</RouterLink></p>
-    </el-card>
+        <el-form ref="registerFormRef" :model="registerForm" :rules="registerRules" label-position="top" @submit.prevent="submitRegister">
+          <el-form-item label="账号" prop="username">
+            <el-input v-model="registerForm.username" placeholder="建议使用学号" autocomplete="username" />
+          </el-form-item>
+          <el-form-item label="密码" prop="password">
+            <el-input v-model="registerForm.password" placeholder="8 到 50 个字符" type="password" autocomplete="new-password" show-password />
+          </el-form-item>
+          <el-form-item label="昵称" prop="nickname">
+            <el-input v-model="registerForm.nickname" placeholder="请输入昵称" autocomplete="name" />
+          </el-form-item>
+          <el-form-item label="邮箱" prop="email">
+            <el-input v-model="registerForm.email" placeholder="选填" autocomplete="email" />
+          </el-form-item>
+          <el-form-item label="手机号" prop="phone">
+            <el-input v-model="registerForm.phone" placeholder="选填" autocomplete="tel" />
+          </el-form-item>
+          <el-button class="auth-card__submit" type="primary" native-type="submit" :loading="loading">注册</el-button>
+        </el-form>
+
+        <p class="auth-card__link">已有账号？<RouterLink to="/login">去登录</RouterLink></p>
+      </el-card>
+    </section>
   </main>
 </template>

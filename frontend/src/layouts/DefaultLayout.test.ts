@@ -21,6 +21,13 @@ function mountLayout() {
   })
 }
 
+function expectLink(wrapper: ReturnType<typeof mountLayout>, text: string, href: string) {
+  const link = wrapper.findAll('a').find((item) => item.text() === text)
+
+  expect(link, `应存在导航入口：${text}`).toBeDefined()
+  expect(link?.attributes('href')).toBe(href)
+}
+
 describe('DefaultLayout', () => {
   afterEach(() => session.clearSession())
 
@@ -31,6 +38,9 @@ describe('DefaultLayout', () => {
     expect(wrapper.text()).toContain('登录')
     expect(wrapper.text()).toContain('注册')
     expect(wrapper.text()).not.toContain('上传资料')
+    expectLink(wrapper, '资料搜索', '/search')
+    expectLink(wrapper, '登录', '/login')
+    expectLink(wrapper, '注册', '/register')
   })
 
   it('普通用户显示个人功能，但不显示管理员入口', () => {
@@ -40,6 +50,11 @@ describe('DefaultLayout', () => {
     expect(wrapper.text()).toContain('上传资料')
     expect(wrapper.text()).toContain('我的下载')
     expect(wrapper.text()).not.toContain('管理员入口')
+    expectLink(wrapper, '上传资料', '/upload')
+    expectLink(wrapper, '我的上传', '/me/uploads')
+    expectLink(wrapper, '我的收藏', '/me/favorites')
+    expectLink(wrapper, '我的下载', '/me/downloads')
+    expectLink(wrapper, '个人信息', '/me/profile')
   })
 
   it('管理员额外显示固定的管理员入口', () => {
@@ -47,5 +62,6 @@ describe('DefaultLayout', () => {
     const wrapper = mountLayout()
 
     expect(wrapper.text()).toContain('管理员入口')
+    expectLink(wrapper, '管理员入口', '/admin/reviews')
   })
 })

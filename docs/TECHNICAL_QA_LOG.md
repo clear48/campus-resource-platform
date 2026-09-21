@@ -1100,3 +1100,23 @@ DNS 最小配置为给业务域名创建指向云服务器公网 IP 的 A 记录
 
 - 本轮结论沿用上一条已核对的同源部署结构，不修改代码或配置。
 - 工作区原有前端未提交修改保持不变。
+
+## 2026-09-21 | 前端 UI 与布局优化
+
+### 问题 1
+
+当前前端展示页面过于简陋，参考网络上已有模板，优化前端页面的UI，布局
+
+### 答案 1
+
+已在不新增依赖、不改变后端接口和业务链路的前提下，将现有 Vue 3 + Element Plus 前端升级为统一的校园知识门户视觉：前台使用三段式吸顶导航，管理端使用桌面侧栏与移动端横向菜单，首页增加品牌 Hero、可回车提交的关键词搜索、上传/浏览入口和分层热门榜单，登录与注册页改为品牌说明区 + 表单卡双栏布局。全局建立了品牌色、圆角、阴影、表格/表单、焦点态、窄屏滚动和减弱动效规则。
+
+同时补齐了 UI 改造暴露的交互与可访问性问题：首页搜索会清理关键词并通过 SPA 跳转；游客从受保护入口登录后可返回原站内路径，且 `redirect` 只接受安全的单斜杠站内地址；页面语言改为 `zh-CN`；榜单周期向辅助技术暴露选中状态；320px 管理员态导航不再横向溢出。路由、API、JWT、角色判断、数据库和 Redis 均未改变。
+
+验证结果为：5 个 UI 专项测试文件 18/18、前端全量 31 个测试文件 76/76、`npm run build` 和 `git diff --check` 均通过；真实浏览器桌面首屏与 375/320 设备指标宽度检查通过。构建仍有既存的主包约 844.05 kB 超过 500 kB 警告，本次未扩展为拆包任务。
+
+### 关联信息
+
+- 相关文件：`frontend/index.html`、`frontend/src/styles/index.css`、`frontend/src/layouts/DefaultLayout.vue`、`frontend/src/layouts/AdminLayout.vue`、`frontend/src/views/HomeView.vue`、`frontend/src/views/LoginView.vue`、`frontend/src/views/RegisterView.vue` 及对应测试。
+- 文档更新：`docs/frontend/02-page-design.md`、`docs/CURRENT_STATUS.md`、`docs/BRANCH_HANDOFF.md`。
+- 验证方式：UI 专项测试、前端全量测试、Vite 生产构建、差异空白检查与真实浏览器响应式检查。
