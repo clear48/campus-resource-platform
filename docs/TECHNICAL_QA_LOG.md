@@ -1306,3 +1306,29 @@ Compose 只向宿主机发布 Nginx 端口，后端、MySQL 和 Redis 只在容�
 - 相关文件：`campus-resource-platform/Dockerfile`、`frontend/Dockerfile`、`deploy/docker-compose.yml`、`deploy/nginx/default.conf`、`deploy/.env.example`、`deploy/README.md`。
 - 测试命令：`npm run test:unit`、带隔离 MySQL URL 的 `.\\mvnw.cmd test`、`docker compose ... build`、`docker compose ... up -d --wait`、HTTP 路由检查、容器用户/端口/内存检查及 `down`/`up` 持久化检查。
 - 审查结论：Redis 非 root、上传上限一致、镜像 digest 与 Maven 校验三项风险已修复，最终只读复核未发现 P0/P1 阻断项。
+
+## 2026-09-22 13:48:02 | DEPLOY-02 开发流程与部署概念详解
+
+### 问题 1
+
+我现在正在学习项目的部署上线，详细解释DEPLOY-02的开发流程和涉及到的相关概念
+
+### 答案 1
+
+DEPLOY-02 的目标是把只能在开发机分别启动的 Vue、Spring Boot、MySQL 和 Redis，转换为一套可重复构建、统一启动、网络隔离、资源受限且数据可持久化的单机容器部署底座。浏览器只访问 Nginx；Nginx 提供 Vue 静态文件，并将 `/api/v1/**` 代理给后端；后端通过 Compose 服务名访问 MySQL 和 Redis，上传文件写入独立持久卷。
+
+开发流程从核对运行契约开始，包括 Java 17、前端锁文件、后端环境变量、数据库初始化脚本、固定上传路径、60 MB 请求上限以及 2 GB 服务器资源边界。随后定义只含变量名和安全默认值的 `.env.example`，让真实 `.env` 保持忽略；分别编写后端与前端多阶段 Dockerfile；配置 Nginx 的静态资源、SPA History fallback、API 反向代理、转发头和流式传输；最后用 Compose 编排四个服务、私有网络、健康检查、启动依赖、内存限制、日志轮转和三个命名卷。
+
+后端镜像在 JDK 阶段用 Maven Wrapper 构建 JAR，只把产物复制到较小的 JRE 阶段，并以非 root 用户运行。前端镜像在 Node 阶段执行 `npm ci` 和 Vite 构建，再把 `dist` 复制到非特权 Nginx。基础镜像同时固定版本与 digest，Maven 分发包校验 SHA-256，用于降低上游标签漂移和下载内容被替换的风险；`.dockerignore` 缩小构建上下文并避免把依赖缓存、构建产物、日志和环境文件发送给 Docker。
+
+Compose 中 `EXPOSE` 只说明容器预期端口，不会发布到宿主机；只有前端服务的 `ports` 建立宿主机到 Nginx 的映射。四个服务加入同一桥接网络，因此后端能用 `mysql:3306`、`redis:6379` 访问依赖。MySQL、Redis 和上传文件分别使用命名卷；Nginx 配置则通过只读绑定挂载注入。MySQL 初始化脚本只会在全新空卷执行，旧数据库必须走迁移。Redis 开启 AOF `everysec`，并使用 `noeviction`，因为其中还保存 JWT 黑名单、下载票据和统计等业务状态，达到内存上限时宁可让写入失败并告警，也不静默淘汰这些数据。
+
+验证流程依次包括前后端单元/集成测试、`docker compose config --quiet`、双镜像构建、空卷启动、服务健康状态、Nginx 健康页、API 和 Vue 路由、非 root 用户、宿主机端口绑定、内存限制以及持久化。持久化验证会写入 MySQL、Redis 和上传卷标记，执行不带 `-v` 的 `down` 后重新 `up`，确认数据仍存在；`down -v` 会删除命名卷，只用于明确的测试环境清理，不能当作生产常规停止命令。
+
+需要区分健康检查层级：当前 MySQL/Redis 健康检查验证服务可连接，Nginx 检查自身入口，后端 `/api/v1/health` 只说明应用进程可以响应，还不能证明数据库、Redis 和上传目录都具备接流量条件。`depends_on: condition: service_healthy` 主要控制启动顺序，不负责运行期间的完整故障恢复。生产 CORS、可信代理、完整 readiness、优雅停机、旧库迁移、HTTPS、备份恢复和公网验收属于后续 DEPLOY-03 至 DEPLOY-08。
+
+### 关联信息
+
+- 相关文件：`campus-resource-platform/Dockerfile`、`frontend/Dockerfile`、`deploy/docker-compose.yml`、`deploy/nginx/default.conf`、`deploy/.env.example`、`deploy/README.md`、两个 `.dockerignore` 和 Maven Wrapper 配置。
+- 实际验证：前端 76/76、后端 169/169；双镜像构建、空卷启动、HTTP/API/SPA、端口隔离、非 root 用户和三类数据重建持久化均通过。
+- 本轮为基于已验证实现的代码讲解，只追加技术问答归档，没有修改业务代码或重新运行测试。
