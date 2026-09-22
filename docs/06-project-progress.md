@@ -126,9 +126,9 @@
 | 统一错误码 | 已完成 | `ErrorCode` 维护业务错误码 |
 | 全局异常处理 | 已完成 | 业务异常、参数校验异常、JSON 解析异常、上传异常、兜底异常 |
 | MyBatis 配置 | 已完成 | Mapper 扫描、XML 映射配置 |
-| Web 配置 | 已完成 | CORS、JWT 拦截器路径配置、公开接口排除 |
+| Web 配置 | 已完成 | 生产同源不开放 CORS；JWT 拦截器路径配置、公开接口排除；可信代理由 Nginx/Tomcat 收敛 |
 | 分页模型 | 已完成 | `PageQuery` 和 `PageResult` |
-| 健康检查 | 已完成 | `GET /api/v1/health`，无需登录 |
+| 健康检查 | 已完成 | `GET /api/v1/health` 为 liveness；`GET /api/v1/health/readiness` 检查 MySQL、Redis、上传目录与磁盘水位 |
 
 ## 6. 已完成业务模块
 

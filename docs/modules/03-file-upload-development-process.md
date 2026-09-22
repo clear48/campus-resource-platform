@@ -137,8 +137,9 @@
 | controller | `FileController` | `/api/v1/files`、`/api/v1/files/check` |
 | vo | `FileUploadVO`、`FileCheckVO` | 上传结果 / 预检结果（均含 `secondUpload` 标志） |
 | service | `FileStorageService`（接口）/ `FileStorageServiceImpl`（本地存储实现） | MD5 计算、落盘、生成 `stored_name`、删除补偿 |
+| service | `FileContentValidator` / `FileContentValidatorImpl` | 扩展名、MIME、签名、文本、ZIP/OOXML 结构与资源上限校验 |
 | service | `FileMd5CacheService` / `FileMd5CacheServiceImpl` | MD5 缓存三态读取、正负写入、坏值清理、故障降级与显式失效 |
-| 常量 | （未单独建类） | 类型白名单、大小上限等内联为 `FileServiceImpl` 私有常量 |
+| 常量 | （未单独建类） | 类型白名单、大小上限、压缩包资源上限等由对应实现类私有常量维护 |
 
 ---
 
@@ -147,7 +148,7 @@
 ```text
 FileController
   └── FileService (FileServiceImpl)
-        ├── 校验（大小 / 扩展名白名单 / MIME）
+        ├── 校验（大小 / 扩展名 / MIME / 服务端签名或结构）
         ├── MD5 计算（Spring DigestUtils 或自封装工具）
         ├── FileInfoMapper（selectByMd5AndSize / insert / increaseRefCount）
         ├── FileMd5CacheService（三态预检 / 正负缓存 / 坏值清理 / 显式失效）
@@ -165,11 +166,11 @@ Controller 只做接收与参数校验，业务编排在 `FileServiceImpl`（遵
 
 1. JWT 拦截器校验登录，`UserContextHolder` 得到 `uploaderId`。
 2. Controller 接收 `MultipartFile`，非空校验。
-3. Service 校验：大小、扩展名白名单；记录 MIME。
-4. 计算 `fileMd5`，读取 `fileSize`。
+3. Service 校验：大小、扩展名、客户端 MIME、服务端签名或文本/ZIP/OOXML 结构；得到受控服务端 MIME。
+4. 校验通过后计算 `fileMd5`，读取 `fileSize`。
 5. 去重直接查 `file_info` by `(fileMd5, fileSize)`（上传去重以唯一索引为准，**不读缓存**，因秒传需完整记录组装 VO）。
 6. **命中**（服务端已读取真实上传内容并计算 MD5）：在短事务内执行 `ref_count + 1` 并幂等写入 `user_file_authorization`，随后回填 Redis 缓存，返回已存在 `fileId`，`secondUpload = true`，不重复落盘。
-7. **未命中**：生成 `stored_name = UUID + "." + ext` → 落盘到 `storage-path` → `insert file_info`（`ref_count = 1`）→ 写 Redis 缓存 → 返回 `fileId`，`secondUpload = false`。
+7. **未命中**：容量检查 → 同目录 `.part` 临时写入 → 原子移动到 `stored_name = UUID + "." + ext` → `insert file_info`（`ref_count = 1`，保存服务端 MIME）→ 写 Redis 缓存 → 返回 `fileId`，`secondUpload = false`。
 8. 补偿：落盘成功但入库失败时，删除已落盘文件，避免孤儿文件。
 9. 并发兜底：`insert` 命中 `uk_file_md5_size` 抛 `DuplicateKeyException` 时，删除多余落盘并改为查已存在记录按秒传返回。
 
@@ -187,7 +188,7 @@ Controller 只做接收与参数校验，业务编排在 `FileServiceImpl`（遵
 ```mermaid
 flowchart TD
     A["客户端提交 MultipartFile"] --> B["JWT 校验并获取当前用户 ID"]
-    B --> C["校验文件非空、大小和扩展名白名单<br/>记录客户端 MIME"]
+    B --> C["校验大小、扩展名、客户端 MIME<br/>服务端签名、文本或压缩包结构"]
     C --> D["服务端计算 MD5 并读取文件大小"]
     D --> E["按 file_md5 + file_size 查询 file_info<br/>上传去重不读取 Redis"]
     E --> F{"是否命中既有物理文件？"}
@@ -196,7 +197,7 @@ flowchart TD
     G --> H["回填 MD5 → fileId Redis 缓存"]
     H --> I["返回 FileUploadVO<br/>secondUpload = true"]
 
-    F -- "否" --> J["生成 UUID 存储名并落盘<br/>文件 IO 位于数据库事务外"]
+    F -- "否" --> J["检查磁盘水位并写同目录临时文件<br/>原子移动；文件 IO 位于事务外"]
     J --> K["短事务：插入 file_info<br/>同时写入当前用户文件授权"]
     K --> L{"数据库写入结果"}
     L -- "成功" --> M["回填 MD5 → fileId Redis 缓存"]
@@ -263,7 +264,9 @@ flowchart TD
 | 文件为空 | `MultipartFile` 非空且 size > 0 | `PARAM_ERROR` |
 | 文件过大 | ≤ multipart 上限（50MB），业务侧二次校验 | `FILE_TOO_LARGE` |
 | 扩展名 | 命中白名单（pdf/doc/docx/ppt/pptx/xls/xlsx/zip/rar/7z/txt/md/jpg/jpeg/png），空扩展名视为不允许 | `FILE_TYPE_NOT_ALLOWED` |
-| MIME | 记录客户端上报的 MIME（存入 `mime_type`，可为空）；类型校验以扩展名白名单为准，客户端 MIME 可伪造故不单独拦截 | —（严格 MIME 校验列入后续优化） |
+| MIME 与内容 | 客户端 MIME 必须匹配白名单或为 `application/octet-stream`；服务端再校验签名、严格 UTF-8 或 ZIP/OOXML 结构，数据库只保存受控 MIME | `FILE_TYPE_NOT_ALLOWED` |
+| ZIP/OOXML | 最多 1024 条目、单条目 32 MiB、总展开 64 MiB、压缩比 100；拒绝路径穿越。OOXML 还校验内容类型、根关系，拒绝宏和外部关系 | `FILE_TYPE_NOT_ALLOWED` |
+| 磁盘空间 | 可用空间必须不少于“文件大小 + `app.upload.min-free-space-bytes`” | `STORAGE_INSUFFICIENT` / HTTP 507 |
 | 预检参数 | `fileMd5` 为 32 位十六进制、`fileSize ≥ 0` | `PARAM_ERROR` |
 
 ---
@@ -273,6 +276,7 @@ flowchart TD
 - 统一抛 `BusinessException(ErrorCode)`，由 `GlobalExceptionHandler` 转 `ApiResponse`。
 - `GlobalExceptionHandler` 已统一处理：`MaxUploadSizeExceededException`（超大文件 → `FILE_TOO_LARGE` / HTTP 413）、`MissingServletRequestPartException`（缺少 file → `PARAM_ERROR` / 400）、`MissingServletRequestParameterException`（预检缺 `fileMd5`/`fileSize` → `PARAM_ERROR` / 400）。超大文件与缺参不再走兜底 500。
 - 存储 IO 异常 → `SERVER_ERROR`，并触发落盘文件补偿删除。
+- 磁盘水位不足 → `STORAGE_INSUFFICIENT` / HTTP 507，文件不会进入最终路径。
 - 并发唯一索引冲突 `DuplicateKeyException` → 转为秒传返回，不对用户报错。
 
 ---
@@ -404,12 +408,13 @@ flowchart TD
 2. `file_info` 与 `resource` 分离：物理文件与业务资料解耦，同一文件可被多份资料复用。
 3. `ref_count` 引用计数：支持复用与安全删除。
 4. 文件 IO 不放事务：先落盘、后短事务入库，失败补偿删除，避免长事务与孤儿文件。
-5. 安全：`UUID + ext` 落盘名防覆盖与路径穿越；扩展名白名单 + MIME 双校验防伪造类型。
+5. 安全：`UUID + ext` 落盘名防覆盖；扩展名、MIME、签名/文本/压缩结构联合校验；ZIP bomb 和 OOXML 宏/外部关系设硬边界。
 6. 并发：前置查询 + 唯一索引兜底，`DuplicateKeyException` 转秒传。
 7. 缓存加速与降级：Redis 缓存 MD5→fileId，未命中回查数据库，唯一索引是最终一致性来源。
 8. 全局异常兜底：超大文件在进入 Controller 前由 multipart 抛异常，统一在 `GlobalExceptionHandler` 映射为 `FILE_TOO_LARGE` 并给出 413 语义，避免暴露 500。
 9. 缓存使用的取舍：读缓存只放在高频预检接口（读穿透），上传去重坚持查唯一索引（只写不读），兼顾性能与并发正确性；Redis 读取故障自动降级查库，写入故障不回滚数据库主流程。
 10. 防穿透与并发：短 TTL 负缓存用 `SET NX`，上传事务成功后用普通 `SET` 覆盖旧负值，避免数据库旧读覆盖新正值。
+11. 容量保护：进程锁串行化容量检查和写入，保留磁盘安全水位，使用同目录临时文件和原子移动避免半文件。
 
 ---
 
@@ -418,7 +423,8 @@ flowchart TD
 - 接入对象存储（MinIO/OSS），用 `storage_type` 区分。
 - 分片上传 / 断点续传 / 大文件异步 MD5。
 - 上传频率限流（`crp:rate:*`）。
-- 病毒扫描 / 内容合规校验。
+- 病毒、恶意文档与更深入的内容合规扫描；当前仅做轻量格式、结构、宏部件和资源上限校验。
+- 严格的用户累计配额和平台配额；当前只实现宿主机磁盘保留水位。
 - 孤儿文件与 `ref_count = 0` 文件的定时清理任务。
 - `ref_count` 增减的并发原子性与跨模块一致性加固。
 - `BATCH-17` 在真实文件删除/恢复入口接入 MD5 缓存 `evict`，补齐生命周期失效闭环。

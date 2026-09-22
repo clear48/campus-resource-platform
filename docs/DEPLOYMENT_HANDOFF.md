@@ -1,9 +1,9 @@
 # 项目部署上线交接文档
 
 > 最后更新：2026-09-22
-> 当前开发分支：`codex/deploy-02`
-> 本次更新前基线：`9e1e6d29`
-> DEPLOY-02 实现提交：`6449823`
+> 当前开发分支：`deploy`
+> DEPLOY-03 开发基线：`e9730f74`
+> DEPLOY-03 实现提交：`3a2c5e96`、`9272af41`、`9a3c2d86`、`5dee7699`、`740a4d97`、`248bc29d`
 > 用途：供后续新对话快速恢复部署上下文、确认当前进度并继续执行上线任务。
 
 ## 1. 当前目标
@@ -37,7 +37,7 @@ https://campusshare.online
 | 服务器规格 | `DONE` | 2 核 CPU、2 GB 内存、40 GB 系统盘，已分配公网 IPv4（仓库不记录具体地址） |
 | 服务器有效期 | `DONE` | 截图显示到期时间为 2026-10-21 16:21:21，应提前设置续费提醒 |
 | Docker 部署资产 | `DONE` | 已完成双阶段镜像、Compose、Nginx、环境变量示例和部署说明；实现提交 `6449823` |
-| 生产安全配置 | `TODO` | CORS、可信代理、健康检查、生产 Secret 等仍需处理 |
+| 生产安全配置 | `DONE` | 同源 CORS、可信代理、生产 Secret、最小权限、readiness、优雅停机与上传安全边界已完成 |
 | HTTPS | `TODO` | DNS 生效且 Nginx 可访问后申请和部署证书 |
 | 上线验收 | `TODO` | 尚未执行公网全链路、重启持久化和备份恢复验证 |
 
@@ -119,9 +119,9 @@ Redis 还承担 JWT 黑名单、下载限流、一次性下载票据、排行榜
 - 挂载持久卷；
 - 纳入备份和监控范围。
 
-### 5.3 当前健康接口不等于生产就绪
+### 5.3 存活与就绪检查已经分离
 
-`GET /api/v1/health` 当前只返回应用进程状态，不检查 MySQL 和 Redis。不能仅凭该接口判断服务具备接流量条件，部署阶段需要增加或补充依赖探测。
+`GET /api/v1/health` 只表示 Spring 进程存活；`GET /api/v1/health/readiness` 会检查 MySQL、Redis、上传目录写探针和磁盘保留水位，任一组件失败返回 HTTP 503。Docker 健康状态用于启动门禁和运维观察，不会自动让单 Nginx 摘除不健康后端，也不会替代运行期告警。
 
 ## 6. 当前服务器信息与资源边界
 
@@ -214,20 +214,23 @@ deploy/README.md
 - 前端全量测试 76/76、后端全量测试 169/169 通过；双镜像构建、Compose 配置检查和独立只读复核通过；
 - 实现提交为 `6449823`，已推送到 `origin/codex/deploy-02`。
 
-### DEPLOY-03：收敛生产安全配置
+### DEPLOY-03：收敛生产安全配置（`DONE`）
 
-责任人：后续实现 Agent。
+完成情况：
 
-当前必须处理：
+1. 正式前端与 API 同源，删除后端通配 CORS；Nginx 覆盖并清洗代理头，Tomcat 只解析私网可信代理，业务限流读取 `request.remoteAddr`。
+2. `prod` 启动校验非 root MySQL 账号、MySQL/Redis 强密码、至少 32 字节 JWT Secret、Secret 互不复用和正数磁盘保留水位，错误信息不输出 Secret。
+3. 新 MySQL 空卷初始化后仅授予应用账号 `SELECT`、`INSERT`、`UPDATE`；旧卷不会重跑初始化脚本，升级时必须人工核对并整改授权。
+4. 新增依赖 readiness，检查 MySQL、Redis、上传目录写探针和磁盘空间；原健康接口保持 liveness。Spring 优雅停机等待 30 秒，Compose 预留 40 秒。
+5. 上传新增 MIME、签名、严格 UTF-8、ZIP 资源上限与 OOXML 内容类型/根关系校验，拒绝宏和外部关系；落盘增加保留水位、临时文件与原子移动。容量不足返回 HTTP 507。
+6. 普通下载固定二进制附件、`no-store` 和 `nosniff`；审核预览使用 CSP `sandbox`；下载审计 UA 在服务边界截断到数据库列上限。
+7. 当前不提供病毒/恶意文档扫描、历史文件重扫、严格用户累计配额、多实例共享存储或对象存储，这些需要后续独立架构和资源预算。
 
-1. 将允许任意来源的 CORS 收敛为 `https://campusshare.online`，或在完全同源后取消不必要的跨域配置；
-2. Nginx 必须覆盖并清洗转发 IP 请求头，后端不能信任客户端直接伪造的 `X-Forwarded-For`；
-3. 为生产环境单独生成强随机 `JWT_SECRET`，不能复用本机开发密钥；
-4. 创建最小权限 MySQL 应用账号，不使用 `root` 运行应用；
-5. Redis 设置强密码并保持私网访问；
-6. 增加 MySQL、Redis 和上传目录可用性的 readiness 或等效部署探针；
-7. 配置日志轮转、容器重启策略和优雅停机；
-8. 对上传文件类型、安全扫描能力和磁盘配额设置明确边界。
+验证：
+
+- 后端全量测试在隔离 MySQL 下 208/208 通过；审查修复专项 26/26、配置/健康专项 6/6、前端 76/76 和生产构建通过。
+- Compose 配置展开、后端镜像构建与 MySQL 授权脚本语法检查通过。
+- 真实空卷容器验证 readiness 正常为 200；Redis 故障约 2.3 秒、MySQL 故障约 3.3 秒返回 503，恢复后回到 UP；MySQL 最小权限、Redis 认证、内部端口隔离和优雅停机均通过。
 
 ### DEPLOY-04：本地构建、测试和迁移演练
 
@@ -347,6 +350,7 @@ REDIS_DATABASE=0
 JWT_SECRET=<生产独立随机密钥，至少 32 字节>
 JWT_EXPIRATION_SECONDS=7200
 APP_UPLOAD_STORAGE_PATH=/data/uploads
+APP_UPLOAD_MIN_FREE_SPACE_BYTES=5368709120
 APP_UPLOAD_MAX_FILE_SIZE=50MB
 APP_UPLOAD_MAX_REQUEST_SIZE=60MB
 RANK_DOWNLOAD_DELTA_SYNC_ENABLED=true
@@ -371,11 +375,11 @@ RANK_HOT_RANKING_SYNC_ENABLED=true
 
 ## 11. 当前建议的下一步
 
-服务器已经购买，容器化底座也已完成。下一项项目任务为：
+服务器已经购买，容器化底座与生产安全收敛已完成。下一项项目任务为：
 
-> 执行 `DEPLOY-03`：收敛生产 CORS、可信代理、Secret、依赖 readiness、优雅停机与上传安全边界。
+> 执行 `DEPLOY-04`：基于当前提交完成最终镜像构建、空卷初始化、真实依赖 readiness、最小权限、迁移、持久化与回滚演练。
 
-完成 DEPLOY-03 和 DEPLOY-04 的安全收敛、数据库迁移演练与回滚验证后，再登录服务器执行初始化。当前仍不要修改域名 A 记录。
+完成 DEPLOY-04 的本地演练后，再登录服务器执行初始化。当前仍不要修改域名 A 记录。
 
 ## 12. 新对话建议提示词
 
@@ -391,9 +395,10 @@ docs/CURRENT_STATUS.md 和 docs/07-project-runbook.md。
 服务器公网 IP 和密码等敏感信息不会写入仓库。
 
 请先检查当前分支、git status、最近提交和部署交接文档，
-DEPLOY-02 已在 codex/deploy-02 分支完成，实现提交为 6449823。
-然后只执行 DEPLOY-03：收敛生产 CORS、可信代理、Secret、依赖 readiness、
-优雅停机和上传安全边界，完成测试后再提交推送。
+DEPLOY-03 已在 deploy 分支完成，基线为 e9730f74，
+实现提交为 3a2c5e96、9272af41、9a3c2d86、5dee7699、740a4d97、248bc29d。
+然后只执行 DEPLOY-04：最终镜像、空卷初始化、真实依赖 readiness、
+最小权限、迁移、持久化与回滚演练，完成测试后再提交推送。
 ```
 
 当前服务器内存只有 2 GB，所有部署配置必须采用文档第 6 节的资源受限方案，并在本地完成构建。

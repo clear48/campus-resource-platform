@@ -87,6 +87,7 @@
 | `41301` | `FILE_TOO_LARGE` | 文件过大 |
 | `41501` | `FILE_TYPE_NOT_ALLOWED` | 文件类型不允许 |
 | `42901` | `RATE_LIMITED` | 请求过于频繁 |
+| `50701` | `STORAGE_INSUFFICIENT` | 上传存储可用空间低于安全水位 |
 | `50001` | `SERVER_ERROR` | 服务端异常 |
 
 ### 2.6 枚举约定
@@ -118,6 +119,15 @@
 | `4` | 实验报告 |
 | `5` | 课程设计 |
 | `99` | 其他 |
+
+### 2.7 健康检查
+
+| 方法与 URL | 含义 | 成功 | 失败 |
+| --- | --- | --- | --- |
+| `GET /api/v1/health` | liveness，只表示应用进程可响应 | HTTP 200，`status=UP` | 进程不可用时由容器判定失败 |
+| `GET /api/v1/health/readiness` | readiness，检查 MySQL、Redis、上传目录写探针和磁盘保留水位 | HTTP 200，各组件为 `UP` | HTTP 503，失败组件为 `DOWN` |
+
+两个接口均无需登录。readiness 只返回组件状态，不返回数据库地址、上传路径或异常详情。
 
 ## 3. 用户认证模块
 
@@ -652,6 +662,10 @@ GET /api/v1/files/check?fileMd5=5d41402abc4b2a76b9719d911017c592&fileSize=104857
 
 说明：该接口只保存物理文件并返回 `fileId`，不创建 `resource` 资料记录。若实际上传内容命中全局去重，服务端在同一数据库事务中增加引用次数并授予当前用户该 `fileId` 的引用权限。资料标题、课程、分类、标签等业务信息由资料模块的 `POST /api/v1/resources` 处理。
 
+服务端在计算 MD5、查询去重和落盘前校验扩展名、客户端 MIME 与真实内容。PDF、图片、7z、RAR、OLE 检查签名；TXT/Markdown 要求严格 UTF-8；ZIP/OOXML 限制条目数、单条目和总展开量、压缩比与路径。DOCX/XLSX/PPTX 还会核对内容类型和根关系，并拒绝宏部件及外部关系。数据库只保存服务端确定的 MIME。
+
+落盘要求可用空间至少覆盖本次文件大小和配置的保留水位，使用同目录 `.part` 临时文件后原子移动。当前校验不等同于病毒或恶意文档扫描。
+
 请求参数：
 
 | 参数 | 类型 | 是否必填 | 说明 |
@@ -693,6 +707,7 @@ file=@数据结构复习.pdf
 | `40001` | 文件为空或参数错误 |
 | `41301` | 文件过大 |
 | `41501` | 文件类型不允许 |
+| `50701` | 存储可用空间低于安全水位 |
 | `50001` | 文件保存失败或数据库保存失败 |
 
 ## 6. 审核模块
@@ -1283,9 +1298,11 @@ X-Download-Ticket: 一次性随机票据
 
 | 响应头 | 说明 |
 | --- | --- |
-| `Content-Type` | 文件 MIME 类型，来自 `file_info.mime_type`，无值时 fallback 为 `application/octet-stream` |
+| `Content-Type` | 固定为 `application/octet-stream`，不信任历史客户端 MIME |
 | `Content-Disposition` | `attachment; filename="..."`，文件名使用 RFC 5987 `filename*=UTF-8''` 编码以兼容中文 |
 | `Content-Length` | 文件字节数 |
+| `Cache-Control` | `private, no-store` |
+| `X-Content-Type-Options` | `nosniff` |
 
 失败时由全局异常处理器返回 JSON 格式错误响应，结构与通用约定一致。
 
@@ -1696,6 +1713,6 @@ Authorization: Bearer eyJhbG...
 - 权限：仅管理员。
 - 资料状态：仅 `PENDING_REVIEW`。
 - 响应：二进制文件流；PDF、JPEG、PNG、TXT、Markdown 可内联，其他格式作为附件下载。
-- 安全响应头：`Cache-Control: private, no-store`、`X-Content-Type-Options: nosniff`。
+- 安全响应头：`Cache-Control: private, no-store`、`X-Content-Type-Options: nosniff`、`Content-Security-Policy: sandbox`。
 - 常见错误：未登录 `40101`、非管理员 `40301`、资料或文件不存在 `40401`、资料已不在待审核状态 `40901`。
 - 说明：接口只接受 resourceId，并读取该资料在数据库中关联的 fileId，不接受客户端独立传入 fileId。

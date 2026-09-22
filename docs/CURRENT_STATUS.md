@@ -1,5 +1,15 @@
 # 当前项目状态
 
+## DEPLOY-03 生产安全收敛（2026-09-22）
+
+- 当前分支为 `deploy`，DEPLOY-03 已完成可信代理、同源 CORS 边界、生产 Secret 校验、MySQL 最小权限、依赖 readiness、优雅停机和上传安全边界。
+- Nginx 覆盖并清洗转发头；Tomcat 仅解析私网可信代理，下载限流只使用 `request.remoteAddr`。正式前后端同源，后端不再开放 CORS。
+- `prod` 启动会拒绝 root MySQL 账号、弱密码、Secret 复用和无效磁盘保留水位；新 MySQL 空卷仅授予应用账号 `SELECT/INSERT/UPDATE`，旧卷需人工核对授权。
+- 新增 `GET /api/v1/health/readiness`，真实检查 MySQL、Redis、上传目录写入和磁盘水位；Spring 优雅停机 30 秒，Compose 停止宽限期 40 秒。
+- 上传新增扩展名、MIME、文件签名、严格 UTF-8、ZIP bomb 与 OOXML 内容类型/关系/宏边界校验；容量不足返回 HTTP 507，落盘采用 `.part` 与原子移动。下载固定安全附件响应。
+- 功能提交：`3a2c5e96`、`9272af41`、`9a3c2d86`、`5dee7699`、`740a4d97`、`248bc29d`，均已推送到 `origin/deploy`。
+- 已验证后端全量 208/208、前端 76/76 和生产构建；真实空卷容器验证覆盖最小权限、Redis 认证、依赖故障 503/恢复和优雅停机。下一部署任务为 `DEPLOY-04`。
+
 ## DEPLOY-02 容器化部署资产（2026-09-22）
 
 - 分支 `codex/deploy-02` 已补齐后端/前端多阶段 Dockerfile、Docker Compose、非特权 Nginx、生产环境变量示例和完整部署说明；实现提交 `6449823` 已推送。
@@ -7,7 +17,7 @@
 - 针对 2 GB 演示服务器设置后端 `768 MB`、MySQL `512 MB`、Redis `160 MB`、Nginx `64 MB` 容器上限，并限制 JVM、Hikari、MySQL Buffer Pool/连接数和 Redis 数据内存。
 - Java、Node、Nginx、MySQL、Redis 镜像固定版本与 digest，Maven Wrapper 增加 SHA-256 校验；Redis、后端和 Nginx 均以非 root 用户运行。
 - 验证通过：前端全量 76/76、后端全量 169/169、双镜像构建、空卷启动、HTTP/API/SPA 路由、内部端口隔离及 MySQL/Redis/上传卷重建持久化。
-- 下一部署任务为 `DEPLOY-03`，继续处理生产 CORS、可信代理、完整依赖 readiness、优雅停机和上传安全边界。
+- 该阶段的后继任务 `DEPLOY-03` 已在 `deploy` 分支完成；当前下一任务为 `DEPLOY-04`。
 
 ## 前端门户 UI 与响应式布局升级（2026-09-21）
 
@@ -85,7 +95,7 @@
 | 项目 | 当前状态 |
 | --- | --- |
 | 项目名称 | 校园资料共享与检索平台 |
-| 当前分支 | `dev` |
+| 当前分支 | `deploy` |
 | 当前后端状态 | 认证、分类、文件、资料、审核、搜索、下载、收藏、排行榜与定时任务均已完成首版 |
 | 当前前端状态 | 已完成 T01-T47：轻量前端演示、三条真实后端联调链路、运行说明与最终验证记录均已完成 |
 | 当前自动队列 | `docs/frontend/05-frontend-task-queue.md`，47 个任务均为 `DONE` |

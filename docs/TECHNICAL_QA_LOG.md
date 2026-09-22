@@ -1353,3 +1353,27 @@ Compose 中 `EXPOSE` 只说明容器预期端口，不会发布到宿主机；�
 
 - 相关文件：`docs/DEPLOYMENT_HANDOFF.md`、`deploy/docker-compose.yml`、`deploy/nginx/default.conf`、`deploy/.env.example`、`campus-resource-platform/src/main/java/com/john/campus/config/WebMvcConfig.java`、`campus-resource-platform/src/main/java/com/john/campus/controller/DownloadController.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/HealthServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/resources/application.yaml`
 - 验证方式：核对部署交接、Compose/Nginx/环境变量、CORS、真实 IP、健康检查、JWT 和上传下载实现；仅静态分析，未运行测试
+
+## 2026-09-22 20:10:35 | 完成 DEPLOY-03 生产安全收敛
+
+### 问题 1
+
+在deploy分支上继续开发`DEPLOY-03`
+
+### 答案 1
+
+已在 `deploy` 分支完成 DEPLOY-03。生产站点采用同源访问并删除后端通配 CORS；Nginx 覆盖和清洗代理头，Tomcat 仅信任私网代理，下载限流读取容器解析后的 `remoteAddr`。生产配置会拒绝 root MySQL 应用账号、弱 MySQL/Redis 密码、过短 JWT Secret、Secret 复用和无效磁盘水位。全新 MySQL 空卷初始化后，应用账号只保留 `SELECT`、`INSERT`、`UPDATE`；旧卷需人工核对和整改授权。
+
+新增 `GET /api/v1/health/readiness` 检查 MySQL、Redis、上传目录写探针和磁盘水位，任一失败返回 HTTP 503；数据库取连接最多等待 3 秒，Redis 连接/命令最多等待 2 秒。原 `/api/v1/health` 保持 liveness。Spring 优雅停机等待 30 秒，Compose 预留 40 秒。
+
+上传在 MD5、查库和落盘前联合校验扩展名、客户端 MIME 与服务端内容。固定格式检查签名，文本要求严格 UTF-8，ZIP 限制条目数、单条目、总展开量和压缩比；OOXML 解析受限 XML 以核对主内容类型和根关系，并拒绝宏部件、外部关系及路径穿越。落盘增加磁盘保留水位、进程锁、同目录 `.part` 文件和原子移动；容量不足返回 HTTP 507。普通下载固定为二进制附件并设置 `no-store`、`nosniff`，审核预览增加 CSP `sandbox`，下载审计 User-Agent 会按数据库列上限安全截断。
+
+后端全量测试在隔离 MySQL 下 208/208 通过，前端单测 76/76 和生产构建通过。真实空卷 Compose 验证中，readiness 正常返回 200；停止 Redis 后约 2.3 秒、停止 MySQL 后约 3.3 秒返回 503，恢复后自动回到 UP；MySQL 最小权限、Redis 强制认证、内部端口隔离和优雅停机均通过。测试容器、卷和临时镜像已清理。
+
+当前仍不提供病毒/恶意文档扫描、历史文件重扫、严格用户累计配额、多实例共享存储或对象存储。这些能力需要后续独立架构和资源预算，2 GB 主机不运行重型扫描服务。下一任务为 DEPLOY-04 的最终镜像、迁移、持久化和回滚演练。
+
+### 关联信息
+
+- 功能提交：`3a2c5e96`、`9272af41`、`9a3c2d86`、`5dee7699`、`740a4d97`、`248bc29d`，均已推送到 `origin/deploy`。
+- 相关文件：`deploy/docker-compose.yml`、`deploy/nginx/default.conf`、`deploy/mysql/002-application-grants.sh`、`deploy/.env.example`、`deploy/README.md`、后端安全配置、健康检查、上传校验、存储和下载实现及对应测试。
+- 验证命令：隔离 MySQL 下 `.\\mvnw.cmd test`、`npm run test:unit`、`npm run build`、`docker compose ... config --quiet`、后端镜像构建、空卷 `up --wait`、依赖故障/恢复、授权与认证核对、优雅停机及 `git diff --check`。
