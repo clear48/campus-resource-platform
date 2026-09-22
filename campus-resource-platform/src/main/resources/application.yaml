@@ -1,5 +1,7 @@
 server:
   port: ${SERVER_PORT:8080}
+  # 收到 SIGTERM 后停止接收新请求，并等待在途请求在关闭阶段内完成。
+  shutdown: graceful
 
 spring:
   application:
@@ -24,6 +26,16 @@ spring:
     multipart:
       max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE:50MB}
       max-request-size: ${APP_UPLOAD_MAX_REQUEST_SIZE:60MB}
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+  task:
+    scheduling:
+      shutdown:
+        # 定时同步任务关闭时等待当前批次结束，避免进程中途退出留下不完整批次。
+        await-termination: true
+        await-termination-period: 30s
 
 mybatis:
   mapper-locations: classpath*:mapper/**/*.xml

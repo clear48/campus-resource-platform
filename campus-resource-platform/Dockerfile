@@ -28,8 +28,8 @@ ENV APP_UPLOAD_STORAGE_PATH=/data/uploads \
 USER app
 EXPOSE 8080
 
-# 当前接口只检查应用进程；MySQL、Redis 的生产 readiness 在 DEPLOY-03 补齐。
+# 就绪探针同时检查 MySQL、Redis 和上传存储；HTTP 503 会使 wget 返回非零状态。
 HEALTHCHECK --interval=15s --timeout=5s --start-period=45s --retries=5 \
-    CMD wget -qO- http://127.0.0.1:8080/api/v1/health | grep -q '"code":0' || exit 1
+    CMD wget -qO- http://127.0.0.1:8080/api/v1/health/readiness >/dev/null || exit 1
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

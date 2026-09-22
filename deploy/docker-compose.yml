@@ -77,6 +77,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     init: true
+    # Spring 最多等待 30 秒结束在途请求和任务，容器额外预留 10 秒再强制终止。
+    stop_grace_period: 40s
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SERVER_PORT: 8080
