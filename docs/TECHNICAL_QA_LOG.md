@@ -1332,3 +1332,24 @@ Compose 中 `EXPOSE` 只说明容器预期端口，不会发布到宿主机；�
 - 相关文件：`campus-resource-platform/Dockerfile`、`frontend/Dockerfile`、`deploy/docker-compose.yml`、`deploy/nginx/default.conf`、`deploy/.env.example`、`deploy/README.md`、两个 `.dockerignore` 和 Maven Wrapper 配置。
 - 实际验证：前端 76/76、后端 169/169；双镜像构建、空卷启动、HTTP/API/SPA、端口隔离、非 root 用户和三类数据重建持久化均通过。
 - 本轮为基于已验证实现的代码讲解，只追加技术问答归档，没有修改业务代码或重新运行测试。
+
+## 2026-09-22 14:41:08 | DEPLOY-03 的作用和实现思路
+
+### 问题 1
+
+解释`DEPLOY-0`3  的作用和实现思路
+
+### 答案 1
+
+用户所指为 `DEPLOY-03`。它位于 `DEPLOY-02` 容器化底座之后，目标是把“服务可以通过 Compose 启动”收敛为“服务具备接收生产流量的基本安全性和可运维性”。它不负责数据库迁移演练、服务器初始化、DNS、HTTPS、公网业务验收和备份恢复，这些分别属于后续 `DEPLOY-04` 至 `DEPLOY-08`。
+
+当前需要处理八项：生产环境采用完全同源时取消不必要的 CORS，若保留跨域能力则按环境配置明确 Origin 白名单并关闭不需要的 credentials；由唯一公网 Nginx 覆盖 `X-Forwarded-For`、`X-Real-IP` 等头，后端只消费可信代理产生的客户端地址，防止伪造 IP 绕过下载限流；为生产环境单独生成至少 32 字节的随机 `JWT_SECRET`，通过未提交的 `deploy/.env` 注入；确认后端使用非 root 的 MySQL 应用账号，并让 Redis 使用强密码且只留在 Compose 私网；把进程存活检查与 readiness 分开，readiness 至少验证 MySQL 查询、Redis `PING` 和上传目录可写/剩余空间阈值；启用 Spring Boot 优雅停机并为 Compose 设置足够的停止宽限期，保留现有日志轮转和重启策略；上传侧将扩展名、受控 MIME 和文件签名交叉校验，下载统一使用安全响应头，并明确病毒扫描能力、单文件上限、用户/平台配额及磁盘低水位拒绝策略。
+
+现有代码已经具备一部分基础：Compose 只公开 Nginx，MySQL/Redis 使用私网；`deploy/.env.example` 已区分 MySQL root、应用账号、Redis 密码和 JWT Secret；JWT 启动时会拒绝缺失、公开旧默认值和少于 32 字节的密钥；日志轮转和 `restart: unless-stopped` 已配置；Nginx 当前会覆盖转发 IP 请求头。仍未完成的关键缺口是 `WebMvcConfig` 仍使用 `allowedOriginPatterns("*")` 且允许凭证，`DownloadController` 会直接信任请求头，`/api/v1/health` 固定返回 `UP`，后端健康检查没有验证 MySQL/Redis/上传卷，Spring Boot 未配置优雅停机，上传只按扩展名白名单拦截且普通下载仍使用客户端上报的 MIME。
+
+推荐按四个可独立验证的小功能实施：①生产 CORS 与可信代理；②生产 Secret、MySQL/Redis 最小权限及配置失败即停止启动；③独立 liveness/readiness、依赖超时和优雅停机；④上传真实类型、下载响应、容量与扫描边界。验收至少覆盖未知 Origin、直连伪造转发头、MySQL/Redis/上传目录分别故障、停止时在途请求、伪装扩展名、磁盘低水位和 Secret 缺失等场景。每个小功能测试通过后按项目规则独立提交并推送。
+
+### 关联信息
+
+- 相关文件：`docs/DEPLOYMENT_HANDOFF.md`、`deploy/docker-compose.yml`、`deploy/nginx/default.conf`、`deploy/.env.example`、`campus-resource-platform/src/main/java/com/john/campus/config/WebMvcConfig.java`、`campus-resource-platform/src/main/java/com/john/campus/controller/DownloadController.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/HealthServiceImpl.java`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileServiceImpl.java`、`campus-resource-platform/src/main/resources/application.yaml`
+- 验证方式：核对部署交接、Compose/Nginx/环境变量、CORS、真实 IP、健康检查、JWT 和上传下载实现；仅静态分析，未运行测试
