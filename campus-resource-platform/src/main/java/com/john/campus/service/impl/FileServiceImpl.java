@@ -6,13 +6,13 @@ import com.john.campus.entity.FileInfo;
 import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.FileInfoMapper;
 import com.john.campus.service.FileAuthorizationService;
+import com.john.campus.service.FileContentValidator;
 import com.john.campus.service.FileMd5CacheService;
 import com.john.campus.service.FileService;
 import com.john.campus.service.FileStorageService;
 import com.john.campus.vo.FileCheckVO;
 import com.john.campus.vo.FileUploadVO;
 import java.nio.file.Paths;
-import java.util.Set;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -26,20 +26,13 @@ import org.springframework.web.multipart.MultipartFile;
 public class FileServiceImpl implements FileService {
 
     /**
-     * 允许上传的扩展名白名单，是文件类型的主要安全闸口。
-     */
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
-            "pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx",
-            "zip", "rar", "7z", "txt", "md", "jpg", "jpeg", "png");
-    /**
      * 业务侧文件大小上限，与 multipart 配置的 50MB 对齐，作为二次防御。
      */
     private static final long MAX_FILE_SIZE_BYTES = 50L * 1024 * 1024;
     /**
-     * 原始文件名与 MIME 长度上限，分别对齐列宽 VARCHAR(255)、VARCHAR(100)。
+     * 原始文件名长度上限，对齐 file_info.original_name 的 VARCHAR(255)。
      */
     private static final int MAX_ORIGINAL_NAME_LENGTH = 255;
-    private static final int MAX_MIME_TYPE_LENGTH = 100;
     /**
      * MD5 预检参数格式：32 位十六进制。
      */
@@ -60,16 +53,22 @@ public class FileServiceImpl implements FileService {
      * 文件 MD5 三态缓存服务，统一处理负缓存、坏值清理和 Redis 降级。
      */
     private final FileMd5CacheService fileMd5CacheService;
+    /**
+     * 文件内容校验器在计算哈希和落盘前确认扩展名、MIME 与真实结构一致。
+     */
+    private final FileContentValidator fileContentValidator;
 
     public FileServiceImpl(
             FileInfoMapper fileInfoMapper,
             FileStorageService fileStorageService,
             FileMd5CacheService fileMd5CacheService,
-            FileAuthorizationService fileAuthorizationService) {
+            FileAuthorizationService fileAuthorizationService,
+            FileContentValidator fileContentValidator) {
         this.fileInfoMapper = fileInfoMapper;
         this.fileStorageService = fileStorageService;
         this.fileMd5CacheService = fileMd5CacheService;
         this.fileAuthorizationService = fileAuthorizationService;
+        this.fileContentValidator = fileContentValidator;
     }
 
     /**
@@ -78,6 +77,7 @@ public class FileServiceImpl implements FileService {
     @Override
     public FileUploadVO upload(MultipartFile file) {
         String fileExt = validateAndResolveExt(file);
+        FileContentValidator.ValidatedFileType validatedType = fileContentValidator.validate(file, fileExt);
         String fileMd5 = fileStorageService.calculateMd5(file);
         long fileSize = file.getSize();
 
@@ -89,7 +89,7 @@ public class FileServiceImpl implements FileService {
 
         // 未命中：先落盘（耗时文件 IO，置于任何数据库写操作之外），再入库。
         FileStorageService.StoredFile stored = fileStorageService.store(file, fileExt);
-        FileInfo fileInfo = buildFileInfo(file, fileMd5, fileSize, fileExt, stored);
+        FileInfo fileInfo = buildFileInfo(file, fileMd5, fileSize, fileExt, validatedType.mimeType(), stored);
         return persistOrFallback(fileInfo, stored, fileMd5, fileSize);
     }
 
@@ -183,8 +183,7 @@ public class FileServiceImpl implements FileService {
             throw new BusinessException(ErrorCode.FILE_TOO_LARGE);
         }
         String fileExt = fileStorageService.resolveExtension(file.getOriginalFilename());
-        // 空扩展名或不在白名单内均视为类型不允许，扩展名白名单为类型校验的准绳。
-        if (!ALLOWED_EXTENSIONS.contains(fileExt)) {
+        if (!StringUtils.hasText(fileExt)) {
             throw new BusinessException(ErrorCode.FILE_TYPE_NOT_ALLOWED);
         }
         return fileExt;
@@ -194,13 +193,19 @@ public class FileServiceImpl implements FileService {
      * 组装待入库的文件实体，上传者取自当前登录上下文而非前端传参。
      */
     private FileInfo buildFileInfo(
-            MultipartFile file, String fileMd5, Long fileSize, String fileExt, FileStorageService.StoredFile stored) {
+            MultipartFile file,
+            String fileMd5,
+            Long fileSize,
+            String fileExt,
+            String serverMimeType,
+            FileStorageService.StoredFile stored) {
         FileInfo fileInfo = new FileInfo();
         fileInfo.setFileMd5(fileMd5);
         fileInfo.setOriginalName(resolveOriginalName(file, stored.storedName()));
         fileInfo.setStoredName(stored.storedName());
         fileInfo.setFileExt(fileExt);
-        fileInfo.setMimeType(resolveMimeType(file));
+        // 只保存服务端白名单映射出的 MIME，不能把客户端可伪造的 Content-Type 持久化。
+        fileInfo.setMimeType(serverMimeType);
         fileInfo.setFileSize(fileSize);
         fileInfo.setStorageType(FileInfo.STORAGE_TYPE_LOCAL);
         fileInfo.setStoragePath(stored.storagePath());
@@ -222,19 +227,6 @@ public class FileServiceImpl implements FileService {
         return pureName.length() > MAX_ORIGINAL_NAME_LENGTH
                 ? pureName.substring(0, MAX_ORIGINAL_NAME_LENGTH)
                 : pureName;
-    }
-
-    /**
-     * 记录客户端上报的 MIME 类型，空则存 null；仅作元数据，类型校验以扩展名白名单为准。
-     */
-    private String resolveMimeType(MultipartFile file) {
-        String contentType = file.getContentType();
-        if (!StringUtils.hasText(contentType)) {
-            return null;
-        }
-        return contentType.length() > MAX_MIME_TYPE_LENGTH
-                ? contentType.substring(0, MAX_MIME_TYPE_LENGTH)
-                : contentType;
     }
 
     /**

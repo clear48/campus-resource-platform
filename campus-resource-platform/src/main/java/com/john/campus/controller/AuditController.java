@@ -129,6 +129,8 @@ public class AuditController {
         headers.setContentLength(fileInfo.contentLength());
         headers.setCacheControl("private, no-store");
         headers.set("X-Content-Type-Options", "nosniff");
+        // 即使审核文件含主动内容，浏览器内联预览也处于 sandbox，不能执行脚本或继承站点权限。
+        headers.set("Content-Security-Policy", "sandbox");
         return new ResponseEntity<>(new InputStreamResource(fileInfo.inputStream()), headers, HttpStatus.OK);
     }
 

@@ -8,8 +8,11 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.StandardCopyOption;
 import java.util.UUID;
+import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,10 +39,18 @@ public class FileStorageServiceImpl implements FileStorageService {
      * 文件落盘根目录，来自配置 app.upload.storage-path，规范化为绝对路径。
      */
     private final Path storageRoot;
+    /**
+     * 单后端实例内串行化容量检查和写入，避免并发请求同时通过水位检查后共同耗尽磁盘。
+     */
+    private final ReentrantLock storageWriteLock = new ReentrantLock();
+    private final long minFreeSpaceBytes;
 
-    public FileStorageServiceImpl(@Value("${app.upload.storage-path}") String storagePath) {
+    public FileStorageServiceImpl(
+            @Value("${app.upload.storage-path}") String storagePath,
+            @Value("${app.upload.min-free-space-bytes}") long minFreeSpaceBytes) {
         // 统一解析为规范化绝对路径，作为后续路径穿越校验的基准目录。
         this.storageRoot = Paths.get(storagePath).toAbsolutePath().normalize();
+        this.minFreeSpaceBytes = minFreeSpaceBytes;
     }
 
     @Override
@@ -74,16 +85,50 @@ public class FileStorageServiceImpl implements FileStorageService {
     public StoredFile store(MultipartFile file, String fileExt) {
         String storedName = buildStoredName(fileExt);
         Path target = resolveSafeTarget(storedName);
+        Path temporary = target.resolveSibling(target.getFileName() + ".part");
+        storageWriteLock.lock();
         try {
             Files.createDirectories(storageRoot);
-            // 用独立输入流写盘，与计算 MD5 时的流互不影响。
-            try (InputStream inputStream = file.getInputStream()) {
-                Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING);
+            ensureEnoughSpace(file.getSize());
+            // 先完整写入同目录临时文件，避免读取方观察到半文件；UUID 文件名和 CREATE_NEW 防止覆盖。
+            try (InputStream inputStream = file.getInputStream();
+                    var outputStream = Files.newOutputStream(
+                            temporary, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+                inputStream.transferTo(outputStream);
             }
+            moveCompletedFile(temporary, target);
+        } catch (BusinessException ex) {
+            throw ex;
         } catch (IOException ex) {
             throw new BusinessException(ErrorCode.SERVER_ERROR, "文件保存失败");
+        } finally {
+            try {
+                Files.deleteIfExists(temporary);
+            } catch (IOException cleanupEx) {
+                log.warn("上传临时文件清理失败: {}", cleanupEx.getClass().getSimpleName());
+            }
+            storageWriteLock.unlock();
         }
         return new StoredFile(storedName, target.toString());
+    }
+
+    private void ensureEnoughSpace(long incomingFileSize) throws IOException {
+        long usableSpace = Files.getFileStore(storageRoot).getUsableSpace();
+        long requiredSpace = incomingFileSize > Long.MAX_VALUE - minFreeSpaceBytes
+                ? Long.MAX_VALUE
+                : incomingFileSize + minFreeSpaceBytes;
+        if (usableSpace < requiredSpace) {
+            throw new BusinessException(ErrorCode.STORAGE_INSUFFICIENT, "存储空间不足，暂时无法上传文件");
+        }
+    }
+
+    private void moveCompletedFile(Path temporary, Path target) throws IOException {
+        try {
+            Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException ex) {
+            // 同目录普通移动仍不会暴露复制中的半文件；目标名为随机 UUID，禁止覆盖既有文件。
+            Files.move(temporary, target);
+        }
     }
 
     /**

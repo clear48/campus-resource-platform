@@ -13,8 +13,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.john.campus.common.LoginUser;
+import com.john.campus.common.ErrorCode;
 import com.john.campus.common.UserContextHolder;
 import com.john.campus.entity.FileInfo;
+import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.FileInfoMapper;
 import com.john.campus.service.impl.FileServiceImpl;
 import com.john.campus.vo.FileCheckVO;
@@ -24,6 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.mock.web.MockMultipartFile;
@@ -47,6 +50,8 @@ class FileServiceImplTest {
     private FileMd5CacheService fileMd5CacheService;
     @Mock
     private FileAuthorizationService fileAuthorizationService;
+    @Mock
+    private FileContentValidator fileContentValidator;
 
     private FileService fileService;
 
@@ -56,7 +61,8 @@ class FileServiceImplTest {
                 fileInfoMapper,
                 fileStorageService,
                 fileMd5CacheService,
-                fileAuthorizationService);
+                fileAuthorizationService,
+                fileContentValidator);
         UserContextHolder.set(new LoginUser(USER_ID, 1, "file-authorization-test-jti"));
     }
 
@@ -134,6 +140,7 @@ class FileServiceImplTest {
         MockMultipartFile upload = uploadFile();
         FileInfo existing = existingFile();
         when(fileStorageService.resolveExtension("same.pdf")).thenReturn("pdf");
+        stubValidatedPdf(upload);
         when(fileStorageService.calculateMd5(upload)).thenReturn(MD5);
         when(fileInfoMapper.selectByMd5AndSize(MD5, SIZE)).thenReturn(existing);
 
@@ -146,10 +153,25 @@ class FileServiceImplTest {
     }
 
     @Test
+    void invalidContentShouldStopBeforeMd5AndStorage() {
+        MockMultipartFile upload = uploadFile();
+        when(fileStorageService.resolveExtension("same.pdf")).thenReturn("pdf");
+        BusinessException invalidType = new BusinessException(ErrorCode.FILE_TYPE_NOT_ALLOWED);
+        when(fileContentValidator.validate(upload, "pdf")).thenThrow(invalidType);
+
+        assertThatThrownBy(() -> fileService.upload(upload)).isSameAs(invalidType);
+
+        verify(fileStorageService, never()).calculateMd5(any());
+        verify(fileStorageService, never()).store(any(), anyString());
+        verifyNoInteractions(fileInfoMapper, fileAuthorizationService);
+    }
+
+    @Test
     void existingFileAuthorizationFailureShouldPropagateWithoutWritingPositiveCache() {
         MockMultipartFile upload = uploadFile();
         RuntimeException authorizationFailure = new RuntimeException("authorization transaction failed");
         when(fileStorageService.resolveExtension("same.pdf")).thenReturn("pdf");
+        stubValidatedPdf(upload);
         when(fileStorageService.calculateMd5(upload)).thenReturn(MD5);
         when(fileInfoMapper.selectByMd5AndSize(MD5, SIZE)).thenReturn(existingFile());
         doThrow(authorizationFailure)
@@ -173,6 +195,9 @@ class FileServiceImplTest {
 
         verify(fileStorageService).delete(stored.storagePath());
         verify(fileMd5CacheService, never()).putFound(anyString(), anyLong(), any());
+        ArgumentCaptor<FileInfo> fileInfoCaptor = ArgumentCaptor.forClass(FileInfo.class);
+        verify(fileAuthorizationService).createAuthorizedFile(fileInfoCaptor.capture(), eq(USER_ID));
+        assertThat(fileInfoCaptor.getValue().getMimeType()).isEqualTo("application/pdf");
     }
 
     @Test
@@ -195,9 +220,15 @@ class FileServiceImplTest {
     private FileStorageService.StoredFile stubNewFileUpload(MockMultipartFile upload) {
         FileStorageService.StoredFile stored = new FileStorageService.StoredFile("stored.pdf", "uploads/stored.pdf");
         when(fileStorageService.resolveExtension("same.pdf")).thenReturn("pdf");
+        stubValidatedPdf(upload);
         when(fileStorageService.calculateMd5(upload)).thenReturn(MD5);
         when(fileStorageService.store(upload, "pdf")).thenReturn(stored);
         return stored;
+    }
+
+    private void stubValidatedPdf(MockMultipartFile upload) {
+        when(fileContentValidator.validate(upload, "pdf"))
+                .thenReturn(new FileContentValidator.ValidatedFileType("application/pdf"));
     }
 
     private MockMultipartFile uploadFile() {

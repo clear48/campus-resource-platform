@@ -27,6 +27,7 @@ public enum ErrorCode {
     /**
      * 5xxxx 表示服务端内部异常或外部依赖异常。
      */
+    STORAGE_INSUFFICIENT(50701, "存储空间不足"),
     SERVER_ERROR(50001, "服务端异常");
 
     /**

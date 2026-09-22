@@ -4,7 +4,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.john.campus.service.DownloadService;
+import com.john.campus.service.DownloadService.DownloadFileInfo;
 import com.john.campus.vo.DownloadTicketVO;
+import java.io.ByteArrayInputStream;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.core.io.InputStreamResource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -36,5 +42,27 @@ class DownloadControllerTest {
 
         // 伪造代理头不能改变传给限流与审计服务的客户端地址。
         verify(downloadService).createDownloadRecord(1L, "198.51.100.20", "test-agent");
+    }
+
+    @Test
+    void downloadShouldIgnoreStoredMimeAndReturnSafeAttachmentHeaders() {
+        byte[] content = {1, 2, 3};
+        when(downloadService.loadFile(10L, "ticket")).thenReturn(new DownloadFileInfo(
+                new ByteArrayInputStream(content),
+                "资料.html",
+                "text/html; charset=UTF-8",
+                content.length));
+        DownloadController controller = new DownloadController(downloadService);
+
+        ResponseEntity<InputStreamResource> response = controller.downloadFile(10L, "ticket");
+
+        org.assertj.core.api.Assertions.assertThat(response.getHeaders().getContentType())
+                .isEqualTo(MediaType.APPLICATION_OCTET_STREAM);
+        org.assertj.core.api.Assertions.assertThat(response.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                .startsWith("attachment;");
+        org.assertj.core.api.Assertions.assertThat(response.getHeaders().getCacheControl())
+                .isEqualTo("private, no-store");
+        org.assertj.core.api.Assertions.assertThat(response.getHeaders().getFirst("X-Content-Type-Options"))
+                .isEqualTo("nosniff");
     }
 }

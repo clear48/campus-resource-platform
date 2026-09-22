@@ -281,6 +281,7 @@ class AuditControllerTest {
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE))
                 .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "private, no-store"))
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Content-Security-Policy", "sandbox"))
                 .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION,
                         org.hamcrest.Matchers.containsString("inline")));
 

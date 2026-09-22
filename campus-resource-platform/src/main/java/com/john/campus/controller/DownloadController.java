@@ -9,14 +9,13 @@ import com.john.campus.vo.DownloadTicketVO;
 import com.john.campus.vo.MyDownloadRecordVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import org.springframework.http.ContentDisposition;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -63,18 +62,18 @@ public class DownloadController {
             @RequestHeader(DOWNLOAD_TICKET_HEADER) String downloadTicket) {
         DownloadFileInfo fileInfo = downloadService.loadFile(downloadRecordId, downloadTicket);
 
-        String contentType = StringUtils.hasText(fileInfo.mimeType())
-                ? fileInfo.mimeType()
-                : "application/octet-stream";
-
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.parseMediaType(contentType));
-        // RFC 5987 编码，兼容中文文件名：filename 为 ASCII 兜底，filename* 为 UTF-8 编码。
-        String encodedName = URLEncoder.encode(fileInfo.originalName(), StandardCharsets.UTF_8)
-                .replaceAll("\\+", "%20");
-        headers.set(HttpHeaders.CONTENT_DISPOSITION,
-                "attachment; filename=\"" + encodedName + "\"; filename*=UTF-8''" + encodedName);
+        // 历史 MIME 可能来自旧客户端，普通下载固定为二进制附件，阻止浏览器主动解释内容。
+        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        String originalName = fileInfo.originalName() == null || fileInfo.originalName().isBlank()
+                ? "download-" + downloadRecordId
+                : fileInfo.originalName();
+        headers.setContentDisposition(ContentDisposition.attachment()
+                .filename(originalName, StandardCharsets.UTF_8)
+                .build());
         headers.setContentLength(fileInfo.contentLength());
+        headers.setCacheControl("private, no-store");
+        headers.set("X-Content-Type-Options", "nosniff");
 
         return new ResponseEntity<>(
                 new InputStreamResource(fileInfo.inputStream()),
