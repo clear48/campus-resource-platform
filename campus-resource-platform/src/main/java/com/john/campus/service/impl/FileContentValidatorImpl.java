@@ -3,6 +3,8 @@ package com.john.campus.service.impl;
 import com.john.campus.common.ErrorCode;
 import com.john.campus.exception.BusinessException;
 import com.john.campus.service.FileContentValidator;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -18,9 +20,16 @@ import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipInputStream;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 /**
  * 基于 JDK 的轻量文件内容校验器，不执行宏或脚本，也不把压缩包内容写入磁盘。
@@ -33,9 +42,14 @@ public class FileContentValidatorImpl implements FileContentValidator {
     private static final long MAX_ZIP_ENTRY_BYTES = 32L * 1024 * 1024;
     private static final long MAX_ZIP_TOTAL_BYTES = 64L * 1024 * 1024;
     private static final int MAX_COMPRESSION_RATIO = 100;
+    private static final int MAX_OOXML_METADATA_BYTES = 512 * 1024;
     private static final int ZIP_END_RECORD_MAX_BYTES = 65_557;
     private static final byte[] ZIP_LOCAL_HEADER = {0x50, 0x4B, 0x03, 0x04};
     private static final byte[] ZIP_EMPTY_HEADER = {0x50, 0x4B, 0x05, 0x06};
+    private static final String OFFICE_DOCUMENT_RELATIONSHIP =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument";
+    private static final String STRICT_OFFICE_DOCUMENT_RELATIONSHIP =
+            "http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument";
 
     /**
      * 每种扩展名只接受明确的浏览器 MIME；application/octet-stream 由统一逻辑额外放行。
@@ -155,8 +169,10 @@ public class FileContentValidatorImpl implements FileContentValidator {
         }
         int entryCount = 0;
         long totalUncompressed = 0;
-        boolean contentTypes = false;
-        boolean requiredOoxmlDirectory = false;
+        OoxmlRule ooxmlRule = ooxmlRule(extension);
+        boolean expectedContentType = false;
+        boolean rootOfficeDocumentRelationship = false;
+        boolean requiredOoxmlPart = false;
         byte[] buffer = new byte[8192];
 
         try (ZipInputStream zipInputStream = new ZipInputStream(file.getInputStream(), StandardCharsets.UTF_8)) {
@@ -170,9 +186,15 @@ public class FileContentValidatorImpl implements FileContentValidator {
                     throw invalidType();
                 }
 
-                String entryName = entry.getName();
-                contentTypes |= "[Content_Types].xml".equals(entryName);
-                requiredOoxmlDirectory |= hasRequiredOoxmlStructure(extension, entryName);
+                String entryName = entry.getName().replace('\\', '/');
+                if (ooxmlRule != null && entryName.toLowerCase(Locale.ROOT).endsWith("vbaproject.bin")) {
+                    throw invalidType();
+                }
+                requiredOoxmlPart |= ooxmlRule != null && ooxmlRule.mainPart().equals(entryName);
+
+                boolean metadataEntry = ooxmlRule != null
+                        && ("[Content_Types].xml".equals(entryName) || entryName.endsWith(".rels"));
+                ByteArrayOutputStream metadata = metadataEntry ? new ByteArrayOutputStream() : null;
 
                 long entryBytes = 0;
                 int read;
@@ -182,20 +204,110 @@ public class FileContentValidatorImpl implements FileContentValidator {
                     if (entryBytes > MAX_ZIP_ENTRY_BYTES || totalUncompressed > MAX_ZIP_TOTAL_BYTES) {
                         throw invalidType();
                     }
+                    if (metadata != null) {
+                        if (entryBytes > MAX_OOXML_METADATA_BYTES) {
+                            throw invalidType();
+                        }
+                        metadata.write(buffer, 0, read);
+                    }
                 }
                 long compressedSize = entry.getCompressedSize();
                 if (entryBytes > 1024 * 1024 && compressedSize > 0
                         && entryBytes / compressedSize > MAX_COMPRESSION_RATIO) {
                     throw invalidType();
                 }
+                if (metadata != null && "[Content_Types].xml".equals(entryName)) {
+                    expectedContentType = validateContentTypes(metadata.toByteArray(), ooxmlRule);
+                } else if (metadata != null) {
+                    boolean rootRelationship = "_rels/.rels".equals(entryName);
+                    boolean hasExpectedRootRelationship = validateRelationships(
+                            metadata.toByteArray(), ooxmlRule, rootRelationship);
+                    rootOfficeDocumentRelationship |= rootRelationship && hasExpectedRootRelationship;
+                }
                 zipInputStream.closeEntry();
             }
         }
 
-        // 普通 ZIP 至少包含一个可解析条目；OOXML 还必须包含内容类型声明和对应应用目录。
-        if (entryCount == 0 || (!"zip".equals(extension) && (!contentTypes || !requiredOoxmlDirectory))) {
+        // 普通 ZIP 至少包含一个可解析条目；OOXML 还必须由内容类型和根关系共同声明对应主文档。
+        if (entryCount == 0 || (ooxmlRule != null
+                && (!expectedContentType || !rootOfficeDocumentRelationship || !requiredOoxmlPart))) {
             throw invalidType();
         }
+    }
+
+    /**
+     * 校验 OOXML 内容类型声明，拒绝宏类型并确认主文档部件与扩展名一致。
+     */
+    private boolean validateContentTypes(byte[] xml, OoxmlRule rule) {
+        Document document = parseSecureXml(xml);
+        boolean expected = false;
+        NodeList elements = document.getElementsByTagName("*");
+        for (int index = 0; index < elements.getLength(); index++) {
+            Element element = (Element) elements.item(index);
+            String contentType = element.getAttribute("ContentType");
+            String normalizedType = contentType.toLowerCase(Locale.ROOT);
+            if (normalizedType.contains("macroenabled") || normalizedType.contains("vbaproject")) {
+                throw invalidType();
+            }
+            String localName = element.getLocalName() == null ? element.getTagName() : element.getLocalName();
+            if ("Override".equals(localName)
+                    && normalizeOoxmlPart(element.getAttribute("PartName")).equals(rule.mainPart())
+                    && rule.mainContentType().equals(contentType)) {
+                expected = true;
+            }
+        }
+        return expected;
+    }
+
+    /**
+     * 所有关系文件都禁止外部目标；根关系还必须指向当前扩展名对应的主文档。
+     */
+    private boolean validateRelationships(byte[] xml, OoxmlRule rule, boolean rootRelationshipFile) {
+        Document document = parseSecureXml(xml);
+        boolean expectedRoot = false;
+        NodeList relationships = document.getElementsByTagNameNS("*", "Relationship");
+        for (int index = 0; index < relationships.getLength(); index++) {
+            Element relationship = (Element) relationships.item(index);
+            if ("External".equalsIgnoreCase(relationship.getAttribute("TargetMode"))) {
+                throw invalidType();
+            }
+            String type = relationship.getAttribute("Type");
+            if (rootRelationshipFile
+                    && (OFFICE_DOCUMENT_RELATIONSHIP.equals(type)
+                            || STRICT_OFFICE_DOCUMENT_RELATIONSHIP.equals(type))
+                    && normalizeOoxmlPart(relationship.getAttribute("Target")).equals(rule.mainPart())) {
+                expectedRoot = true;
+            }
+        }
+        return expectedRoot;
+    }
+
+    /**
+     * XML 解析禁用 DTD、外部实体与 XInclude，避免 OOXML 元数据触发 XXE 或实体扩展。
+     */
+    private Document parseSecureXml(byte[] xml) {
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
+            factory.setXIncludeAware(false);
+            factory.setExpandEntityReferences(false);
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            return factory.newDocumentBuilder().parse(new ByteArrayInputStream(xml));
+        } catch (ParserConfigurationException | SAXException | IOException ex) {
+            throw invalidType();
+        }
+    }
+
+    private String normalizeOoxmlPart(String partName) {
+        String normalized = partName == null ? "" : partName.replace('\\', '/');
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        return normalized;
     }
 
     /**
@@ -247,12 +359,18 @@ public class FileContentValidatorImpl implements FileContentValidator {
                 || Arrays.asList(normalized.split("/", -1)).contains("..");
     }
 
-    private boolean hasRequiredOoxmlStructure(String extension, String entryName) {
+    private OoxmlRule ooxmlRule(String extension) {
         return switch (extension) {
-            case "docx" -> "word/document.xml".equals(entryName);
-            case "xlsx" -> "xl/workbook.xml".equals(entryName);
-            case "pptx" -> "ppt/presentation.xml".equals(entryName);
-            default -> false;
+            case "docx" -> new OoxmlRule(
+                    "word/document.xml",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
+            case "xlsx" -> new OoxmlRule(
+                    "xl/workbook.xml",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml");
+            case "pptx" -> new OoxmlRule(
+                    "ppt/presentation.xml",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml");
+            default -> null;
         };
     }
 
@@ -319,5 +437,8 @@ public class FileContentValidatorImpl implements FileContentValidator {
             String serverMimeType,
             Set<String> allowedClientMimeTypes,
             Predicate<byte[]> magicMatcher) {
+    }
+
+    private record OoxmlRule(String mainPart, String mainContentType) {
     }
 }

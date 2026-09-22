@@ -32,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -133,6 +134,19 @@ class DownloadServiceImplTest {
 
         assertThat(result.counted()).isTrue();
         verify(downloadRecordMapper).insert(any());
+    }
+
+    @Test
+    void oversizedUserAgentShouldBeSafelyTruncatedBeforeInsert() {
+        String oversizedUserAgent = "测".repeat(254) + "😀" + "tail";
+        ArgumentCaptor<DownloadRecord> recordCaptor = ArgumentCaptor.forClass(DownloadRecord.class);
+
+        downloadService.createDownloadRecord(100L, "127.0.0.1", oversizedUserAgent);
+
+        verify(downloadRecordMapper).insert(recordCaptor.capture());
+        String storedUserAgent = recordCaptor.getValue().getUserAgent();
+        assertThat(storedUserAgent.codePointCount(0, storedUserAgent.length())).isEqualTo(255);
+        assertThat(storedUserAgent).endsWith("😀");
     }
 
     @Test

@@ -73,9 +73,9 @@ class FileContentValidatorImplTest {
         assertThat(validator.validate(file("a.zip", "application/zip", zip), "zip").mimeType())
                 .isEqualTo("application/zip");
 
-        Map<String, byte[]> docxEntries = new LinkedHashMap<>();
-        docxEntries.put("[Content_Types].xml", "<Types/>".getBytes(StandardCharsets.UTF_8));
-        docxEntries.put("word/document.xml", "<document/>".getBytes(StandardCharsets.UTF_8));
+        Map<String, byte[]> docxEntries = validOoxmlEntries(
+                "word/document.xml",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
         byte[] docx = zip(docxEntries);
         assertThat(validator.validate(file(
                 "a.docx",
@@ -98,13 +98,54 @@ class FileContentValidatorImplTest {
         assertFileTypeRejected(() -> validator.validate(file("a.zip", "application/zip", traversal), "zip"));
     }
 
+    @Test
+    void ooxmlPlaceholderEntriesShouldNotImpersonateOfficeDocument() throws IOException {
+        Map<String, byte[]> forged = new LinkedHashMap<>();
+        forged.put("[Content_Types].xml", bytes("<Types/>"));
+        forged.put("word/document.xml", bytes("<document/>"));
+
+        assertFileTypeRejected(() -> validator.validate(file(
+                "fake.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                zip(forged)), "docx"));
+    }
+
+    @Test
+    void macroAndExternalRelationshipsShouldBeRejected() throws IOException {
+        Map<String, byte[]> macro = validOoxmlEntries(
+                "word/document.xml",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
+        macro.put("word/vbaProject.bin", new byte[]{1, 2, 3});
+        assertFileTypeRejected(() -> validator.validate(file(
+                "macro.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                zip(macro)), "docx"));
+
+        Map<String, byte[]> external = validOoxmlEntries(
+                "word/document.xml",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml");
+        external.put("word/_rels/document.xml.rels", bytes("""
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1" Type="http://example.test/link"
+                                Target="https://example.test/payload" TargetMode="External"/>
+                </Relationships>
+                """));
+        assertFileTypeRejected(() -> validator.validate(file(
+                "external.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                zip(external)), "docx"));
+    }
+
     @ParameterizedTest
     @MethodSource("validSpreadsheetAndPresentationOoxml")
     void spreadsheetAndPresentationOoxmlShouldRequireTheirKeyStructure(
             String extension, String mime, String keyEntry) throws IOException {
         Map<String, byte[]> entries = new LinkedHashMap<>();
-        entries.put("[Content_Types].xml", bytes("<Types/>"));
-        entries.put(keyEntry, bytes("<root/>"));
+        entries.putAll(validOoxmlEntries(keyEntry, switch (extension) {
+            case "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml";
+            case "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml";
+            default -> throw new IllegalArgumentException("unexpected extension");
+        }));
 
         assertThat(validator.validate(file("a." + extension, mime, zip(entries)), extension).mimeType())
                 .isEqualTo(mime);
@@ -162,6 +203,24 @@ class FileContentValidatorImplTest {
             zipOutput.finish();
             return output.toByteArray();
         }
+    }
+
+    private static Map<String, byte[]> validOoxmlEntries(String mainPart, String mainContentType) {
+        Map<String, byte[]> entries = new LinkedHashMap<>();
+        entries.put("[Content_Types].xml", bytes("""
+                <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                  <Override PartName="/%s" ContentType="%s"/>
+                </Types>
+                """.formatted(mainPart, mainContentType)));
+        entries.put("_rels/.rels", bytes("""
+                <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                  <Relationship Id="rId1"
+                    Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+                    Target="%s"/>
+                </Relationships>
+                """.formatted(mainPart)));
+        entries.put(mainPart, bytes("<root/>"));
+        return entries;
     }
 
     private static MockMultipartFile file(String name, String mime, byte[] content) {

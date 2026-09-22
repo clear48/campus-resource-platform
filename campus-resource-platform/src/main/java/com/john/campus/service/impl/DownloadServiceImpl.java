@@ -44,6 +44,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class DownloadServiceImpl implements DownloadService {
 
+    /** download_record.user_agent 为 VARCHAR(255)，审计字段必须在服务边界限长。 */
+    private static final int MAX_USER_AGENT_CODE_POINTS = 255;
+
     private static final Logger log = LoggerFactory.getLogger(DownloadServiceImpl.class);
 
     /**
@@ -137,7 +140,7 @@ public class DownloadServiceImpl implements DownloadService {
         record.setResourceId(resourceId);
         record.setFileId(fileInfo.getId());
         record.setUserIp(ip);
-        record.setUserAgent(userAgent);
+        record.setUserAgent(truncateUserAgent(userAgent));
         record.setDownloadStatus(DownloadRecord.STATUS_SUCCESS);
         downloadRecordMapper.insert(record);
 
@@ -160,6 +163,21 @@ public class DownloadServiceImpl implements DownloadService {
                 downloadUrl,
                 DOWNLOAD_TICKET_TTL.toSeconds(),
                 counted);
+    }
+
+    /**
+     * 按 Unicode 码点截断，既对齐数据库字符上限，也避免从代理头截断出半个代理字符。
+     */
+    private String truncateUserAgent(String userAgent) {
+        if (userAgent == null) {
+            return null;
+        }
+        int codePointCount = userAgent.codePointCount(0, userAgent.length());
+        if (codePointCount <= MAX_USER_AGENT_CODE_POINTS) {
+            return userAgent;
+        }
+        int endIndex = userAgent.offsetByCodePoints(0, MAX_USER_AGENT_CODE_POINTS);
+        return userAgent.substring(0, endIndex);
     }
 
     /**
