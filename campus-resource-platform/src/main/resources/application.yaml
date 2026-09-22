@@ -13,6 +13,9 @@ spring:
     username: ${MYSQL_USERNAME:root}
     # 本地数据库密码请通过环境变量注入，避免把个人密码提交到远程仓库。
     password: ${MYSQL_PASSWORD:}
+    hikari:
+      # readiness 获取连接不能沿用 30 秒默认等待，否则故障摘流会过慢。
+      connection-timeout: ${HIKARI_CONNECTION_TIMEOUT_MS:3000}
 
   data:
     redis:
@@ -21,6 +24,9 @@ spring:
       # 本地 Redis 密码请通过环境变量注入；无密码实例保持为空即可。
       password: ${REDIS_PASSWORD:}
       database: ${REDIS_DATABASE:0}
+      # 限定连接建立和命令等待时间，确保 readiness 在依赖故障时快速返回 503。
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_COMMAND_TIMEOUT:2s}
 
   servlet:
     multipart:
