@@ -15,7 +15,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 deploy/.env 中设置 MYSQL_ROOT_PASSWORD}
       # init.sql 固定创建并使用此库名，不能在部署阶段改成其他名称。
       MYSQL_DATABASE: campus_resource_platform
-      MYSQL_USER: ${MYSQL_APP_USERNAME:-campus_app}
+      MYSQL_USER: ${MYSQL_APP_USERNAME:?请在 deploy/.env 中设置非 root 的 MYSQL_APP_USERNAME}
       MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:?请在 deploy/.env 中设置 MYSQL_APP_PASSWORD}
       TZ: Asia/Shanghai
     command:
@@ -27,6 +27,7 @@ services:
       - mysql_data:/var/lib/mysql
       # 官方入口只在全新空数据卷时执行初始化脚本；旧库升级必须单独执行迁移。
       - ../sql/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+      - ./mysql/002-application-grants.sh:/docker-entrypoint-initdb.d/002-application-grants.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_PASSWORD}\" mysqladmin ping -h 127.0.0.1 -u \"$${MYSQL_USER}\" --silent"]
       interval: 10s
@@ -77,13 +78,14 @@ services:
     restart: unless-stopped
     init: true
     environment:
+      SPRING_PROFILES_ACTIVE: prod
       SERVER_PORT: 8080
       # 仅信任 Tomcat 默认 internal-proxies 范围内的 Compose 私网代理，并把解析结果写回 request.remoteAddr。
       SERVER_FORWARD_HEADERS_STRATEGY: native
       SERVER_TOMCAT_REMOTEIP_REMOTE_IP_HEADER: X-Forwarded-For
       SERVER_TOMCAT_REMOTEIP_PROTOCOL_HEADER: X-Forwarded-Proto
       MYSQL_URL: jdbc:mysql://mysql:3306/campus_resource_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-      MYSQL_USERNAME: ${MYSQL_APP_USERNAME:-campus_app}
+      MYSQL_USERNAME: ${MYSQL_APP_USERNAME:?请在 deploy/.env 中设置非 root 的 MYSQL_APP_USERNAME}
       MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:?请在 deploy/.env 中设置 MYSQL_APP_PASSWORD}
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -92,6 +94,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?请在 deploy/.env 中设置至少 32 字节的 JWT_SECRET}
       JWT_EXPIRATION_SECONDS: ${JWT_EXPIRATION_SECONDS:-7200}
       APP_UPLOAD_STORAGE_PATH: /data/uploads
+      APP_UPLOAD_MIN_FREE_SPACE_BYTES: ${APP_UPLOAD_MIN_FREE_SPACE_BYTES:-5368709120}
       # 入口 Nginx 固定为 60 MB；这里同步固定，避免只调高后端后仍被入口返回 413。
       APP_UPLOAD_MAX_FILE_SIZE: 50MB
       APP_UPLOAD_MAX_REQUEST_SIZE: 60MB

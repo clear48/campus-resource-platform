@@ -39,6 +39,8 @@ app:
   upload:
     # 用户上传文件与源码、构建产物分离，默认落在专用运行时目录，仍可通过环境变量覆盖。
     storage-path: ${APP_UPLOAD_STORAGE_PATH:./data/user-uploads}
+    # 就绪检查和落盘前容量校验共用该安全水位，生产环境必须显式为正数。
+    min-free-space-bytes: ${APP_UPLOAD_MIN_FREE_SPACE_BYTES:268435456}
 
 rank:
   sync:
