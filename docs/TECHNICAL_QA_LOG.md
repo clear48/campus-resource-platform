@@ -1242,3 +1242,23 @@ DNS 最小配置为给业务域名创建指向云服务器公网 IP 的 A 记录
 - 依据：`campus-resource-platform/pom.xml`、`application.yaml` 和 `docs/DEPLOYMENT_HANDOFF.md`；当前应用使用 Java 17、Spring Boot、MySQL、Redis、Redisson及定时任务，且尚无生产内存限额配置。
 - 本轮为静态资源预算评估，未在目标云服务器上进行真实压测或峰值测量；最终容量应以上线后的监控数据为准。
 - 本轮未修改业务代码或部署配置，未运行 Maven/npm 测试。
+
+## 2026-09-22 | 腾讯云中国香港服务器购买进度更新
+
+### 问题 1
+
+用户提供已购买的腾讯云服务器信息，并要求结合当前部署任务继续推进。截图包含实例名称、运行状态、CPU、内存、系统盘、公网 IPv4 和到期时间。
+
+### 答案 1
+
+截图已核对：腾讯云中国香港服务器当前处于运行中，规格为 2 核 CPU、2 GB 内存和 40 GB 系统盘，已分配公网 IPv4，到期时间为 2026-10-21 16:21:21。出于基础设施安全考虑，仓库与问答日志不记录具体公网 IP、登录密码、SSH 私钥或控制台凭据。
+
+已更新 `docs/DEPLOYMENT_HANDOFF.md`：将 DEPLOY-01 标记为完成，把云厂商从原计划的阿里云实例调整为实际购买的腾讯云实例，并将当前主任务推进到 DEPLOY-02。域名继续由阿里云管理不会影响跨云部署；待本地部署资产验证通过后，只需在阿里云 DNS 中把 `campusshare.online` 的 A 记录指向腾讯云公网 IPv4。
+
+2 GB 内存低于原建议的 4 GB，因此交接文档增加了资源受限要求：服务器不执行 Maven/npm/镜像构建，JVM 从 512 MB 最大堆起步，限制 Hikari 连接数、MySQL Buffer Pool 和 Redis 内存，不部署额外监控或 CI 服务，配置 Swap 仅作为异常缓冲，并在上线后根据峰值内存、Swap 和 OOM 数据决定是否升级。
+
+### 关联信息
+
+- 修改文件：`docs/DEPLOYMENT_HANDOFF.md`、`docs/TECHNICAL_QA_LOG.md`。
+- 下一任务：DEPLOY-02，补齐 Docker、Docker Compose、Nginx 和生产环境变量示例，并针对 2 GB 内存配置资源限制。
+- 本轮未修改前后端业务代码、接口、数据库结构或 Redis 业务设计，因此未运行 Maven/npm 测试。
