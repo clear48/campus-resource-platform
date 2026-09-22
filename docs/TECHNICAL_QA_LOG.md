@@ -1283,3 +1283,4 @@ Compose 负责运行 Nginx、单实例后端、MySQL 8 和 Redis，只映射公�
 
 - 相关文件：`docs/DEPLOYMENT_HANDOFF.md`、`campus-resource-platform/src/main/resources/application.yaml`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileStorageServiceImpl.java`、`frontend/.env.example`、`frontend/vite.config.ts`。
 - 验证方式：检查计划文件是否存在并静态核对现有环境变量、上传路径、前端 API 基址、健康接口和 Redis 配置；本轮未运行 Maven/npm 测试。
+- 落地注意：根 `.gitignore` 的 `.env.*` 当前会忽略 `deploy/.env.example`；实施时需只放行示例文件，真实 `deploy/.env` 继续保持未跟踪。
