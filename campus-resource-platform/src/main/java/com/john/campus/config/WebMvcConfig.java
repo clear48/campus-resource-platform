@@ -2,12 +2,11 @@ package com.john.campus.config;
 
 import com.john.campus.interceptor.JwtAuthenticationInterceptor;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * Web 层配置，集中管理 JWT 拦截、跨域等 HTTP 基础能力。
+ * Web 层配置，集中管理 JWT 拦截等 HTTP 基础能力。
  */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
@@ -30,6 +29,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/v1/**")
                 .excludePathPatterns(
                         "/api/v1/health",
+                        "/api/v1/health/readiness",
                         "/api/v1/auth/login",
                         "/api/v1/auth/register",
                         // 分类是上传前公开枚举数据，只读查询不需要登录态。
@@ -42,16 +42,4 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 );
     }
 
-    /**
-     * 本地开发阶段允许跨域调用，便于前端页面或接口工具访问后端接口。
-     */
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/**")
-                .allowedOriginPatterns("*")
-                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                .allowedHeaders("*")
-                .allowCredentials(true)
-                .maxAge(3600);
-    }
 }

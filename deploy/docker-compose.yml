@@ -78,6 +78,10 @@ services:
     init: true
     environment:
       SERVER_PORT: 8080
+      # 仅信任 Tomcat 默认 internal-proxies 范围内的 Compose 私网代理，并把解析结果写回 request.remoteAddr。
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+      SERVER_TOMCAT_REMOTEIP_REMOTE_IP_HEADER: X-Forwarded-For
+      SERVER_TOMCAT_REMOTEIP_PROTOCOL_HEADER: X-Forwarded-Proto
       MYSQL_URL: jdbc:mysql://mysql:3306/campus_resource_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
       MYSQL_USERNAME: ${MYSQL_APP_USERNAME:-campus_app}
       MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:?请在 deploy/.env 中设置 MYSQL_APP_PASSWORD}

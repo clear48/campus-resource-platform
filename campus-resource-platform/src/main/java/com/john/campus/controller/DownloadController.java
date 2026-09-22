@@ -47,7 +47,8 @@ public class DownloadController {
     public ApiResponse<DownloadTicketVO> createDownloadRecord(
             @PathVariable Long resourceId,
             HttpServletRequest request) {
-        String ip = getClientIp(request);
+        // Tomcat 只会为可信内网代理解析转发头；业务层统一读取解析后的 remoteAddr，不能再直接信任客户端请求头。
+        String ip = request.getRemoteAddr();
         String userAgent = request.getHeader("User-Agent");
         return ApiResponse.success(downloadService.createDownloadRecord(resourceId, ip, userAgent));
     }
@@ -90,24 +91,4 @@ public class DownloadController {
         return ApiResponse.success(downloadService.listMyDownloadRecords(pageQuery));
     }
 
-    /**
-     * 从请求中提取客户端真实 IP，优先读取反向代理转发的 X-Forwarded-For 头。
-     */
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("WL-Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        // 多级代理时 X-Forwarded-For 可能为逗号分隔列表，取第一个原始客户端 IP。
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip;
-    }
 }
