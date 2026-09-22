@@ -1407,3 +1407,28 @@ DEPLOY-03 承接 DEPLOY-02 的容器运行底座，目标是把“容器能够�
 - 相关提交：`3a2c5e96`、`9272af41`、`9a3c2d86`、`5dee7699`、`740a4d97`、`248bc29d`。
 - 相关文件：`deploy/nginx/default.conf`、`deploy/docker-compose.yml`、`deploy/mysql/002-application-grants.sh`、`ProductionSecurityConfig`、`HealthServiceImpl`、`FileContentValidatorImpl`、`FileStorageServiceImpl`、`DownloadController`。
 - 本轮为基于最终实现和既有测试证据的详细讲解，只追加技术问答归档，没有修改生产代码或重新运行测试。
+
+## 2026-09-22 20:27:26 | DEPLOY-04 作用与实现思路
+
+### 问题 1
+
+结合文档说明`DEPLOY-`04  的作用，给出实现思路
+
+### 答案 1
+
+用户所指为 `DEPLOY-04`。它位于生产安全收敛完成之后、服务器初始化之前，作用是把当前 `deploy` 分支的最终提交验证成一个可交付的发布候选：证明代码和生产镜像能够构建，全新环境能够初始化，已有环境能够安全迁移，MySQL、Redis 和上传文件能够持续保存，依赖异常会正确反映在 readiness，最小权限和端口隔离确实生效，并且失败时有经过演练的回滚路径。它是从“实现看起来完整”到“同一版本可以放心搬上服务器”的发布门禁，不负责服务器初始化、DNS、HTTPS 或公网验收，这些属于 `DEPLOY-05` 至 `DEPLOY-08`。
+
+建议按七个阶段实现。第一，冻结发布候选提交，以 Git commit 短 SHA 给前后端镜像设置不可变标签，记录镜像 ID 或 digest，防止服务器重新构建得到不同产物。第二，执行后端全量测试与打包、前端锁文件安装、单元测试和生产构建，再执行 Compose 配置校验和双镜像构建；任一失败立即停止。第三，使用独立 `COMPOSE_PROJECT_NAME` 和专用测试 `.env` 从空卷启动，验证 `sql/init.sql` 与最小权限脚本只在新卷初始化，Nginx 首页和任意 Vue History 路由可访问，liveness、readiness 均成功，宿主机只发布 Nginx 端口。
+
+第四，执行真实运行边界验证：应用账号只能进行 `SELECT`、`INSERT`、`UPDATE`，不能 DDL 或授权；Redis 未认证不能访问；宿主机不能直连 MySQL、Redis 和后端 8080。分别暂停 Redis、MySQL 并制造上传目录不可写或空间水位不满足的场景，确认 `/api/v1/health/readiness` 在超时边界内返回 503，恢复依赖后重新为 200，同时 `/api/v1/health` 仍只表达进程存活。第五，通过真实业务链路写入可辨识的 MySQL 记录、Redis 标记和上传文件，执行不带 `-v` 的 `down` 再 `up -d`，逐项核对三类数据及下载内容未丢失；`down -v` 只允许用于该隔离演练项目的最终清理。
+
+第六，在旧数据库、Redis 和上传目录的联合副本上演练升级。先停止旧后端和下载同步调度，检查旧 Redis `crp:stats:resource:download:syncing:active`，存在未知批次时停止迁移并人工核对；然后按日期顺序执行 `20260714_download_delta_sync_idempotency.sql`、`20260715_user_file_authorization.sql`、`20260813_resource_active_duplicate_guard.sql`。执行最后一份迁移前先检查待审核/已通过资料重复组，否则唯一索引会拒绝迁移；文件授权迁移后的跨用户历史引用查询结果也要人工复核。迁移后核对表、列、索引、关键行数、应用最小权限及核心业务冒烟测试。
+
+第七，演练回滚。发布前联合备份 MySQL、Redis 持久化数据和上传目录，并保留旧镜像与旧配置。模拟新版本启动或冒烟失败后停止写流量，恢复三类同一时间点的数据，再用旧镜像和旧配置启动并验证核心业务；不能只回滚数据库而保留更晚的上传卷或 Redis，也不能让旧、新下载同步协议同时运行。迁移大多是附加结构，应用回滚时可以按迁移文档评估保留；需要完整还原时应优先使用已验证的联合备份，避免临场编写破坏性逆向 SQL。
+
+完成标准应形成可复核证据：测试和构建结果、镜像标签与 digest、空卷与旧库两条演练记录、readiness 故障/恢复结果、权限和端口检查、重启前后数据校验、迁移前后核对、回滚耗时和结果。只有这些全部通过，才进入 `DEPLOY-05` 把同一批已验证镜像加载到 2 GB 服务器并使用 `--no-build` 启动；当前阶段仍不配置 DNS。
+
+### 关联信息
+
+- 相关文件：`docs/DEPLOYMENT_HANDOFF.md`、`deploy/README.md`、`deploy/docker-compose.yml`、`deploy/.env.example`、`deploy/mysql/002-application-grants.sh`、`sql/init.sql`、`sql/migrations/*.sql`、`docs/database/database-change-log.md`。
+- 验证方式：基于当前 `deploy@53e80fc4` 的部署文档、Compose 编排、环境变量契约和三份迁移脚本进行静态核对；本轮只追加技术问答归档，未执行 DEPLOY-04 的实际构建、容器、迁移或回滚演练。
