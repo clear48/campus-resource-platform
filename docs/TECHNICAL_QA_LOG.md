@@ -1262,3 +1262,24 @@ DNS 最小配置为给业务域名创建指向云服务器公网 IP 的 A 记录
 - 修改文件：`docs/DEPLOYMENT_HANDOFF.md`、`docs/TECHNICAL_QA_LOG.md`。
 - 下一任务：DEPLOY-02，补齐 Docker、Docker Compose、Nginx 和生产环境变量示例，并针对 2 GB 内存配置资源限制。
 - 本轮未修改前后端业务代码、接口、数据库结构或 Redis 业务设计，因此未运行 Maven/npm 测试。
+
+## 2026-09-22 09:48:55 | DEPLOY-02 作用与实现思路
+
+### 问题 1
+
+解释`DEPLOY-02`  的作用和实现思路
+
+### 答案 1
+
+`DEPLOY-02` 是本项目从“本地可运行”走向“可重复部署”的容器化基础任务。它负责补齐后端 Dockerfile、前端 Dockerfile、Docker Compose、Nginx 配置、生产环境变量示例和部署说明，把 Vue 静态站点、Spring Boot、MySQL、Redis 与上传文件存储编排成一套可启动、可重建、可持久化的单机部署拓扑。它本身不负责域名解析、HTTPS、服务器初始化和完整生产安全收敛；这些属于后续 DEPLOY-03 至 DEPLOY-08。
+
+实现上，后端镜像使用 Java 17，构建产物在本地或 CI 生成，并通过 JVM 参数把堆限制在 `-Xms128m -Xmx512m` 起步；前端按 `package-lock.json` 执行确定性构建，再由 Nginx 提供 `dist` 静态资源。Nginx 对 Vue 路由使用 `try_files ... /index.html` 回退，将 `/api/v1/**` 代理到 Compose 内部后端服务，并把 `client_max_body_size` 设为至少 60 MB，与 Spring 的请求上限一致。
+
+Compose 负责运行 Nginx、单实例后端、MySQL 8 和 Redis，只映射公网入口端口，不对宿主机发布 8080、3306、6379；MySQL 数据、Redis 数据和 `/data/uploads` 分别挂载独立持久卷。后端通过服务名访问 MySQL、Redis，所有密码和 `JWT_SECRET` 从服务器未提交的环境文件注入。针对 2 GB 服务器，还需要限制后端 JVM/Hikari、MySQL Buffer Pool/连接数、Redis `maxmemory`，优先使用 `noeviction`，设置容器重启与日志限制，并在本地完成镜像构建，避免服务器编译时内存耗尽。
+
+推荐按“环境变量契约与目录 → 后端镜像 → 前端/Nginx 镜像 → Compose 服务和持久卷 → Nginx 路由 → 部署说明 → 本地验证”的顺序实施。验收重点是：空卷可启动，Vue 任意路由刷新正常，`/api/v1/health` 可经 Nginx 访问，内部端口未暴露，上传文件写入持久卷，容器重启后 MySQL、Redis 和上传文件仍存在。当前仓库中计划的六个部署文件均不存在，所以 `DEPLOY-02` 仍处于待实现状态。
+
+### 关联信息
+
+- 相关文件：`docs/DEPLOYMENT_HANDOFF.md`、`campus-resource-platform/src/main/resources/application.yaml`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileStorageServiceImpl.java`、`frontend/.env.example`、`frontend/vite.config.ts`。
+- 验证方式：检查计划文件是否存在并静态核对现有环境变量、上传路径、前端 API 基址、健康接口和 Redis 配置；本轮未运行 Maven/npm 测试。
