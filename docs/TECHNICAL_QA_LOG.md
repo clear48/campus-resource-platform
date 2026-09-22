@@ -1284,3 +1284,25 @@ Compose 负责运行 Nginx、单实例后端、MySQL 8 和 Redis，只映射公�
 - 相关文件：`docs/DEPLOYMENT_HANDOFF.md`、`campus-resource-platform/src/main/resources/application.yaml`、`campus-resource-platform/src/main/java/com/john/campus/service/impl/FileStorageServiceImpl.java`、`frontend/.env.example`、`frontend/vite.config.ts`。
 - 验证方式：检查计划文件是否存在并静态核对现有环境变量、上传路径、前端 API 基址、健康接口和 Redis 配置；本轮未运行 Maven/npm 测试。
 - 落地注意：根 `.gitignore` 的 `.env.*` 当前会忽略 `deploy/.env.example`；实施时需只放行示例文件，真实 `deploy/.env` 继续保持未跟踪。
+
+## 2026-09-22 10:57:06 | 创建分支并完成 DEPLOY-02
+
+### 问题 1
+
+创建一个新的分支开始完成`DEPLOY-02`  的开发
+
+### 答案 1
+
+已从干净的 `dev@9e1e6d29` 创建并切换到 `codex/deploy-02`，完成 DEPLOY-02 的容器化部署资产。新增后端 Java 17 多阶段 Dockerfile、前端 Node 构建加非特权 Nginx 运行镜像、Docker Compose、Nginx 路由、生产环境变量示例和部署说明；真实 `deploy/.env` 仍被 Git 忽略。
+
+Compose 只向宿主机发布 Nginx 端口，后端、MySQL 和 Redis 只在容器网络内访问；MySQL、Redis AOF 和上传目录分别使用独立命名卷。配置针对 2 GB 演示服务器限制 JVM、Hikari、MySQL、Redis 和各容器内存，固定所有基础镜像 digest，并为 Maven Wrapper 增加 SHA-256 校验。后端、Redis 和 Nginx 均以非 root 用户运行，上传请求限制在 Nginx 与后端保持为请求 60 MB、单文件 50 MB。
+
+验证结果为：前端全量单测 31 文件 76/76 通过；后端全量 169/169 通过，其中数据库审计测试使用隔离的临时 MySQL 实例，本机 MySQL 服务未被修改；前后端镜像构建成功；Compose 从空数据卷启动且四服务健康；Nginx 健康页、后端健康接口与 Vue History 路由均返回成功；后端、MySQL、Redis 无宿主机端口绑定；容器重建后 MySQL 记录、Redis 键和上传文件均保留。测试容器、测试卷和临时环境文件已清理。
+
+功能提交 `6449823` 已推送到 `origin/codex/deploy-02`。下一任务为 DEPLOY-03，继续收敛生产 CORS、可信代理、完整依赖 readiness、优雅停机和上传安全边界。
+
+### 关联信息
+
+- 相关文件：`campus-resource-platform/Dockerfile`、`frontend/Dockerfile`、`deploy/docker-compose.yml`、`deploy/nginx/default.conf`、`deploy/.env.example`、`deploy/README.md`。
+- 测试命令：`npm run test:unit`、带隔离 MySQL URL 的 `.\\mvnw.cmd test`、`docker compose ... build`、`docker compose ... up -d --wait`、HTTP 路由检查、容器用户/端口/内存检查及 `down`/`up` 持久化检查。
+- 审查结论：Redis 非 root、上传上限一致、镜像 digest 与 Maven 校验三项风险已修复，最终只读复核未发现 P0/P1 阻断项。

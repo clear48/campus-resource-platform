@@ -1,5 +1,15 @@
 # 分支交接记录
 
+## 2026-09-22 DEPLOY-02 容器化部署资产
+
+- 分支：`codex/deploy-02`；从 `dev@9e1e6d29` 创建，功能提交 `6449823` 已推送到同名远程分支。
+- 新增后端和前端多阶段镜像、`deploy/docker-compose.yml`、非特权 Nginx 配置、`deploy/.env.example` 与 `deploy/README.md`；真实 `deploy/.env` 保持忽略且未提交。
+- Compose 仅发布 Nginx 端口，内部运行后端、MySQL 8.4 与 Redis 7.4；数据库、Redis AOF 和 `/data/uploads` 使用独立命名卷。
+- 2 GB 资源预算为后端 768 MB、MySQL 512 MB、Redis 160 MB、Nginx 64 MB；JVM 最大堆 512 MB，Hikari 最大连接 8，MySQL Buffer Pool 256 MB，Redis `maxmemory` 96 MB 且 `noeviction`。
+- 供应链与权限：所有基础镜像固定 digest，Maven Wrapper 校验 SHA-256；后端、Redis、Nginx 均以非 root 用户运行；Secret 只由未提交环境文件注入。
+- 验证：前端全量 31 文件 76/76；后端全量 169/169；镜像构建和 Compose 配置通过；空卷四服务健康；`/healthz`、API、SPA 路由通过；内部端口无宿主机绑定；容器重建后 MySQL、Redis、上传文件均保留。
+- 本地 MySQL 服务没有被修改；后端数据库集成测试使用隔离的临时 MySQL 实例完成。下一任务为 `DEPLOY-03`。
+
 ## 2026-09-21 前端门户 UI 与响应式布局升级
 
 - 分支：`dev`；不新增依赖、不改变 API 与权限边界，将前台、管理端、首页和认证页统一为靛蓝/紫色校园知识门户风格。

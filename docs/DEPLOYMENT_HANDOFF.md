@@ -1,8 +1,9 @@
 # 项目部署上线交接文档
 
 > 最后更新：2026-09-22
-> 当前开发分支：`dev`
-> 本次更新前基线：`109ac913`
+> 当前开发分支：`codex/deploy-02`
+> 本次更新前基线：`9e1e6d29`
+> DEPLOY-02 实现提交：`6449823`
 > 用途：供后续新对话快速恢复部署上下文、确认当前进度并继续执行上线任务。
 
 ## 1. 当前目标
@@ -35,7 +36,7 @@ https://campusshare.online
 | 中国香港服务器 | `DONE` | 已购买腾讯云中国香港实例，当前状态为运行中 |
 | 服务器规格 | `DONE` | 2 核 CPU、2 GB 内存、40 GB 系统盘，已分配公网 IPv4（仓库不记录具体地址） |
 | 服务器有效期 | `DONE` | 截图显示到期时间为 2026-10-21 16:21:21，应提前设置续费提醒 |
-| Docker 部署资产 | `TODO` | 仓库当前没有 Dockerfile、Compose 或 Nginx 生产配置 |
+| Docker 部署资产 | `DONE` | 已完成双阶段镜像、Compose、Nginx、环境变量示例和部署说明；实现提交 `6449823` |
 | 生产安全配置 | `TODO` | CORS、可信代理、健康检查、生产 Secret 等仍需处理 |
 | HTTPS | `TODO` | DNS 生效且 Nginx 可访问后申请和部署证书 |
 | 上线验收 | `TODO` | 尚未执行公网全链路、重启持久化和备份恢复验证 |
@@ -190,11 +191,9 @@ df -h
 - Ubuntu 具体版本、带宽和安全组规则留在首次登录检查中确认；
 - 登录密码、SSH 私钥和控制台凭据不得写入仓库或聊天归档。
 
-### DEPLOY-02：补齐容器化部署资产
+### DEPLOY-02：补齐容器化部署资产（`DONE`）
 
-责任人：后续实现 Agent。
-
-建议新增：
+已新增：
 
 ```text
 campus-resource-platform/Dockerfile
@@ -205,16 +204,15 @@ deploy/.env.example
 deploy/README.md
 ```
 
-要求：
+完成情况：
 
-- 后端镜像使用 Java 17 运行环境；
-- 前端使用锁文件完成构建，由 Nginx 提供静态资源；
-- Nginx 配置 Vue History fallback；
-- `/api/v1` 反向代理到后端；
-- `client_max_body_size` 不低于应用的 60 MB 请求上限；
-- MySQL、Redis、上传文件使用独立持久卷；
-- Compose 中不把 8080、3306、6379 映射到公网；
-- 所有 Secret 只通过服务器环境变量或未提交的环境文件注入。
+- 后端使用 Java 17 多阶段镜像，前端按锁文件构建后由非特权 Nginx 提供；所有基础镜像固定版本和 digest，Maven Wrapper 校验分发包 SHA-256；
+- Nginx 支持 Vue History fallback，并将 `/api/v1/**` 原路径代理到后端；入口请求上限 `60 MB`，后端请求/单文件上限分别为 `60 MB`/`50 MB`；
+- Compose 运行 Nginx、单实例后端、MySQL 8.4 和 Redis 7.4，只发布 Nginx 端口；MySQL、Redis、上传文件使用三个独立命名卷；
+- 后端、Redis、Nginx 均以非 root 用户运行，Secret 通过未提交的 `deploy/.env` 注入，日志轮转和四个容器的内存上限已设置；
+- 本地从空卷启动成功，四个服务健康；`/healthz`、`/api/v1/health` 和 Vue 路由均返回成功；容器重建后 MySQL、Redis 与上传文件标记均保留；
+- 前端全量测试 76/76、后端全量测试 169/169 通过；双镜像构建、Compose 配置检查和独立只读复核通过；
+- 实现提交为 `6449823`，已推送到 `origin/codex/deploy-02`。
 
 ### DEPLOY-03：收敛生产安全配置
 
@@ -373,11 +371,11 @@ RANK_HOT_RANKING_SYNC_ENABLED=true
 
 ## 11. 当前建议的下一步
 
-当前服务器已经购买，下一项项目任务调整为：
+服务器已经购买，容器化底座也已完成。下一项项目任务为：
 
-> 执行 `DEPLOY-02`：在仓库中补齐 Docker、Docker Compose、Nginx 和生产环境变量示例，并针对 2 GB 内存设置明确的资源约束。
+> 执行 `DEPLOY-03`：收敛生产 CORS、可信代理、Secret、依赖 readiness、优雅停机与上传安全边界。
 
-先在本地完成测试、镜像构建、持久卷和端口暴露验证，再登录服务器执行初始化。不要在部署资产尚未验证时直接修改域名 A 记录。
+完成 DEPLOY-03 和 DEPLOY-04 的安全收敛、数据库迁移演练与回滚验证后，再登录服务器执行初始化。当前仍不要修改域名 A 记录。
 
 ## 12. 新对话建议提示词
 
@@ -393,8 +391,9 @@ docs/CURRENT_STATUS.md 和 docs/07-project-runbook.md。
 服务器公网 IP 和密码等敏感信息不会写入仓库。
 
 请先检查当前分支、git status、最近提交和部署交接文档，
-然后只执行 DEPLOY-02：补齐 Docker、Docker Compose 和 Nginx 部署资产，
-本地完成测试、构建、持久卷和端口暴露验证后再提交推送。
+DEPLOY-02 已在 codex/deploy-02 分支完成，实现提交为 6449823。
+然后只执行 DEPLOY-03：收敛生产 CORS、可信代理、Secret、依赖 readiness、
+优雅停机和上传安全边界，完成测试后再提交推送。
 ```
 
 当前服务器内存只有 2 GB，所有部署配置必须采用文档第 6 节的资源受限方案，并在本地完成构建。

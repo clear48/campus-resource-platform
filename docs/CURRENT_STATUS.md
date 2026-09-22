@@ -1,5 +1,14 @@
 # 当前项目状态
 
+## DEPLOY-02 容器化部署资产（2026-09-22）
+
+- 分支 `codex/deploy-02` 已补齐后端/前端多阶段 Dockerfile、Docker Compose、非特权 Nginx、生产环境变量示例和完整部署说明；实现提交 `6449823` 已推送。
+- Compose 仅发布 Nginx 端口，MySQL、Redis 和后端保持容器网络内访问；三个命名卷分别保存数据库、Redis AOF 和上传文件。
+- 针对 2 GB 演示服务器设置后端 `768 MB`、MySQL `512 MB`、Redis `160 MB`、Nginx `64 MB` 容器上限，并限制 JVM、Hikari、MySQL Buffer Pool/连接数和 Redis 数据内存。
+- Java、Node、Nginx、MySQL、Redis 镜像固定版本与 digest，Maven Wrapper 增加 SHA-256 校验；Redis、后端和 Nginx 均以非 root 用户运行。
+- 验证通过：前端全量 76/76、后端全量 169/169、双镜像构建、空卷启动、HTTP/API/SPA 路由、内部端口隔离及 MySQL/Redis/上传卷重建持久化。
+- 下一部署任务为 `DEPLOY-03`，继续处理生产 CORS、可信代理、完整依赖 readiness、优雅停机和上传安全边界。
+
 ## 前端门户 UI 与响应式布局升级（2026-09-21）
 
 - 前台升级为校园知识门户视觉：三段式吸顶导航、品牌 Hero、首页关键词搜索、上传/浏览入口与分层热门榜单；登录和注册页升级为品牌说明区 + 表单卡双栏布局。
