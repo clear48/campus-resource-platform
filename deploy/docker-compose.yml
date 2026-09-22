@@ -1,0 +1,138 @@
+name: campus-resource-platform
+
+# 所有容器统一限制日志体积，避免 40 GB 系统盘被无限增长的 json 日志占满。
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  mysql:
+    image: mysql:8.4.11@sha256:0744ee5ef89ce6ccfa13de3e579fe6b9e27f93dd70da9c06d2c908b1b193fb8d
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 deploy/.env 中设置 MYSQL_ROOT_PASSWORD}
+      # init.sql 固定创建并使用此库名，不能在部署阶段改成其他名称。
+      MYSQL_DATABASE: campus_resource_platform
+      MYSQL_USER: ${MYSQL_APP_USERNAME:-campus_app}
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:?请在 deploy/.env 中设置 MYSQL_APP_PASSWORD}
+      TZ: Asia/Shanghai
+    command:
+      - --innodb-buffer-pool-size=${MYSQL_INNODB_BUFFER_POOL_SIZE:-256M}
+      - --max-connections=${MYSQL_MAX_CONNECTIONS:-30}
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # 官方入口只在全新空数据卷时执行初始化脚本；旧库升级必须单独执行迁移。
+      - ../sql/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_PASSWORD}\" mysqladmin ping -h 127.0.0.1 -u \"$${MYSQL_USER}\" --silent"]
+      interval: 10s
+      timeout: 5s
+      start_period: 40s
+      retries: 10
+    mem_limit: ${MYSQL_MEMORY_LIMIT:-512m}
+    logging: *default-logging
+    networks:
+      - application
+
+  redis:
+    image: redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    restart: unless-stopped
+    # command 使用 shell 展开密码，因此显式保持官方镜像的 redis 非 root 身份。
+    user: redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请在 deploy/.env 中设置 REDIS_PASSWORD}
+    # Redis 还承载黑名单、票据和统计，使用 AOF 持久化并禁止内存满时淘汰业务数据。
+    command:
+      - sh
+      - -c
+      - >-
+        exec redis-server
+        --requirepass "$${REDIS_PASSWORD}"
+        --appendonly yes
+        --appendfsync everysec
+        --maxmemory ${REDIS_MAXMEMORY:-96mb}
+        --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    mem_limit: ${REDIS_MEMORY_LIMIT:-160m}
+    logging: *default-logging
+    networks:
+      - application
+
+  backend:
+    image: ${BACKEND_IMAGE:-campus-resource-platform-backend:deploy-02}
+    build:
+      context: ../campus-resource-platform
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      SERVER_PORT: 8080
+      MYSQL_URL: jdbc:mysql://mysql:3306/campus_resource_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      MYSQL_USERNAME: ${MYSQL_APP_USERNAME:-campus_app}
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:?请在 deploy/.env 中设置 MYSQL_APP_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请在 deploy/.env 中设置 REDIS_PASSWORD}
+      REDIS_DATABASE: 0
+      JWT_SECRET: ${JWT_SECRET:?请在 deploy/.env 中设置至少 32 字节的 JWT_SECRET}
+      JWT_EXPIRATION_SECONDS: ${JWT_EXPIRATION_SECONDS:-7200}
+      APP_UPLOAD_STORAGE_PATH: /data/uploads
+      # 入口 Nginx 固定为 60 MB；这里同步固定，避免只调高后端后仍被入口返回 413。
+      APP_UPLOAD_MAX_FILE_SIZE: 50MB
+      APP_UPLOAD_MAX_REQUEST_SIZE: 60MB
+      RANK_DOWNLOAD_DELTA_SYNC_ENABLED: ${RANK_DOWNLOAD_DELTA_SYNC_ENABLED:-true}
+      RANK_HOT_RANKING_SYNC_ENABLED: ${RANK_HOT_RANKING_SYNC_ENABLED:-true}
+      # Spring Boot 的 relaxed binding 会把这些变量映射到 Hikari 配置。
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: ${HIKARI_MAXIMUM_POOL_SIZE:-8}
+      SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: ${HIKARI_MINIMUM_IDLE:-2}
+      JAVA_TOOL_OPTIONS: ${JAVA_TOOL_OPTIONS:--Xms128m -Xmx512m -XX:+ExitOnOutOfMemoryError}
+      TZ: Asia/Shanghai
+    volumes:
+      - uploads_data:/data/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: ${BACKEND_MEMORY_LIMIT:-768m}
+    logging: *default-logging
+    networks:
+      - application
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-campus-resource-platform-frontend:deploy-02}
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:8080"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    mem_limit: ${NGINX_MEMORY_LIMIT:-64m}
+    logging: *default-logging
+    networks:
+      - application
+
+networks:
+  application:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  uploads_data:

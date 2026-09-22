@@ -10,7 +10,7 @@
 ![Redis](https://img.shields.io/badge/Redis-6%2B-DC382D?logo=redis&logoColor=white)
 ![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs&logoColor=white)
 
-[快速启动](#快速启动) · [后端亮点](#值得阅读的后端实现) · [面试复盘](docs/interview/README.md) · [接口文档](docs/api/api-reference.md) · [项目结构](#项目结构) · [已知边界](#当前边界与后续方向)
+[快速启动](#快速启动) · [容器部署](deploy/README.md) · [后端亮点](#值得阅读的后端实现) · [面试复盘](docs/interview/README.md) · [接口文档](docs/api/api-reference.md) · [项目结构](#项目结构) · [已知边界](#当前边界与后续方向)
 
 课程课件、复习笔记和实验资料容易散落在群聊与个人网盘中。本项目围绕「上传 → 审核 → 公开检索 → 下载 / 收藏」建立完整业务闭环，用具体业务展示 **Spring Boot、MyBatis、MySQL、Redis、JWT、事务与并发控制** 的使用方式，并提供 Vue 演示界面和按模块整理的开发文档。
 
@@ -272,6 +272,6 @@ npm run build
 - 下载统计在创建记录阶段触发，不能等同于文件已完整传输到客户端。
 - 周期榜使用固定周期 Key 与 TTL，尚非精确自然日 / 周 / 月切桶。
 - Redis 是受保护接口的鉴权依赖；部分缓存可以降级，不代表所有功能都能脱离 Redis 运行。
-- 尚无 Docker 一键部署、GitHub Actions CI 或公开压测结论；真实 Redis 故障与并发验证仍可补强。
+- 已提供面向 2 GB 演示服务器的 Docker Compose 单机部署资产；GitHub Actions CI、公开压测、真实 Redis 故障与并发验证仍可补强。
 
 欢迎围绕这些明确的边界提出改进建议。提交问题时请附复现步骤和脱敏日志；提交代码前请运行相关测试。当前仓库尚未添加 `LICENSE`，README 不声明特定开源许可证。

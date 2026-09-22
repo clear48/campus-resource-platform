@@ -35,6 +35,8 @@ nbdist/
 # Local environment and runtime noise
 .env
 .env.*
+# 环境变量示例只保留变量名和安全默认值，需要纳入版本控制供部署时复制。
+!**/.env.example
 *.log
 logs/
 tmp/
