@@ -1377,3 +1377,33 @@ Compose 中 `EXPOSE` 只说明容器预期端口，不会发布到宿主机；�
 - 功能提交：`3a2c5e96`、`9272af41`、`9a3c2d86`、`5dee7699`、`740a4d97`、`248bc29d`，均已推送到 `origin/deploy`。
 - 相关文件：`deploy/docker-compose.yml`、`deploy/nginx/default.conf`、`deploy/mysql/002-application-grants.sh`、`deploy/.env.example`、`deploy/README.md`、后端安全配置、健康检查、上传校验、存储和下载实现及对应测试。
 - 验证命令：隔离 MySQL 下 `.\\mvnw.cmd test`、`npm run test:unit`、`npm run build`、`docker compose ... config --quiet`、后端镜像构建、空卷 `up --wait`、依赖故障/恢复、授权与认证核对、优雅停机及 `git diff --check`。
+
+## 2026-09-22 20:17:06 | DEPLOY-03 开发流程与设计思路详解
+
+### 问题 1
+
+我现在正在学习项目的部署上线，详细解释DEPLOY-03的开发流程和设计思路
+
+### 答案 1
+
+DEPLOY-03 承接 DEPLOY-02 的容器运行底座，目标是把“容器能够启动”推进为“实例能够安全接收生产流量、在依赖故障时快速退出就绪状态、停止时不粗暴中断，并且不会因恶意上传或磁盘耗尽拖垮整机”。它按四个可独立验证的小功能实施：可信代理与同源边界、生产 Secret 与最小权限、liveness/readiness 与优雅停机、上传下载安全边界；最终审查又补上 OOXML 防伪、下载审计字段限长和依赖探针超时。
+
+第一阶段解决客户端身份来源。正式环境由 Nginx 作为唯一公网入口，因此前端和 `/api/v1/**` 使用同源访问，删除后端通配 CORS。Nginx 不追加客户端提供的代理链，而是用连接来源覆盖 `X-Real-IP`、`X-Forwarded-For`、`X-Forwarded-Proto`，并清空 `Forwarded`、`Proxy-Client-IP`、`WL-Proxy-Client-IP`。Tomcat 只解析默认私网可信代理，Controller 只读取解析后的 `request.getRemoteAddr()`。该设计成立的前提是后端 8080 不发布到宿主机，公网只能进入 Nginx。
+
+第二阶段使用“启动失败优于带病运行”的 fail-fast 思路。仅在 `prod` Profile 生效的 `ProductionSecurityConfig` 通过 `@PostConstruct` 拒绝空账号、root 应用账号、少于 16 字节或明显弱的 MySQL/Redis 密码、MySQL/Redis/JWT Secret 复用，以及非正数磁盘保留水位；JWT 至少 32 字节的规则继续由既有 `JwtUtils` 负责。错误只说明配置项，不输出 Secret。全新 MySQL 空卷初始化时，授权脚本先校验应用用户名，再撤销默认权限，仅授予 `campus_resource_platform` 的 `SELECT`、`INSERT`、`UPDATE`。旧数据卷不会重新执行初始化脚本，所以升级时必须人工 `SHOW GRANTS` 并整改。
+
+第三阶段分离 liveness 和 readiness。`GET /api/v1/health` 只证明 Spring 进程可以响应；`GET /api/v1/health/readiness` 会获取并验证 MySQL 连接、向 Redis 发送 `PING`，并真实创建/删除上传目录探针文件、检查可用空间。所有组件均 UP 才返回 HTTP 200，任一失败返回 503；响应只公开组件 UP/DOWN，日志只记录异常类型。Hikari 取连接默认最多等待 3 秒，Redis 连接和命令最多等待 2 秒，避免健康检查在故障时长期卡住。Compose 用 readiness 做启动门禁，但健康状态本身不会自动重启仍存活的容器，也不会让单 Nginx动态摘流。Spring 收到 SIGTERM 后执行 graceful shutdown，等待在途请求和调度任务最多 30 秒，Compose 再提供 40 秒停止宽限期。
+
+第四阶段把文件上传从“扩展名白名单”升级为分层校验。流程顺序是非空/大小/扩展名 → 客户端 MIME → 服务端签名或结构 → MD5 → 去重查库 → 容量检查和落盘 → 短事务入库。PDF、JPEG、PNG、7z、RAR 和旧 Office 检查文件签名；TXT/Markdown 必须严格 UTF-8 且不能伪装二进制；ZIP/OOXML 流式扫描，不落盘解压，限制最多 1024 个条目、单条目 32 MiB、总展开 64 MiB、压缩比 100，并拒绝路径穿越。DOCX/XLSX/PPTX 还解析受限大小且禁用 DTD/外部实体的 XML，核对主内容类型、根关系和主文档路径，拒绝宏部件及外部关系。
+
+文件落盘在单实例进程锁内检查“文件大小 + 磁盘保留水位”，空间不足返回 HTTP 507；先写同目录 UUID `.part` 文件，再原子移动为最终文件，失败时清理临时文件。普通下载固定为 `application/octet-stream` 附件，并设置 `private, no-store` 和 `nosniff`；审核预览增加 CSP `sandbox`。下载审计 User-Agent 按 255 个 Unicode 码点截断，避免超长请求头触发数据库 500。
+
+验证采用从单元到真实容器的分层方式：安全配置、代理、readiness、内容校验、ZIP bomb、OOXML、磁盘水位和响应头由专项测试覆盖；后端全量在隔离 MySQL 下 208/208 通过，前端 76/76 和生产构建通过；真实空卷 Compose 中检查最小权限、Redis 强制认证、内部端口隔离和优雅停机。停止 Redis 后约 2.3 秒、停止 MySQL 后约 3.3 秒 readiness 返回 503，依赖恢复后重新变为 UP。
+
+当前边界仍是单后端实例和本地持久卷；轻量格式校验不能替代病毒、恶意文档或所有宏利用扫描，也没有历史文件重扫、严格用户累计配额、对象存储和多实例共享存储。2 GB 主机不适合内置重型扫描服务，这些能力应在后续任务中单独设计。
+
+### 关联信息
+
+- 相关提交：`3a2c5e96`、`9272af41`、`9a3c2d86`、`5dee7699`、`740a4d97`、`248bc29d`。
+- 相关文件：`deploy/nginx/default.conf`、`deploy/docker-compose.yml`、`deploy/mysql/002-application-grants.sh`、`ProductionSecurityConfig`、`HealthServiceImpl`、`FileContentValidatorImpl`、`FileStorageServiceImpl`、`DownloadController`。
+- 本轮为基于最终实现和既有测试证据的详细讲解，只追加技术问答归档，没有修改生产代码或重新运行测试。
