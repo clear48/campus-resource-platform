@@ -1432,3 +1432,25 @@ DEPLOY-03 承接 DEPLOY-02 的容器运行底座，目标是把“容器能够�
 
 - 相关文件：`docs/DEPLOYMENT_HANDOFF.md`、`deploy/README.md`、`deploy/docker-compose.yml`、`deploy/.env.example`、`deploy/mysql/002-application-grants.sh`、`sql/init.sql`、`sql/migrations/*.sql`、`docs/database/database-change-log.md`。
 - 验证方式：基于当前 `deploy@53e80fc4` 的部署文档、Compose 编排、环境变量契约和三份迁移脚本进行静态核对；本轮只追加技术问答归档，未执行 DEPLOY-04 的实际构建、容器、迁移或回滚演练。
+
+## 2026-09-23 09:27:44 | DEPLOY-04 本机 MySQL 与 Redis 启动要求
+
+### 问题 1
+
+开发04需要启动本机MySQL，redis服务吗
+
+### 答案 1
+
+需要按阶段区分。执行后端 `mvnw.cmd test` 时需要一个从宿主机可访问的 MySQL 测试实例，因为 `AuditServiceDatabaseIntegrationTest` 明确使用真实 MySQL，默认连接 `localhost:3306/campus_resource_platform_audit_test`；可以启动 Windows 的 `MySQL80`，更推荐启动一个隔离的临时 MySQL 容器并通过 `MYSQL_TEST_URL`、`MYSQL_TEST_USERNAME`、`MYSQL_TEST_PASSWORD` 指向它。该测试库会反复重建测试表，不能指向开发库或生产库。
+
+执行 Maven 测试时通常不需要启动本机 Redis。测试配置已关闭下载增量和排行榜后台任务，相关 Redis 业务大多使用 Mock；前端测试、前后端构建和 `docker compose config/build` 也不依赖正在运行的本机 MySQL 或 Redis。
+
+执行 DEPLOY-04 的空卷、readiness、最小权限、持久化、迁移和回滚演练时，必须有真实 MySQL 和 Redis，但应由 `deploy/docker-compose.yml` 启动对应容器。后端在 Compose 私网中通过服务名 `mysql:3306` 和 `redis:6379` 访问它们，宿主机 MySQL、Redis 服务无需启动。当前 Compose 只发布 Nginx 端口，不发布数据库、Redis 或后端端口，所以已启动的本机 MySQL 一般不会造成端口冲突，但为了避免连接错实例，建议后端测试完成后停止本机 MySQL，再开始 Compose 演练。
+
+推荐顺序是：先启动隔离 MySQL 测试实例并运行后端全量测试；测试完成后停止该实例；完成前端测试和镜像构建；最后由 Compose 启动 MySQL、Redis、后端和前端，执行空卷、依赖故障恢复、持久化、迁移副本与回滚演练。本机 Redis 全程无需单独启动。
+
+### 关联信息
+
+- 相关文件：`campus-resource-platform/src/test/java/com/john/campus/service/AuditServiceDatabaseIntegrationTest.java`、`campus-resource-platform/src/test/resources/application.properties`、`deploy/docker-compose.yml`、`deploy/README.md`、`docs/07-project-runbook.md`。
+- 当前环境：Windows 服务 `MySQL80` 处于停止状态，未发现独立 Redis Windows 服务；这不影响后续使用隔离测试 MySQL 和 Compose 容器完成 DEPLOY-04。
+- 验证方式：静态核对测试数据源配置、测试 Profile、Compose 服务地址与端口发布配置；本轮未启动数据库、Redis 或容器。
