@@ -142,6 +142,54 @@ function Test-MigrationPathWithinRoot {
         $normalizedCandidate.StartsWith($normalizedRoot + [IO.Path]::DirectorySeparatorChar, $comparison)
 }
 
+function Assert-MigrationEvidencePathComponents {
+    param([string]$Path)
+
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    $pathRoot = [IO.Path]::GetPathRoot($fullPath)
+    if ([string]::IsNullOrWhiteSpace($pathRoot)) {
+        throw 'EvidencePath 缺少有效根目录。'
+    }
+    $rootAttributes = [IO.File]::GetAttributes($pathRoot)
+    if (($rootAttributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "EvidencePath 根目录不得为 ReparsePoint：$pathRoot"
+    }
+    $separators = [char[]]@([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    $relativePath = [IO.Path]::GetRelativePath($pathRoot, $fullPath)
+    $parts = $relativePath.Split($separators, [StringSplitOptions]::RemoveEmptyEntries)
+    $currentPath = $pathRoot
+    $missingParentSeen = $false
+    for ($index = 0; $index -lt $parts.Length; $index++) {
+        $currentPath = Join-Path $currentPath $parts[$index]
+        try {
+            $attributes = [IO.File]::GetAttributes($currentPath)
+        }
+        catch [IO.FileNotFoundException] {
+            $missingParentSeen = $true
+            continue
+        }
+        catch [IO.DirectoryNotFoundException] {
+            $missingParentSeen = $true
+            continue
+        }
+
+        if ($missingParentSeen) {
+            throw 'EvidencePath 的缺失父目录下出现了意外已存在对象。'
+        }
+        if (($attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            # Windows symlink、junction 及其他 ReparsePoint 都可能把 TEMP 路径重定向回仓库。
+            throw "EvidencePath 任一路径层级不得为 symlink、junction 或 ReparsePoint：$currentPath"
+        }
+        $isTarget = $index -eq ($parts.Length - 1)
+        if (-not $isTarget -and ($attributes -band [IO.FileAttributes]::Directory) -eq 0) {
+            throw "EvidencePath 的父路径不是目录：$currentPath"
+        }
+        if ($isTarget -and ($attributes -band [IO.FileAttributes]::Directory) -ne 0) {
+            throw 'EvidencePath 必须指向文件。'
+        }
+    }
+}
+
 function Resolve-MigrationEvidencePath {
     param([string]$Path, [string]$RepositoryRoot, [string[]]$ForbiddenPaths)
 
@@ -149,6 +197,7 @@ function Resolve-MigrationEvidencePath {
     if (Test-MigrationPathWithinRoot -Root $RepositoryRoot -Candidate $fullPath) {
         throw 'EvidencePath 必须位于仓库根目录之外。'
     }
+    Assert-MigrationEvidencePathComponents -Path $fullPath
     $comparison = if ([Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
             [Runtime.InteropServices.OSPlatform]::Windows)) {
         [StringComparison]::OrdinalIgnoreCase
@@ -162,10 +211,25 @@ function Resolve-MigrationEvidencePath {
             throw 'EvidencePath 不得覆盖输入文件或临时 Secret 文件。'
         }
     }
-    if ((Test-Path -LiteralPath $fullPath) -and (Get-Item -LiteralPath $fullPath).PSIsContainer) {
-        throw 'EvidencePath 必须指向文件。'
-    }
     return $fullPath
+}
+
+function Write-MigrationEvidenceSafely {
+    param(
+        [string]$Path,
+        [string]$RepositoryRoot,
+        [string[]]$ForbiddenPaths,
+        [object]$Evidence
+    )
+
+    $safePath = Resolve-MigrationEvidencePath -Path $Path -RepositoryRoot $RepositoryRoot -ForbiddenPaths $ForbiddenPaths
+    $parentDirectory = Split-Path -Parent $safePath
+    [IO.Directory]::CreateDirectory($parentDirectory) | Out-Null
+    # 父目录可能原先不存在；创建后再逐层复核，避免写入阶段经过新出现的重解析点。
+    $safePath = Resolve-MigrationEvidencePath -Path $safePath -RepositoryRoot $RepositoryRoot -ForbiddenPaths $ForbiddenPaths
+    $writtenPath = Write-Deploy04Evidence -Path $safePath -Evidence $Evidence
+    Assert-MigrationEvidencePathComponents -Path $writtenPath
+    return $writtenPath
 }
 
 function Get-MigrationProjectResources {
@@ -280,6 +344,9 @@ function Get-LegacyDataDigest {
         category = @('id','parent_id','category_name','description','sort_order','status','created_at','updated_at')
         file_info = @('id','file_md5','original_name','stored_name','file_ext','mime_type','file_size','storage_type','storage_path','uploader_id','ref_count','status','created_at','updated_at')
         resource = @('id','title','description','category_id','course_name','resource_type','tags','file_id','uploader_id','status','reject_reason','offline_reason','view_count','download_count','favorite_count','hot_score','approved_at','offline_at','created_at','updated_at')
+        favorite = @('id','user_id','resource_id','status','created_at','updated_at')
+        download_record = @('id','user_id','resource_id','file_id','user_ip','user_agent','download_status','fail_reason','created_at')
+        audit_record = @('id','resource_id','auditor_id','action_type','before_status','after_status','audit_reason','created_at')
     }
     $result = [ordered]@{ aggregateDigest = $null; tables = [ordered]@{}; rows = [ordered]@{} }
     $aggregateParts = [Collections.Generic.List[string]]::new()
@@ -385,7 +452,9 @@ $branch = $null
 $commit = $null
 $workingTreeStatus = $null
 $sourceDigest = $null
+$sourceSnapshotEstablished = $false
 $legacyFixture = $null
+$forbiddenEvidencePaths = @()
 $compose = $null
 $composeAttempted = $false
 $tempCreated = $false
@@ -419,13 +488,13 @@ try {
     $workingTreeStatus = Invoke-Deploy04Capture $git @('-C', $repositoryRoot, 'status', '--porcelain=v1', '--untracked-files=all')
     $evidence.branch = $branch
     $evidence.commit = $commit
+    $sourceDigest = Get-Deploy04SourceSnapshotDigest -GitCommand $git -RepositoryRoot $repositoryRoot
+    $evidence.sourceDigest = $sourceDigest
+    $sourceSnapshotEstablished = $true
     if ($branch -ne $RequiredBranch) { throw "必须在 $RequiredBranch 分支运行，当前为 $branch" }
     if (-not $AllowDirtyWorkingTree -and -not [string]::IsNullOrWhiteSpace($workingTreeStatus)) {
         throw '正式迁移演练要求干净工作区。'
     }
-    $sourceDigest = Get-Deploy04SourceSnapshotDigest -GitCommand $git -RepositoryRoot $repositoryRoot
-    $evidence.sourceDigest = $sourceDigest
-
     $stage = 'fixturePreflight'
     $fixtureSource = 'b528826864e1100c350b0454ff071f178b03ee80:sql/init.sql'
     $fixtureExpectedSha = 'e208cdcc188da9f7850e88ae3f9abb0e74976de03729a0281a07899b3d9768e6'
@@ -593,13 +662,6 @@ services:
     $scratchRemaining = Invoke-MigrationMysql $docker $mysqlId '' "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name LIKE '${scratchPrefix}%'"
     if ($scratchRemaining -ne '0') { throw 'scratch database 清理不完整。' }
 
-    $stage = 'sourceRecheck'
-    $finalBranch = Invoke-Deploy04Capture $git @('-C', $repositoryRoot, 'branch', '--show-current')
-    $finalCommit = Invoke-Deploy04Capture $git @('-C', $repositoryRoot, 'rev-parse', 'HEAD')
-    $finalStatus = Invoke-Deploy04Capture $git @('-C', $repositoryRoot, 'status', '--porcelain=v1', '--untracked-files=all')
-    $finalDigest = Get-Deploy04SourceSnapshotDigest -GitCommand $git -RepositoryRoot $repositoryRoot
-    Assert-Deploy04SourceUnchanged $branch $finalBranch $commit $finalCommit $workingTreeStatus $finalStatus $sourceDigest $finalDigest
-    $evidence.sourceRecheck = 'PASSED'
 }
 catch {
     $rawFailure = "stage=$stage; $($_.Exception.Message)"
@@ -610,7 +672,7 @@ catch {
     }
 }
 finally {
-    $cleanupFailures = [Collections.Generic.List[string]]::new()
+    $finalizationFailures = [Collections.Generic.List[string]]::new()
     if ($composeAttempted) {
         try {
             Get-MigrationProjectResources -Docker $docker -Project $project | Out-Null
@@ -622,7 +684,7 @@ finally {
         }
         catch {
             $evidence.cleanup.resources = 'FAILED'
-            $cleanupFailures.Add((Protect-MigrationSensitiveText -Text $_.Exception.Message -SensitiveValues $sensitiveValues.ToArray()))
+            $finalizationFailures.Add('cleanup=' + (Protect-MigrationSensitiveText -Text $_.Exception.Message -SensitiveValues $sensitiveValues.ToArray()))
         }
     }
 
@@ -632,12 +694,30 @@ finally {
     if ($tempCreated) {
         $tempCleanup = Remove-Deploy04TemporaryArtifacts -Files @($envFile, $overrideFile) -Directory $tempDirectory
         $evidence.cleanup.temporaryFiles = $tempCleanup.status
-        if ($tempCleanup.status -ne 'PASSED') { $cleanupFailures.Add($tempCleanup.message) }
+        if ($tempCleanup.status -ne 'PASSED') { $finalizationFailures.Add('cleanup=' + $tempCleanup.message) }
     }
 
-    if ($cleanupFailures.Count -gt 0) {
-        $cleanupMessage = 'cleanup=' + ($cleanupFailures -join '; ')
-        $failure = if ([string]::IsNullOrWhiteSpace($failure)) { $cleanupMessage } else { "$failure; $cleanupMessage" }
+    if ($sourceSnapshotEstablished) {
+        try {
+            # 终态复核放在 finally，业务成功和任意失败路径都必须证明源码仍与启动快照一致。
+            $finalBranch = Invoke-Deploy04Capture $git @('-C', $repositoryRoot, 'branch', '--show-current')
+            $finalCommit = Invoke-Deploy04Capture $git @('-C', $repositoryRoot, 'rev-parse', 'HEAD')
+            $finalStatus = Invoke-Deploy04Capture $git @('-C', $repositoryRoot, 'status', '--porcelain=v1', '--untracked-files=all')
+            $finalDigest = Get-Deploy04SourceSnapshotDigest -GitCommand $git -RepositoryRoot $repositoryRoot
+            Assert-Deploy04SourceUnchanged $branch $finalBranch $commit $finalCommit `
+                $workingTreeStatus $finalStatus $sourceDigest $finalDigest
+            $evidence.sourceRecheck = 'PASSED'
+        }
+        catch {
+            $evidence.sourceRecheck = 'FAILED'
+            $finalizationFailures.Add('sourceRecheck=' + (Protect-MigrationSensitiveText `
+                -Text $_.Exception.Message -SensitiveValues $sensitiveValues.ToArray()))
+        }
+    }
+
+    if ($finalizationFailures.Count -gt 0) {
+        $finalizationMessage = $finalizationFailures -join '; '
+        $failure = if ([string]::IsNullOrWhiteSpace($failure)) { $finalizationMessage } else { "$failure; $finalizationMessage" }
         $failureExitCode = 1
     }
     $evidence.finishedAt = [DateTimeOffset]::UtcNow.ToString('o')
@@ -645,7 +725,8 @@ finally {
     $evidence.overallStatus = if ([string]::IsNullOrWhiteSpace($failure)) { 'PASSED' } else { 'FAILED' }
 
     try {
-        $writtenEvidence = Write-Deploy04Evidence -Path $evidencePathToWrite -Evidence $evidence
+        $writtenEvidence = Write-MigrationEvidenceSafely -Path $evidencePathToWrite `
+            -RepositoryRoot $repositoryRoot -ForbiddenPaths $forbiddenEvidencePaths -Evidence $evidence
     }
     catch {
         # 自定义输出失败时也生成默认 TEMP 失败证据，且证据写入失败不能被误报为演练成功。
@@ -654,7 +735,8 @@ finally {
         $failureExitCode = 1
         $evidence.failure = $failure
         $evidence.overallStatus = 'FAILED'
-        $writtenEvidence = Write-Deploy04Evidence -Path $defaultEvidencePath -Evidence $evidence
+        $writtenEvidence = Write-MigrationEvidenceSafely -Path $defaultEvidencePath `
+            -RepositoryRoot $repositoryRoot -ForbiddenPaths $forbiddenEvidencePaths -Evidence $evidence
     }
     Write-Host "[DEPLOY-04] 迁移演练证据：$writtenEvidence"
 }

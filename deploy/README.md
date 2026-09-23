@@ -111,15 +111,15 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml build
 
 完成空卷运行演练后，可执行旧库迁移与结构验收演练：
 
-> 当前状态（2026-09-23）：迁移脚本已完成合成旧库的首次迁移、幂等重跑、结构负测和资源清理演练，但仍处于 `WIP`。提交后还需补齐失败路径的源码终态复核、`EvidencePath` 对 symlink/junction 的防绕过校验，并把 `favorite`、`download_record`、`audit_record` 纳入全表数据摘要。上述问题关闭并重新生成干净工作区证据前，不得把本节结果视为 DEPLOY-04 正式放行。
+> 当前状态（2026-09-23）：迁移脚本已覆盖合成旧库的首次迁移、幂等重跑、结构负测、资源清理、失败路径源码终态复核、EvidencePath 重解析点防护和全部 legacy 表数据摘要。DEPLOY-04 仍需完成旧镜像回滚演练后才能正式放行。
 
 ```powershell
 & "<仓库根目录>\deploy\scripts\Test-Deploy04Migration.ps1"
 ```
 
-脚本从固定历史提交的 `sql/init.sql` 快照创建独立 legacy 数据卷，加载只用于演练的合成数据，并仅启动 MySQL 8.4.11 与 Redis 7.4。它先验证 Redis `legacy-active` 门禁确实拒绝迁移，再按 `20260714`、`20260715`、`20260813` 的固定顺序执行迁移，精确核对表、列、索引、CHECK、生成列和数据回填。`user`、`category`、`file_info`、`resource` 的全部 legacy 原列按主键排序，以带 NULL/长度边界的逐行 SHA-256 生成逐表及汇总摘要；首次迁移和完整幂等重跑后都必须与迁移前完全一致。隔离 scratch database 会验证原四类错误结构、同名 VIEW，以及 guard 列缺失但残留同名错误索引共六类错误结构都被拒绝。
+脚本从固定历史提交的 `sql/init.sql` 快照创建独立 legacy 数据卷，加载只用于演练的合成数据，并仅启动 MySQL 8.4.11 与 Redis 7.4。它先验证 Redis `legacy-active` 门禁确实拒绝迁移，再按 `20260714`、`20260715`、`20260813` 的固定顺序执行迁移，精确核对表、列、索引、CHECK、生成列和数据回填。`user`、`category`、`file_info`、`resource`、`favorite`、`download_record`、`audit_record` 的全部 legacy 原列按主键排序，以带 NULL/长度边界的逐行 SHA-256 生成逐表及汇总摘要；三个空表也以 `rowCount=0` 参与摘要。首次迁移和完整幂等重跑后都必须与迁移前完全一致。隔离 scratch database 会验证原四类错误结构、同名 VIEW，以及 guard 列缺失但残留同名错误索引共六类错误结构都被拒绝。
 
-每次运行使用 `campus-deploy04-migration-<run-id>` 唯一 Compose project，不发布 MySQL/Redis 宿主机端口，也不需要启动本机 MySQL 或 Redis 服务。强密码、Compose override/env 和脱敏 JSON 证据都位于系统临时目录。自定义 `-EvidencePath` 会先规范化，且必须位于仓库根目录外，也不能覆盖输入文件或临时 Secret 文件；非法路径会使演练失败，并尽可能在默认 TEMP 目录生成失败证据。启动前和最终清理前都会从资源名称前缀与 Compose project label 两路核对容器、网络和卷；任一缺失或错误 label 都拒绝执行 `down -v`。临时 Secret 或隔离 Docker 资源无法确认删除时，清理失败会覆盖成功状态并保留 project 名供人工核查。
+每次运行使用 `campus-deploy04-migration-<run-id>` 唯一 Compose project，不发布 MySQL/Redis 宿主机端口，也不需要启动本机 MySQL 或 Redis 服务。强密码、Compose override/env 和脱敏 JSON 证据都位于系统临时目录。自定义 `-EvidencePath` 会先规范化，且必须位于仓库根目录外，也不能覆盖输入文件或临时 Secret 文件；从文件系统根到目标的任一已存在层级为 symlink、junction 或其他 ReparsePoint 时都会拒绝，写入前还会复核新建的父目录，防止 TEMP 路径绕回仓库。非法路径会使演练失败，并尽可能在默认 TEMP 目录生成失败证据。启动前和最终清理前都会从资源名称前缀与 Compose project label 两路核对容器、网络和卷；任一缺失或错误 label 都拒绝执行 `down -v`。临时 Secret 或隔离 Docker 资源无法确认删除时，清理失败会覆盖成功状态并保留 project 名供人工核查。
 
 发现真实 legacy active/current/任意 syncing 批次、未知 Redis key 内容、已有同名但结构错误的表、列或索引、或有效资料重复组时，必须停止并人工核查。synthetic Redis guard 只通过“key 不存在才创建”的 Lua 原子脚本写入；任何已有 key 都只拒绝且不修改。清理也通过 Lua 原子比较 key 类型、Hash 长度、字段和值，仅删除完全匹配的本次 synthetic key，不会自动修复或删除导入的真实数据。
 
@@ -171,4 +171,4 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml down
 
 默认容器上限约为后端 `768 MB`、MySQL `512 MB`、Redis `160 MB`、Nginx `64 MB`。JVM 最大堆 512 MB、Hikari 最大连接 8、MySQL Buffer Pool 256 MB、Redis 数据上限 96 MB 且 `noeviction`。持续 Swap 或 OOM 时应停止接流量并升级内存，不在同机运行 Jenkins、Prometheus、Grafana 或病毒扫描守护进程。
 
-DEPLOY-03 已完成生产安全收敛。DEPLOY-04 的候选镜像构建与 Compose 隔离运行演练已完成；旧库迁移脚本已形成 WIP 检查点，仍需关闭本节标注的三个复审问题并完成旧镜像回滚演练。DNS、HTTPS、公网验收和生产联合备份恢复继续按 DEPLOY-05～08 执行。
+DEPLOY-03 已完成生产安全收敛。DEPLOY-04 的候选镜像构建、Compose 隔离运行和旧库迁移演练实现已完成；仍需完成旧镜像回滚演练。DNS、HTTPS、公网验收和生产联合备份恢复继续按 DEPLOY-05～08 执行。
