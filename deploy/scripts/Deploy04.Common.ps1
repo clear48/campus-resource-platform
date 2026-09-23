@@ -35,9 +35,13 @@ function Invoke-Deploy04Capture {
     )
 
     $output = @(& $FilePath @ArgumentList 2>&1)
-    if ($LASTEXITCODE -ne 0) {
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
         $message = ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
-        throw "命令执行失败（退出码 $LASTEXITCODE）：$FilePath`n$message"
+        # 调用方可把原生命令退出码写入证据并作为最终进程退出码返回。
+        $exception = [System.Exception]::new("命令执行失败（退出码 $exitCode）：$FilePath`n$message")
+        $exception.Data['ExitCode'] = [int]$exitCode
+        throw $exception
     }
     return (($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine).Trim()
 }
@@ -51,8 +55,11 @@ function Invoke-Deploy04CaptureRaw {
 
     # 源码摘要必须保留 diff 行尾空白，不能使用普通捕获函数的 Trim。
     $output = @(& $FilePath @ArgumentList 2>&1)
-    if ($LASTEXITCODE -ne 0) {
-        throw "命令执行失败（退出码 $LASTEXITCODE）：$FilePath"
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        $exception = [System.Exception]::new("命令执行失败（退出码 $exitCode）：$FilePath")
+        $exception.Data['ExitCode'] = [int]$exitCode
+        throw $exception
     }
     return (($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine)
 }
