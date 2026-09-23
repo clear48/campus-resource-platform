@@ -53,9 +53,29 @@ GRANT SELECT, INSERT, UPDATE ON campus_resource_platform.* TO 'campus_app'@'%';
 
 把 `campus_app` 替换为实际应用账号；不要把管理员账号交给后端。结构迁移仍由管理员账号在维护窗口执行。
 
-## 4. 本地测试与构建
+## 4. DEPLOY-04 本地测试与构建
 
-2 GB 服务器不执行 Maven、npm 或镜像构建。先在开发机或 CI 完成：
+2 GB 服务器不执行 Maven、npm 或镜像构建。推荐在仓库任意目录调用统一脚本：
+
+```powershell
+& "<仓库根目录>\deploy\scripts\Test-Deploy04Build.ps1"
+```
+
+脚本会从自身位置解析仓库根目录，不依赖当前工作目录。默认要求当前分支为 `deploy` 且工作区干净；开发脚本期间需要验证未提交改动时，可以显式添加 `-AllowDirtyWorkingTree`，正式候选验证不能使用该参数。
+
+脚本执行以下操作：
+
+1. 检查 Git 分支和工作区，并检查 Docker Engine、Docker Compose、Java、Node.js 与 npm；
+2. 以固定前缀和唯一名称启动一次性 MySQL `8.4.11` 容器，只随机绑定到 `127.0.0.1`，运行后端全量测试与打包；
+3. 运行前端 `npm ci`、全量单元测试与生产构建；
+4. 使用当前 Git commit 的 12 位短 SHA 标记后端、前端候选镜像，静默校验 Compose 并构建镜像；
+5. 将不含 Secret 的 JSON 证据写入系统临时目录 `campus-resource-platform\deploy-04\evidence`，可用 `-EvidencePath` 指定其他位置。
+
+临时强密码和 Compose env 文件只写入系统临时目录，测试环境变量只在当前脚本进程内设置。脚本成功或失败都会进入清理流程，只删除本次运行创建且标签匹配的一次性 MySQL 容器和临时文件。容器或临时 Secret/env 文件无法确认删除时，JSON 证据中的 `cleanup` 会标记 `FAILED`，整体执行返回非零，并输出任务专属容器 name/id 与临时目录供人工核对。
+
+镜像构建结束后，脚本会重新读取分支、HEAD 和工作区状态。正式运行必须继续保持干净；使用 `-AllowDirtyWorkingTree` 时，最终 tracked/untracked 状态及源码内容摘要也必须与启动快照完全一致。摘要覆盖 `git diff --binary HEAD`，以及按路径排序的每个未跟踪普通文件 SHA-256；未跟踪路径必须位于规范化仓库根内，任一层为符号链接或 junction 时拒绝读取。证据只保存最终摘要，不保存源码内容。任一变化都会让候选验证失败。该阶段不需要启动 Windows MySQL 服务，也不需要本机 Redis 服务。
+
+如果需要手工排查，必须从仓库根目录开始，并在前端构建后返回仓库根目录再运行 Compose：
 
 ```powershell
 Set-Location campus-resource-platform
@@ -66,16 +86,18 @@ Set-Location ..\frontend
 npm ci
 npm run test:unit
 npm run build
+
+Set-Location ..
 ```
 
 再验证 Compose 并构建镜像：
 
-```bash
+```powershell
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml config --quiet
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml build
 ```
 
-不要输出完整 `docker compose config`，展开结果包含 Secret。
+不要输出完整 `docker compose config`，展开结果包含 Secret。手工运行后端全量测试仍需提供隔离的 MySQL 测试实例；统一脚本会自动创建并清理。
 
 ## 5. 启动、存活与就绪检查
 
