@@ -99,6 +99,16 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml build
 
 不要输出完整 `docker compose config`，展开结果包含 Secret。手工运行后端全量测试仍需提供隔离的 MySQL 测试实例；统一脚本会自动创建并清理。
 
+完成候选镜像构建后，运行 Compose 隔离演练：
+
+```powershell
+& "<仓库根目录>\deploy\scripts\Test-Deploy04Compose.ps1"
+```
+
+脚本使用 `campus-deploy04-<run-id>` 唯一项目名、由 Docker 原子分配且仅绑定 `127.0.0.1` 的动态端口，以及系统临时目录中的独立强 Secret，以 `up --no-build --pull never` 启动当前 Git 短 SHA 对应的候选镜像。它逐次核对实际容器的 immutable image ID，验证四个服务健康、Nginx/SPA/liveness/readiness、内部端口隔离、Redis 认证、MySQL 最小权限、MySQL/Redis/上传目录故障时 liveness 仍正常及 readiness 恢复，以及 MySQL/Redis/上传卷在不带 `-v` 的 `down/up` 后仍然保留数据。
+
+最终清理只对本次唯一 Compose project 执行 `down -v`。执行前逐项核对容器、网络和卷的 `com.docker.compose.project` 标签，标签不匹配时拒绝删除；清理失败会使演练失败并在脱敏证据中保留 project 名。JSON 证据默认写入系统临时目录 `campus-resource-platform\deploy-04\evidence`。开发脚本期间可以显式使用 `-AllowDirtyWorkingTree`，但启动与结束的分支、HEAD、Git 状态和源码摘要必须完全一致。
+
 ## 5. 启动、存活与就绪检查
 
 ```bash
