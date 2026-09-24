@@ -1639,3 +1639,28 @@ Compose 阶段使用唯一 project、随机 Secret、127.0.0.1 动态端口和 -
 
 - 证据目录：系统临时目录下的 `campus-resource-platform/deploy-04/evidence`；未记录或输出Secret。
 - 本轮只读检查Docker、WSL和失败证据，没有启动Docker Desktop、创建Docker资源或运行门禁。
+
+## 2026-09-24 15:26:50 | 冻结发布物与导出镜像流程总结
+
+### 问题 1
+
+根据命令总结冻结发布物，导出镜像的流程
+
+### 答案 1
+
+本流程的目标是把“某次验证通过的源码”与“由该源码构建出的不可变镜像内容”绑定起来，并生成可在传输前后复核的证据，防止服务器重新构建、tag漂移、文件损坏或部署了未经演练的版本。
+
+第一步建立可重复的本地运行环境。由于DEPLOY-04脚本为UTF-8无BOM，使用PowerShell 7执行；启动Docker Desktop并等待 `desktop-linux` Engine响应，确认客户端和服务端版本、Linux/x86_64平台、WSL2运行状态，并检查不存在 `crp-deploy04-*` 或 `campus-deploy04-*` 残留资源。第二步检查当前为 `deploy` 分支且工作区干净，然后读取完整commit和12位短SHA，形成唯一发布身份。本次冻结为 `e554ec5619010e60c29ca3b9798c02cdcfb4c048` / `e554ec561901`。
+
+第三步在同一commit上依次运行Build、Compose、Migration、Rollback四项门禁，任一失败立即停止。Build完成后端全量测试、前端测试/构建和候选镜像构建；Compose验证隔离运行、健康检查、依赖故障恢复、权限、端口及持久化；Migration验证旧库迁移、幂等和结构负测；Rollback验证MySQL、Redis、uploads联合恢复及上一版镜像兼容。四项均通过并分别生成不含Secret的JSON证据。
+
+第四步按短SHA定位后端和前端tag，读取immutable image ID并与门禁证据核对。本次后端ID为 `sha256:70dcca4d...deb2e`，前端ID为 `sha256:80326d07...9cda`，平台均为 `linux/amd64`。第五步使用一次 `docker save` 把两张镜像导出到同一个tar；该操作保存的是已验证镜像本身，服务器后续只执行 `docker load`，不运行Maven、npm或镜像构建。本次tar为 `campusshare-images-e554ec561901.tar`，大小137706496字节，OCI索引包含且仅包含上述两个候选镜像。
+
+第六步把四份PASSED证据复制到独立发布目录，生成 `release-info.txt` 记录完整commit、短SHA、镜像tag、镜像ID、平台和UTC生成时间。第七步对镜像tar、四份证据和发布说明逐文件计算SHA-256，写入 `SHA256SUMS.txt`。镜像tar哈希为 `d6a0e2387489db5b225a233e768846b6c2d581751dcd1a01c173b478f334cab9`；服务器上传后必须先执行哈希校验，只有完全一致才允许 `docker load`。
+
+最终发布目录位于用户桌面的 `campusshare-release-e554ec561901`，包含镜像tar、Build/Compose/Migration/Rollback证据、发布身份和完整校验清单，不包含密码、JWT Secret或生产配置。该目录构成DEPLOY-05的本地交付包。服务器必须检出冻结的完整commit、确认架构为x86_64、校验SHA-256并加载镜像，最终用 `--no-build --pull never` 启动；后续问答归档或文档提交不会改变本次已冻结的发布身份。
+
+### 关联信息
+
+- 发布提交：`e554ec5619010e60c29ca3b9798c02cdcfb4c048`。
+- 本轮依据用户完整控制台输出和本地发布目录静态核对进行总结，没有重新构建镜像或修改发布包。
