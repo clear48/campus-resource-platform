@@ -1578,3 +1578,26 @@ Compose 阶段使用唯一 project、随机 Secret、127.0.0.1 动态端口和 -
 - 项目依据：`docs/DEPLOYMENT_HANDOFF.md`、`deploy/docker-compose.yml`、`deploy/.env.example`、`deploy/README.md`。
 - 外部依据：Docker官方Ubuntu安装、Linux安装后步骤和防火墙限制，Ubuntu官方ufw文档，腾讯云官方安全组文档。
 - 本轮只给出实施顺序并追加问答归档，没有连接服务器或执行DEPLOY-05。
+
+## 2026-09-24 10:53:49 | DEPLOY-05 执行命令
+
+### 问题 1
+
+给出命令
+
+### 答案 1
+
+已按阶段给出DEPLOY-05命令清单：本地Windows先确认 `deploy` 分支和干净工作区，运行四个DEPLOY-04门禁，以当前完整commit生成前后端镜像tag，导出镜像tar和SHA-256清单；服务器首次登录只采集Ubuntu、架构、CPU、内存、磁盘、Swap、端口和Docker状态，确认后再更新系统、创建Swap和非root运维账号。SSH公钥必须在第二个终端验证成功后，才能关闭root及密码登录。
+
+服务器侧通过腾讯云控制台限制安全组，主机UFW只允许用户公网IP访问22并开放80；由于Docker发布端口可能绕过UFW，Compose必须继续只发布Nginx端口。Docker按官方apt仓库安装Engine、CLI、containerd、Buildx及Compose插件，使用 `sudo docker`，不把普通账号加入等价root权限的Docker组。
+
+首版继续使用DEPLOY-04已经验证的MySQL、Redis和uploads命名卷，只创建 `/srv/campusshare/app` 与 `/srv/campusshare/backups`；如果要改成bind mount，必须先在本地修改Compose并重跑DEPLOY-04。服务器检出已验证完整commit，镜像tar经 `sha256sum -c` 后 `docker load`，MySQL和Redis按Compose中的固定digest拉取。生产 `deploy/.env` 权限为600并仅在服务器编辑，禁止显示或提交Secret。
+
+启动顺序为 `docker compose config --quiet`，核对镜像ID，再执行 `up -d --no-build --pull never`。验收命令覆盖Compose健康、Nginx healthz、后端liveness/readiness、宿主监听端口、MySQL应用账号授权、Redis未认证拒绝、容器RSS、Swap、磁盘和日志；服务器重启恢复后，再从用户Windows电脑用公网IP和 `Host: campusshare.online` 验证三个健康接口。此阶段不修改DNS或配置HTTPS。
+
+所有命令均保留服务器IP、用户公网IP、完整commit和账号等占位符；生产密码、JWT Secret、SSH私钥、证书私钥不得发送给Codex或写入日志。正式执行应逐阶段进行，任一步输出异常立即停止。
+
+### 关联信息
+
+- 项目依据：`docs/DEPLOYMENT_HANDOFF.md`、`deploy/docker-compose.yml`、`deploy/.env.example`、`deploy/README.md`。
+- 本轮只提供命令清单并追加归档，没有连接服务器、运行DEPLOY-04或执行生产部署。
