@@ -1620,3 +1620,22 @@ Compose 阶段使用唯一 project、随机 Secret、127.0.0.1 动态端口和 -
 
 - 涉及文件：`deploy/scripts/Deploy04.Common.ps1`、`Test-Deploy04Build.ps1`、`Test-Deploy04Compose.ps1`、`Test-Deploy04Migration.ps1`、`Test-Deploy04Rollback.ps1`。
 - 验证：PowerShell 7静态解析0错误；Windows PowerShell 5.1静态解析复现错误；未启动容器或运行演练。
+
+## 2026-09-24 14:47:23 | DEPLOY-04 门禁因 Docker Desktop 未启动失败
+
+### 问题 1
+
+用户改用PowerShell 7后再次执行四个DEPLOY-04脚本，脚本不再出现编码或语法错误，但均报告无法连接 `npipe:////./pipe/dockerDesktopLinuxEngine`，随后每个门禁失败。
+
+### 答案 1
+
+编码问题已经解决，本次失败发生在工具预检阶段。Docker CLI 29.8.0和 `desktop-linux` context存在，但Docker Desktop进程未运行，`com.docker.service`处于Stopped，WSL服务运行而 `docker-desktop`发行版处于Stopped，因此Linux Engine命名管道不存在。该问题与MySQL、Compose配置、迁移SQL或应用测试无关。
+
+四份JSON证据进一步表明：Build的一次性MySQL容器为 `NOT_CREATED` 且临时文件清理通过；Compose项目为 `NOT_CREATED` 且临时文件清理通过；Migration在 `toolVersions` 阶段失败，资源和临时文件均未创建；Rollback在 `preflight`失败，source/rollback项目、上一版镜像和临时文件均未创建。Rollback的 `remainingResources=-1` 仅表示Docker不可连接导致无法做最终查询，不表示存在残留资源。
+
+下一步应通过 `Start-Process -FilePath 'C:\Program Files\Docker\Docker\Docker Desktop.exe' -WindowStyle Hidden` 启动Docker Desktop，轮询 `docker info` 直至成功，并确认context为 `desktop-linux`、Server为Linux。随后按 `crp-deploy04-*` 和 `campus-deploy04-*` 前缀只读检查容器、网络和卷；预期为空。由于用户先前逐条提交命令，交互式 `throw` 只结束当前命令，不会阻止用户随后手工提交下一条；重跑时应把四个脚本放在同一个循环块中，通过独立 `pwsh.exe -NoProfile -File` 进程运行，每一步按 `$LASTEXITCODE` 失败即 `throw`，确保Build失败后不会继续Compose/Migration/Rollback。
+
+### 关联信息
+
+- 证据目录：系统临时目录下的 `campus-resource-platform/deploy-04/evidence`；未记录或输出Secret。
+- 本轮只读检查Docker、WSL和失败证据，没有启动Docker Desktop、创建Docker资源或运行门禁。
