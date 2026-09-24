@@ -1544,3 +1544,37 @@ Compose 阶段使用唯一 project、随机 Secret、127.0.0.1 动态端口和 -
 
 - 依据：`docs/DEPLOYMENT_HANDOFF.md` 中 `DEPLOY-05` 至 `DEPLOY-08` 的任务定义。
 - 本轮仅明确真实环境操作分工并追加问答归档，没有连接服务器或修改生产部署配置。
+
+## 2026-09-24 10:29:44 | DEPLOY-05 实现步骤
+
+### 问题 1
+
+给出05的实现步骤
+
+### 答案 1
+
+`DEPLOY-05` 应按“本地冻结发布物—服务器基线—访问边界—Docker运行时—持久化—镜像与配置交付—无构建启动—IP验收”顺序实施，并采用一步一确认，不在服务器一次性执行整段脚本。
+
+第一阶段在本地确定唯一发布身份：确认 `deploy` 分支和干净工作区，选定完整 Git commit，重新执行该提交对应的 DEPLOY-04 Build/Compose/Migration/Rollback门禁；记录后端、前端镜像 tag 与 immutable image ID，把两张业务镜像导出为 tar并计算 SHA-256。服务器只加载这些已验证镜像，不运行 Maven、npm或 `docker compose build`。MySQL与Redis固定digest镜像在服务器按digest预拉取，最终统一以 `--no-build --pull never` 启动。
+
+第二阶段首次登录只采集环境，不立即安装：核对 `/etc/os-release`、`uname -m`、CPU、内存、磁盘、文件系统、Swap、监听端口和现有Docker。若不是Docker官方支持的64位Ubuntu版本/架构、系统盘余量不足、存在未知服务或已有生产数据，应停止。系统更新后如要求重启，先重启并重新采集基线。2 GB服务器可配置1～2 GB Swap作异常缓冲，但持续Swap或OOM视为容量不足。
+
+第三阶段创建专用非root运维账号，配置SSH公钥并在第二个终端验证成功后，才关闭root远程登录和密码登录；修改SSH前必须先做 `sshd -t`。Docker组拥有近似root权限，首版建议运维账号通过受控 `sudo docker` 操作，不随意把普通账号加入Docker组。腾讯云安全组和主机防火墙只允许用户固定公网IP访问22，对公网开放80；443留给DEPLOY-07，8080、3306、6379禁止公网访问。Docker官方明确提醒发布的容器端口可能绕过ufw，因此最终安全边界还必须依赖Compose只发布Nginx的80端口。
+
+第四阶段通过Docker官方apt仓库安装 Docker Engine、CLI、containerd、Buildx和Compose插件，不使用生产环境不推荐的便捷安装脚本。验证Docker服务、开机启动、Engine版本与 `docker compose version`；服务器不安装Java、Maven、Node、Jenkins、Prometheus或Grafana。
+
+第五阶段确定持久化模型。为保持与DEPLOY-04验证对象一致，首版推荐继续使用 `deploy/docker-compose.yml` 的MySQL、Redis和uploads三个命名卷，并在 `/srv/campusshare` 下仅建立应用发布目录和备份导出目录；启动后记录实际卷名和 `docker volume inspect` 结果。若必须使用文档示例的 `/srv/campusshare/mysql`、`redis`、`uploads` bind mount，则先在本地增加服务器专用Compose override、验证容器UID/权限并完整重跑DEPLOY-04，不能在服务器临时修改。
+
+第六阶段把仓库部署资产检出到已验证完整commit，把镜像tar上传到服务器并对比SHA-256后执行 `docker load`；核对加载后的tag和image ID与本地证据一致。服务器本地从 `.env.example` 创建权限600的 `deploy/.env`，写入互不复用的MySQL root密码、非root应用账号密码、Redis密码和至少32字节JWT Secret，不把值打印到日志或提交仓库。保留2 GB预算：后端768 MB、MySQL512 MB、Redis160 MB、Nginx64 MB，JVM最大堆512 MB、Hikari最大8连接、MySQL Buffer Pool 256 MB、Redis 96 MB/noeviction和上传磁盘保留5 GiB。
+
+第七阶段先运行 `docker compose config --quiet`，再核对所有业务镜像身份并使用 `up -d --no-build --pull never`。全新MySQL卷会自动执行初始化和最小权限授权；不得对已有卷假设初始化脚本会重跑。依次验证Compose健康状态、Nginx `/healthz`、后端liveness和readiness，检查应用账号只具备 `SELECT/INSERT/UPDATE`、Redis未认证访问失败、宿主机没有监听8080/3306/6379，并观察容器RSS、Swap、磁盘、日志和OOM事件。
+
+第八阶段从用户本机通过公网IP并携带 `Host: campusshare.online` 验证首页、SPA路由、`/healthz`、liveness和readiness；执行一次服务器重启，确认Docker和四个服务自动恢复，但不在本阶段执行完整业务验收或生产恢复演练。保存不含Secret的部署证据，包括OS/架构、完整commit、镜像ID、Compose版本、卷名、端口、健康状态、资源使用和时间。只有全部通过才完成DEPLOY-05并进入DEPLOY-06；此时仍不修改DNS、不申请证书。
+
+任何SSH新账号验证失败、镜像SHA/Image ID不一致、Compose展开失败、内部端口暴露、readiness非200、持久卷不明确、持续Swap/OOM或磁盘保留水位不足，都必须停止并先修复。
+
+### 关联信息
+
+- 项目依据：`docs/DEPLOYMENT_HANDOFF.md`、`deploy/docker-compose.yml`、`deploy/.env.example`、`deploy/README.md`。
+- 外部依据：Docker官方Ubuntu安装、Linux安装后步骤和防火墙限制，Ubuntu官方ufw文档，腾讯云官方安全组文档。
+- 本轮只给出实施顺序并追加问答归档，没有连接服务器或执行DEPLOY-05。
