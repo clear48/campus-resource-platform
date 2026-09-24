@@ -181,4 +181,4 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml down
 
 默认容器上限约为后端 `768 MB`、MySQL `512 MB`、Redis `160 MB`、Nginx `64 MB`。JVM 最大堆 512 MB、Hikari 最大连接 8、MySQL Buffer Pool 256 MB、Redis 数据上限 96 MB 且 `noeviction`。持续 Swap 或 OOM 时应停止接流量并升级内存，不在同机运行 Jenkins、Prometheus、Grafana 或病毒扫描守护进程。
 
-DEPLOY-03 生产安全收敛和 DEPLOY-04 本地构建、Compose、迁移、联合恢复及旧镜像回滚演练均已完成。下一任务为 DEPLOY-05 服务器初始化与部署；DNS、HTTPS、公网验收和生产联合备份恢复继续按 DEPLOY-06～08 执行。
+DEPLOY-03 生产安全收敛、DEPLOY-04 本地构建/Compose/迁移/联合恢复/旧镜像回滚演练，以及 DEPLOY-05 真实服务器初始化与部署均已完成。下一任务为 DEPLOY-06 DNS 配置；HTTPS、公网业务验收和生产联合备份恢复继续按 DEPLOY-07～08 执行。2 GB 服务器上的 MySQL 稳态内存接近 512 MiB 容器上限，虽然当前无 cgroup 超限、OOM 或持续 Swap，仍应作为首要容量监控项。

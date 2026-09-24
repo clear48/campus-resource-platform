@@ -1,5 +1,15 @@
 # 分支交接记录
 
+## 2026-09-24 DEPLOY-05 服务器初始化与部署
+
+- 分支：`deploy`；服务器部署身份固定为提交 `e554ec5619010e60c29ca3b9798c02cdcfb4c048`，未在服务器重新构建镜像。
+- Ubuntu 24.04/amd64、2 核 2 GB、40 GB 系统盘和 1.9 GB Swap 基线通过；SSH 仅允许公钥普通账号登录，AppArmor、UFW、Docker、Compose 均启用。
+- DEPLOY-04 发布包在服务器端完成 SHA-256 复核；前后端 immutable image ID 与本地证据一致，MySQL、Redis 使用 Compose 固定 digest。
+- 生产 Secret 仅在服务器本地生成并保存在 `600` 权限的未跟踪 `deploy/.env`；四服务使用 `--no-build --pull never` 启动且全部 healthy。
+- 本地和公网 IP + Host 头验证首页、登录页、Nginx、liveness、readiness 均为 HTTP 200；MySQL 最小权限、Redis 认证、内部端口隔离和三个命名卷通过。
+- 宿主机重启后 Docker 与四容器自动恢复，卷和镜像身份保持不变，Swap 为 0、无 OOM。MySQL 稳态接近 512 MiB 容器上限，已列为后续重点容量监控项。
+- 服务器发布目录保存了不含 IP 和 Secret 的 DEPLOY-05 验收证据。下一任务为 `DEPLOY-06` DNS 配置；尚未修改 DNS 或启用 HTTPS。
+
 ## 2026-09-24 DEPLOY-04 本地发布门禁
 
 - 分支：`deploy`；提交 `1a8a4e36`、`e2aa4fa7`、`79fb3b2f`、`1e475b18`、`42b39a18` 已推送到 `origin/deploy`。

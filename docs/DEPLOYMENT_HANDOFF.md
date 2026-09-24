@@ -283,7 +283,7 @@ npm run build
 - 切换下载增量协议前检查旧 Redis `crp:stats:resource:download:syncing:active`；
 - 所有迁移先在数据库副本演练并准备回滚。
 
-### DEPLOY-05：初始化服务器并部署
+### DEPLOY-05：初始化服务器并部署（`DONE`）
 
 服务器侧主要步骤：
 
@@ -304,6 +304,15 @@ npm run build
 /srv/campusshare/uploads
 /srv/campusshare/backups
 ```
+
+2026-09-24 完成情况：
+
+- 服务器基线、SSH 公钥登录、AppArmor、UFW、Docker Engine 与 Compose 已完成；普通运维账号未加入 `docker` 组；
+- 冻结提交 `e554ec5619010e60c29ca3b9798c02cdcfb4c048`、发布包 SHA-256、前后端 image ID 及 MySQL/Redis digest 均已核对；
+- 生产 Secret 只在服务器本地生成并保存于 `600` 权限的未跟踪 `.env`，Compose 以 `--no-build --pull never` 启动；
+- 四服务健康、最小权限、Redis 认证、内部端口隔离、命名卷、本地与公网 Host 头 HTTP 检查及宿主机重启恢复均通过；
+- 重启后无 Swap、OOM 或容器重启事件；MySQL 内存接近 512 MiB 上限但 cgroup 尚无压力/超限事件，后续需持续监控；
+- DNS、HTTPS、完整业务验收和生产联合备份恢复仍分别属于 DEPLOY-06～08。
 
 ### DEPLOY-06：配置 DNS
 
@@ -390,11 +399,11 @@ RANK_HOT_RANKING_SYNC_ENABLED=true
 
 ## 11. 当前建议的下一步
 
-服务器已经购买，容器化、安全收敛和 DEPLOY-04 本地发布门禁已完成。下一项项目任务为：
+服务器已经购买，容器化、安全收敛、DEPLOY-04 本地发布门禁和 DEPLOY-05 服务器部署已完成。下一项项目任务为：
 
-> 执行 `DEPLOY-05`：登录中国香港服务器，核对 Ubuntu/架构/磁盘/内存，创建非 root 运维用户和稳定数据目录，安装 Docker/Compose，并使用 DEPLOY-04 已验证提交部署。
+> 执行 `DEPLOY-06`：在阿里云 DNS 中配置根域名 A 记录和 `www` CNAME，等待解析生效并完成权威及公网解析核对。
 
-服务器通过公网 IP 与 Host 头验收前仍不要修改域名 A 记录，也不要把服务器密码、SSH 私钥或生产 Secret 写入仓库。
+DEPLOY-05 已通过公网 IP 与 Host 头验收，可以进入 DNS 配置；仍不得把服务器密码、SSH 私钥、生产 Secret 或证书私钥写入仓库。
 
 ## 12. 新对话建议提示词
 
@@ -412,8 +421,8 @@ docs/CURRENT_STATUS.md 和 docs/07-project-runbook.md。
 请先检查当前分支、git status、最近提交和部署交接文档，
 DEPLOY-03 已在 deploy 分支完成，基线为 e9730f74，
 实现提交为 3a2c5e96、9272af41、9a3c2d86、5dee7699、740a4d97、248bc29d。
-DEPLOY-04 已在 deploy 分支完成，下一步只执行 DEPLOY-05：服务器初始化、
-稳定数据目录、Docker/Compose 安装和已验证镜像部署；暂不配置 DNS。
+DEPLOY-04 已在 deploy 分支完成，DEPLOY-05 已在真实服务器完成；
+下一步只执行 DEPLOY-06：配置并验证根域名 A 记录和 www CNAME，暂不提前执行 HTTPS。
 ```
 
 当前服务器内存只有 2 GB，所有部署配置必须采用文档第 6 节的资源受限方案，并在本地完成构建。

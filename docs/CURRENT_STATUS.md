@@ -1,5 +1,16 @@
 # 当前项目状态
 
+## DEPLOY-05 服务器初始化与部署（2026-09-24）
+
+- 中国香港服务器已完成 Ubuntu 24.04/amd64、2 核 2 GB、40 GB 系统盘与 1.9 GB Swap 基线核对；SSH 已禁用 root、密码和键盘交互登录，AppArmor 与 UFW 正常启用。
+- Docker Engine `29.8.1`、Compose `v5.5.1` 已从官方 APT 仓库安装并设为开机启动；普通运维账号未加入 `docker` 组。
+- 服务器检出冻结提交 `e554ec5619010e60c29ca3b9798c02cdcfb4c048`，发布包全部 SHA-256 校验通过；前后端镜像 ID 与 DEPLOY-04 证据一致，MySQL、Redis 镜像按固定 digest 拉取。
+- 生产 Secret 已在服务器本地独立生成并写入权限 `600` 的未跟踪 `deploy/.env`，未输出到终端、聊天或仓库；Compose 通过 `--no-build --pull never` 启动。
+- 四个服务均 healthy；首页、登录页、`/healthz`、liveness、readiness 在服务器本地及公网 IP + Host 头检查中均为 HTTP 200。MySQL 应用账号只有 `SELECT/INSERT/UPDATE`，Redis 未认证访问被拒绝。
+- 宿主机仅发布 80，后端 8080、MySQL 3306、Redis 6379 未发布；MySQL、Redis、上传目录使用三个独立命名卷。宿主机重启后 Docker、UFW、四容器、卷、镜像身份和健康检查均恢复正常。
+- 重启后磁盘剩余约 30 GB、Swap 未使用、无内核或容器 OOM 事件。MySQL 稳态约占其 512 MiB 上限的 96%，cgroup 未出现 `max/oom/oom_kill`，后续需持续监控峰值并在出现内存事件、持续 Swap 或重启时扩容或重新评估预算。
+- 下一部署任务为 `DEPLOY-06` DNS 配置；当前尚未修改 DNS，也未开始 HTTPS、完整公网业务验收或生产联合备份恢复。
+
 ## DEPLOY-04 本地发布门禁（2026-09-24）
 
 - 当前分支为 `deploy`；候选构建、Compose 隔离运行、旧库迁移、联合恢复和上一版镜像回滚演练均已完成。
@@ -174,7 +185,7 @@
 
 ## 下一步
 
-执行 `DEPLOY-05`：初始化中国香港服务器并部署 DEPLOY-04 已验证提交；服务器入口验收前不修改 DNS。
+执行 `DEPLOY-06`：将 `campusshare.online` 的 A 记录指向已完成 DEPLOY-05 验收的服务器，并配置 `www` CNAME；DNS 生效前不开始 DEPLOY-07 HTTPS。
 
 ## 前端浏览器验收修复记录（2026-07-13）
 
