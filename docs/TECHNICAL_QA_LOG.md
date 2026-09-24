@@ -1498,3 +1498,28 @@ Compose 阶段使用唯一 project、随机 Secret、127.0.0.1 动态端口和 -
 所有阶段最后都执行源码终态复核、精确 label 清理和脱敏 JSON 证据。它们解决长任务期间源码漂移、自动化误删其他 Docker 资源、Secret 泄露以及“只凭控制台口头判断通过”的问题。Build、Compose、Migration、Rollback 四层分别回答“能构建、能运行、能升级、能恢复回退”；通过后才进入 DEPLOY-05 服务器部署，真实生产备份的保留、加密、异地保存与 RPO/RTO 留给 DEPLOY-08。
 
 - 验证依据：当前 deploy@a8fe1e64 的 DEPLOY-04 脚本与交接文档；本轮为设计解释与归档，没有重复执行 Docker 演练。
+
+## 2026-09-24 10:01:50 | DEPLOY-05 作用与实现思路
+
+### 问题 1
+
+结合文档说明`DEPLOY-`05的作用，给出实现思路
+
+### 答案 1
+
+用户所指为 `DEPLOY-05`。它承接已经完成的 `DEPLOY-04` 本地发布门禁，作用是把同一个经过测试、Compose、迁移和回滚演练的发布候选安全落到真实的腾讯云中国香港服务器上，并建立后续可重复运维的服务器基线。它要回答的是“已验证版本能否在真实 2 核 2 GB、40 GB 主机上，以受控账号、受限端口、固定持久化位置和生产 Secret 正常运行”，而不是再次开发或构建应用。
+
+该阶段的完成边界是：服务器环境与架构已核对；非 root 运维账号、SSH 密钥、防火墙和云安全组已收敛；Docker/Compose 可用；生产持久化路径与权限已经固定；DEPLOY-04 对应的镜像和部署资产已校验并加载；服务器本地 `deploy/.env` 已安全创建；Compose 使用 `--no-build` 启动；Nginx、liveness、readiness、容器资源、内部端口隔离和基本重启行为通过公网 IP及 Host 头检查。DNS、HTTPS、完整业务链路、公网安全验收以及生产备份恢复分别属于 `DEPLOY-06`、`DEPLOY-07`、`DEPLOY-08`，不在本阶段提前实施。
+
+建议按八步实现。第一，冻结交付身份，记录完整 Git commit、后端/前端镜像 tag、immutable image ID 或 digest，并在本地导出镜像及 SHA-256；如果当前要交付的提交与 DEPLOY-04 实际验证提交不同，应先在本地重新运行发布门禁，服务器不能自行重建。第二，首次登录核对 Ubuntu 版本、CPU 架构、CPU/内存/磁盘和文件系统，配置 1～2 GB Swap 仅作异常缓冲，并确认 40 GB 系统盘能持续保留至少 5 GiB 上传水位。第三，创建专用非 root 运维账号并配置 SSH 密钥；限制 SSH 来源，注意 Docker 组等价于高权限，不把普通业务账号随意加入；腾讯云安全组和主机防火墙只开放受限来源的 22 以及本阶段所需的 80，8080、3306、6379不得发布公网，443留到 HTTPS 阶段启用。
+
+第四，使用官方仓库安装 Docker Engine 与 Compose 插件，启用开机启动并验证版本、架构及守护进程状态；服务器不安装 Maven、Node.js、Jenkins、Prometheus或其他额外常驻服务。第五，在 `/srv/campusshare` 下规划应用、MySQL、Redis、uploads 和 backups 目录，限定所有权与权限。当前 `deploy/docker-compose.yml` 实际使用三个 Docker 命名卷，而交接文档推荐 `/srv/campusshare/mysql`、`redis`、`uploads`，实施时必须二选一并固化：若要求目录可见，应增加服务器专用 Compose override，把三个容器路径绑定到这些目录并按固定镜像内用户验证权限；若保留命名卷，则应把卷名、挂载点、备份方式写入交接文档，不能创建未被 Compose 使用的空目录。
+
+第六，把仓库部署资产锁定到已验证提交，同时通过 `docker save`/`docker load` 或私有镜像仓库传递同一后端、前端镜像；传输前后核对 SHA-256、镜像 ID 或 digest。MySQL、Redis 等固定 digest 镜像也应预先拉取或一并传输，之后使用 `--no-build --pull never`，防止服务器临时构建或 tag 漂移。第七，仅在服务器创建权限为 `600` 的 `deploy/.env`，填入彼此独立的 MySQL root 密码、非 root 应用账号及密码、Redis 密码和至少 32 字节 JWT Secret；保留文档给出的 768/512/160/64 MB 容器上限、512 MB JVM 堆、Hikari 8连接、MySQL 256 MB Buffer Pool、Redis 96 MB `noeviction` 和 5 GiB磁盘水位。运行 `docker compose config --quiet`，不要输出包含 Secret 的完整展开配置。
+
+第八，先核对加载后的镜像身份，再使用 Compose 无构建启动。新空 MySQL 卷会执行初始化和最小权限授权；依次检查容器健康、`/healthz`、`/api/v1/health`、`/api/v1/health/readiness`，确认 MySQL、Redis、后端没有宿主机端口发布，应用账号只有 `SELECT/INSERT/UPDATE`，Redis 未认证访问被拒绝。随后观察容器 RSS、Swap、磁盘余量、日志轮转和 OOM 记录，并执行一次非删卷重启检查。最后从外部使用公网 IP并设置 `Host: campusshare.online` 验证首页、SPA 路由和健康接口；全部通过后才进入 `DEPLOY-06` 修改 DNS。任何镜像身份不一致、readiness 非 200、内部端口暴露、持久化路径未实际挂载、Secret 泄漏风险、持续 Swap/OOM 或磁盘水位不足，都应停止上线。
+
+### 关联信息
+
+- 依据文件：`docs/DEPLOYMENT_HANDOFF.md`、`docs/CURRENT_STATUS.md`、`docs/BRANCH_HANDOFF.md`、`deploy/docker-compose.yml`、`deploy/.env.example`、`deploy/README.md` 和 `deploy/nginx/default.conf`。
+- 当前状态：`deploy` 分支、工作区原本干净，DEPLOY-04 已完成；本轮只做文档与配置静态核对并追加技术问答归档，没有登录服务器、传输镜像或执行 DEPLOY-05。
