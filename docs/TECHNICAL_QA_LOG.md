@@ -1601,3 +1601,22 @@ Compose 阶段使用唯一 project、随机 Secret、127.0.0.1 动态端口和 -
 
 - 项目依据：`docs/DEPLOYMENT_HANDOFF.md`、`deploy/docker-compose.yml`、`deploy/.env.example`、`deploy/README.md`。
 - 本轮只提供命令清单并追加归档，没有连接服务器、运行DEPLOY-04或执行生产部署。
+
+## 2026-09-24 14:35:57 | DEPLOY-04 脚本在 Windows PowerShell 5.1 下解析失败
+
+### 问题 1
+
+用户粘贴执行DEPLOY-05本地发布冻结命令后的控制台输出：四个DEPLOY-04脚本均出现中文乱码、意外标记、字符串缺少终止符及缺少右花括号等解析错误，但后续 `$LASTEXITCODE` 判断没有停止。
+
+### 答案 1
+
+故障发生在PowerShell解析阶段，Docker、MySQL、测试和四个演练都尚未真正启动。用户终端标题为Windows PowerShell，实际是5.1；五个DEPLOY-04 PowerShell文件均为UTF-8无BOM。实测PowerShell 7解析五个文件的错误数全部为0，Windows PowerShell 5.1分别产生7、10、11、57和20个错误。原因是5.1会把无BOM UTF-8脚本按本地ANSI/DBCS代码页解释，中文多字节序列会形成乱码，部分字节还会吞并ASCII引号，从而进一步造成伪造的字符串和语法错误。仓库文件本身没有损坏，Git工作区保持干净。
+
+后续没有被 `if ($LASTEXITCODE -ne 0)` 阻止，是因为直接通过调用运算符执行PowerShell脚本时，解析错误不可靠地更新只面向最近原生程序的 `$LASTEXITCODE`；该变量仍可能保留此前Git命令的0。修复方式是不再由5.1直接解析这些脚本，而是在当前终端中用独立PowerShell 7进程执行：先运行 `pwsh --version`，再依次运行 `pwsh -NoProfile -File .\deploy\scripts\Test-Deploy04Build.ps1` 等四个脚本，并在每个独立进程返回后检查 `$LASTEXITCODE`。Build未成功前不得继续Compose，Compose未成功前不得继续Migration或Rollback。
+
+当前环境已检测到PowerShell 7.6可执行文件。若 `pwsh --version` 在用户交互终端不可用，应停止并先安装或配置PowerShell 7；另一个可选的仓库兼容修复是把相关脚本统一转为UTF-8 BOM并重新验证，但本轮只诊断，没有修改部署脚本。
+
+### 关联信息
+
+- 涉及文件：`deploy/scripts/Deploy04.Common.ps1`、`Test-Deploy04Build.ps1`、`Test-Deploy04Compose.ps1`、`Test-Deploy04Migration.ps1`、`Test-Deploy04Rollback.ps1`。
+- 验证：PowerShell 7静态解析0错误；Windows PowerShell 5.1静态解析复现错误；未启动容器或运行演练。
