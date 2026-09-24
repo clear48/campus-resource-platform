@@ -123,6 +123,16 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml build
 
 发现真实 legacy active/current/任意 syncing 批次、未知 Redis key 内容、已有同名但结构错误的表、列或索引、或有效资料重复组时，必须停止并人工核查。synthetic Redis guard 只通过“key 不存在才创建”的 Lua 原子脚本写入；任何已有 key 都只拒绝且不修改。清理也通过 Lua 原子比较 key 类型、Hash 长度、字段和值，仅删除完全匹配的本次 synthetic key，不会自动修复或删除导入的真实数据。
 
+完成迁移演练后，可执行本地联合恢复与旧镜像回滚演练：
+
+```powershell
+& "<仓库根目录>\deploy\scripts\Test-Deploy04Rollback.ps1"
+```
+
+脚本从固定提交 `6449823045734a24f377c270b4d54d358d99b33c` 构建上一版镜像，在唯一隔离项目中加载 legacy fixture、执行三份迁移并启动当前候选。停写时先停止前端和后端，确认没有下载同步批次或上传 `.part` 文件，再用容器内 `mysqldump`、Redis 完整 `/data` 卷和上传卷创建同一切点恢复点。恢复目标使用新的空卷，并通过 MySQL、Redis、上传文件三联 marker 证明切点前数据存在、切点后数据不存在；最后用上一版镜像验证入口、后端存活、镜像 revision 和上传卷读写兼容。
+
+临时 Secret、数据库导出和卷归档只保存在本次系统临时目录，JSON 证据仅记录状态、摘要、字节数和镜像 ID。成功或失败都会按精确 Compose project/volume label 与 run-id 清理隔离资源和历史临时镜像；这只是合成数据的本地回滚演练，生产备份保留、加密、异地保存和真实数据恢复仍属于 DEPLOY-08。
+
 ## 5. 启动、存活与就绪检查
 
 ```bash
