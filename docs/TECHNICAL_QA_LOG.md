@@ -1523,3 +1523,24 @@ Compose 阶段使用唯一 project、随机 Secret、127.0.0.1 动态端口和 -
 
 - 依据文件：`docs/DEPLOYMENT_HANDOFF.md`、`docs/CURRENT_STATUS.md`、`docs/BRANCH_HANDOFF.md`、`deploy/docker-compose.yml`、`deploy/.env.example`、`deploy/README.md` 和 `deploy/nginx/default.conf`。
 - 当前状态：`deploy` 分支、工作区原本干净，DEPLOY-04 已完成；本轮只做文档与配置静态核对并追加技术问答归档，没有登录服务器、传输镜像或执行 DEPLOY-05。
+
+## 2026-09-24 10:21:58 | DEPLOY-05 至 DEPLOY-08 的用户操作边界
+
+### 问题 1
+
+`DEPLOY-`05  到08的步骤需要用户在服务器上完成
+
+### 答案 1
+
+是的，`DEPLOY-05` 至 `DEPLOY-08` 已进入真实服务器和云平台阶段，涉及用户持有的 SSH 登录权限、腾讯云安全组、阿里云 DNS、生产 Secret、证书私钥、真实业务账号和生产数据，因此最终授权操作必须由用户在服务器、云控制台或本机受控终端完成，不能把服务器密码、SSH 私钥、Token、生产 Secret或证书私钥发送给 Codex或写入仓库。
+
+但这不等于所有内容都需要用户自行设计或手工摸索。Codex可以在本地仓库内准备和审查服务器初始化脚本、Compose override、镜像导出与校验命令、Nginx/HTTPS配置、健康检查、验收脚本、联合备份恢复脚本和操作清单；用户负责在真实环境逐步执行，返回不含敏感信息的命令结果，Codex再根据结果判断是否继续或停止。
+
+具体分工为：`DEPLOY-05` 中用户负责登录服务器、调整安全组、安装 Docker、创建目录和生产 `.env`、加载镜像并启动，Codex负责生成命令、配置与逐项验证标准；`DEPLOY-06` 中用户在阿里云 DNS 控制台创建 A/CNAME记录，Codex负责核对记录和值并验证解析；`DEPLOY-07` 中用户在服务器申请或部署证书并保管私钥，Codex负责 Nginx 配置、80到443跳转、证书链和续期验证方案；`DEPLOY-08` 中用户执行真实账号业务验收、服务器重启、备份恢复和回滚，Codex负责测试清单、自动化脚本、结果判定和问题排查。
+
+推荐采用“一步一确认”的协作方式：Codex每次只给当前小步骤及预期结果，用户执行后仅粘贴脱敏输出；遇到系统版本不符、权限异常、端口暴露、镜像校验不一致、readiness失败、持续Swap/OOM、DNS/证书失败或备份不能恢复时立即停止，不继续推进后续阶段。
+
+### 关联信息
+
+- 依据：`docs/DEPLOYMENT_HANDOFF.md` 中 `DEPLOY-05` 至 `DEPLOY-08` 的任务定义。
+- 本轮仅明确真实环境操作分工并追加问答归档，没有连接服务器或修改生产部署配置。
