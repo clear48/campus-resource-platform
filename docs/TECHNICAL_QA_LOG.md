@@ -1478,3 +1478,23 @@ Test-Deploy04Rollback.ps1 从固定提交 6449823045734a24f377c270b4d54d358d99b3
 学习时应重点理解四个区别：构建成功不等于可部署；liveness 表示进程存活而 readiness 表示能否接流量；卷重启不丢数据不等于备份可恢复；应用镜像回滚不等于只回滚一个容器，数据库、Redis 和上传文件必须使用同一切点。DEPLOY-04 只证明本地合成环境流程可复现；真实服务器部署属于 DEPLOY-05，生产数据备份保留、加密、异地保存、RPO/RTO 和真实恢复属于 DEPLOY-08。
 
 - 验证依据：当前 deploy@fdd2d90a 的四个 DEPLOY-04 脚本、公共脚本、部署说明和交接文档；本轮仅解释与归档，没有重复运行已完成的 Docker 演练。
+
+## 2026-09-24 09:59:56 | DEPLOY-04 各步骤的问题背景与设计思路
+
+### 问题 1
+
+**问题：** 我现在正在学习项目的部署上线，说明每个步骤的要解决的问题背景和设计思路
+
+**答案：**
+
+结合上下文，本问题指 DEPLOY-04。它按风险递进拆为以下步骤：先冻结 release identity，解决“验证对象在过程中变化”的问题，以 deploy 分支、HEAD、工作区状态、源码摘要和 commit 镜像标签绑定候选；再检查工具链并用隔离 MySQL 执行后端测试、npm ci/前端测试/生产构建，解决开发环境成功但发布构建不可复现的问题；随后构建并记录 immutable image ID，避免可变 tag 指向其他内容。
+
+Compose 阶段使用唯一 project、随机 Secret、127.0.0.1 动态端口和 --no-build --pull never，解决环境串扰、端口竞态和运行镜像偷换问题。正常链路检查只能证明顺风路径，因此还验证 MySQL 最小权限、Redis 认证和内部端口隔离，并主动停止 Redis/MySQL、破坏上传目录，要求 liveness 保持 200、readiness 降为 503且恢复后回到 200。之后在 MySQL、Redis、uploads 写入 marker 并执行不删卷的 down/up，解决“容器重建后数据是否仍在”的问题。
+
+迁移阶段固定历史 schema fixture 而非当前 init.sql，解决用最终结构测试迁移形成假通过的问题；迁移前检查 Redis legacy syncing guard 和有效资料重复组，未知状态只停止不自动修改。三份迁移按固定顺序执行，并对七张 legacy 表全部原列生成有序、NULL/长度/二进制安全摘要，比较迁移前、首次迁移后和幂等重跑后，证明新增结构和回填没有意外改写旧业务数据。隔离 scratch database 的负向结构用例用于证明断言真的能拒绝同名 VIEW、错误列和错误索引，而不是只会接受正确结构。
+
+回滚阶段固定上一版完整 commit 构建旧镜像，解决 HEAD^、latest 或本地旧标签不可追溯的问题。创建恢复点前先停止入口和后端，确认调度、Redis syncing key 与上传 .part 文件均已收敛；在该写入切点导出 MySQL，正常停止 Redis/MySQL后离线归档 Redis 完整 /data 和 uploads，解决三种状态时间不一致的问题。备份后故意写 post-cut 三联 marker，恢复到全新空卷后要求 pre-cut 全部存在、post-cut 全部不存在，证明这是实际恢复而不是继续使用旧卷。最后核对旧镜像 tag、ID、revision、健康接口和上传卷读写，证明应用回滚与迁移后数据兼容。
+
+所有阶段最后都执行源码终态复核、精确 label 清理和脱敏 JSON 证据。它们解决长任务期间源码漂移、自动化误删其他 Docker 资源、Secret 泄露以及“只凭控制台口头判断通过”的问题。Build、Compose、Migration、Rollback 四层分别回答“能构建、能运行、能升级、能恢复回退”；通过后才进入 DEPLOY-05 服务器部署，真实生产备份的保留、加密、异地保存与 RPO/RTO 留给 DEPLOY-08。
+
+- 验证依据：当前 deploy@a8fe1e64 的 DEPLOY-04 脚本与交接文档；本轮为设计解释与归档，没有重复执行 Docker 演练。
