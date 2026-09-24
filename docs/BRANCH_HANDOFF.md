@@ -1,5 +1,14 @@
 # 分支交接记录
 
+## 2026-09-24 DEPLOY-04 本地发布门禁
+
+- 分支：`deploy`；提交 `1a8a4e36`、`e2aa4fa7`、`79fb3b2f`、`1e475b18`、`42b39a18` 已推送到 `origin/deploy`。
+- 新增统一 Build、Compose、Migration、Rollback 演练脚本；证据写入系统临时目录，Secret、数据库导出和卷归档不进入仓库。
+- 验证：后端 208/208、前端 76/76、双镜像构建、空卷与 SPA、readiness、最小权限、内部端口隔离、依赖故障恢复及三个持久卷重启保留均通过。
+- 迁移：三份 SQL 首次执行和完整重跑通过，七张 legacy 表迁移前后全列摘要一致，七类错误结构和 Redis guard 均被正确拒绝。
+- 回滚：停止前端/后端后联合备份 MySQL、Redis 完整数据卷和上传卷，恢复到新空卷后切点前 marker 全部存在、切点后 marker 全部不存在；固定 `64498230` 旧镜像通过 revision、健康及上传卷读写验证。
+- 本地 Windows MySQL/Redis 服务未启动；所有 Docker project、卷、网络、临时历史镜像和含敏感数据的临时目录均已清理。下一任务为 `DEPLOY-05` 服务器初始化与部署，暂不配置 DNS。
+
 ## 2026-09-22 DEPLOY-03 生产安全收敛
 
 - 分支：`deploy`；基线 `e9730f74`，提交 `3a2c5e96`、`9272af41`、`9a3c2d86`、`5dee7699`、`740a4d97`、`248bc29d` 已推送到 `origin/deploy`。

@@ -41,25 +41,35 @@ Redis 6+ ──┘                          │
 
 `sql/init.sql` 会创建 `campus_resource_platform` 及其表结构。脚本使用 `CREATE ... IF NOT EXISTS`，重复导入不会清空已有数据，也不会恢复已修改的演示数据。
 
-在仓库根目录打开 **cmd.exe**，执行：
+在仓库根目录打开 PowerShell，执行：
 
-```bat
-mysql -u root -p < sql\init.sql
+```powershell
+$initSql = (Resolve-Path '.\sql\init.sql').Path.Replace('\', '/')
+mysql -u root -p -e "source $initSql"
 ```
 
-### 3.1 已有数据库升级下载增量同步
+### 3.2 已有数据库升级
 
 首次初始化仍执行 `sql/init.sql`。若数据库已在运行旧版本，应在部署新后端前执行以下安全步骤：
 
 1. 停止旧版本后端的下载增量定时任务，避免旧、新批次协议并行执行。
 2. 使用 Redis 客户端检查 `crp:stats:resource:download:syncing:active` 是否遗留字段；若存在，先人工核对该批次是否已经落库，再决定清理或补偿，**不得直接启用新版本自动重试**。
-3. 确认旧批次已处理后，在仓库根目录执行：
+3. 确认旧批次已处理后，在仓库根目录按固定顺序执行：
 
-```bat
-mysql -u root -p campus_resource_platform < sql\migrations\20260714_download_delta_sync_idempotency.sql
+```powershell
+$migrationFiles = @(
+    '.\sql\migrations\20260714_download_delta_sync_idempotency.sql'
+    '.\sql\migrations\20260715_user_file_authorization.sql'
+    '.\sql\migrations\20260813_resource_active_duplicate_guard.sql'
+)
+foreach ($migrationFile in $migrationFiles) {
+    $migrationSql = (Resolve-Path $migrationFile).Path.Replace('\', '/')
+    mysql -u root -p campus_resource_platform -e "source $migrationSql"
+    if ($LASTEXITCODE -ne 0) { throw "迁移失败：$migrationFile" }
+}
 ```
 
-迁移仅创建 `download_delta_sync_item` 表及索引，可重复执行；完成后再启动新版本后端。
+三份迁移分别补齐下载增量幂等表、用户文件授权和有效资料防重约束，均支持在正确结构上重复执行。任一步失败必须停止发布，不得跳过后继续启动新版本后端。
 
 命令会提示输入密码。不要把密码写入文档、Git、`.env.example` 或提交信息。
 
@@ -70,7 +80,7 @@ USE campus_resource_platform;
 SHOW TABLES;
 ```
 
-### 3.2 自定义数据库地址
+### 3.3 自定义数据库地址
 
 后端默认连接本机：
 

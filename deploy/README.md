@@ -111,7 +111,7 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml build
 
 完成空卷运行演练后，可执行旧库迁移与结构验收演练：
 
-> 当前状态（2026-09-23）：迁移脚本已覆盖合成旧库的首次迁移、幂等重跑、结构负测、资源清理、失败路径源码终态复核、EvidencePath 重解析点防护和全部 legacy 表数据摘要。DEPLOY-04 仍需完成旧镜像回滚演练后才能正式放行。
+> 当前状态（2026-09-24）：迁移脚本已覆盖合成旧库的首次迁移、幂等重跑、结构负测、资源清理、失败路径源码终态复核、EvidencePath 重解析点防护和全部 legacy 表数据摘要；联合恢复与旧镜像回滚演练也已通过。
 
 ```powershell
 & "<仓库根目录>\deploy\scripts\Test-Deploy04Migration.ps1"
@@ -181,4 +181,4 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml down
 
 默认容器上限约为后端 `768 MB`、MySQL `512 MB`、Redis `160 MB`、Nginx `64 MB`。JVM 最大堆 512 MB、Hikari 最大连接 8、MySQL Buffer Pool 256 MB、Redis 数据上限 96 MB 且 `noeviction`。持续 Swap 或 OOM 时应停止接流量并升级内存，不在同机运行 Jenkins、Prometheus、Grafana 或病毒扫描守护进程。
 
-DEPLOY-03 已完成生产安全收敛。DEPLOY-04 的候选镜像构建、Compose 隔离运行和旧库迁移演练实现已完成；仍需完成旧镜像回滚演练。DNS、HTTPS、公网验收和生产联合备份恢复继续按 DEPLOY-05～08 执行。
+DEPLOY-03 生产安全收敛和 DEPLOY-04 本地构建、Compose、迁移、联合恢复及旧镜像回滚演练均已完成。下一任务为 DEPLOY-05 服务器初始化与部署；DNS、HTTPS、公网验收和生产联合备份恢复继续按 DEPLOY-06～08 执行。
