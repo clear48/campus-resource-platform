@@ -1454,3 +1454,27 @@ DEPLOY-03 承接 DEPLOY-02 的容器运行底座，目标是把“容器能够�
 - 相关文件：`campus-resource-platform/src/test/java/com/john/campus/service/AuditServiceDatabaseIntegrationTest.java`、`campus-resource-platform/src/test/resources/application.properties`、`deploy/docker-compose.yml`、`deploy/README.md`、`docs/07-project-runbook.md`。
 - 当前环境：Windows 服务 `MySQL80` 处于停止状态，未发现独立 Redis Windows 服务；这不影响后续使用隔离测试 MySQL 和 Compose 容器完成 DEPLOY-04。
 - 验证方式：静态核对测试数据源配置、测试 Profile、Compose 服务地址与端口发布配置；本轮未启动数据库、Redis 或容器。
+
+## 2026-09-24 09:40:42 | DEPLOY-04 开发流程与设计思路
+
+### 问题 1
+
+**问题：** 我现在正在学习项目的部署上线，详细解释DEPLOY-04的开发流程和设计思路
+
+**答案：**
+
+DEPLOY-04 位于 DEPLOY-03 生产安全收敛之后、DEPLOY-05 服务器初始化之前，是本地发布候选门禁。它不负责公网服务器、DNS 或 HTTPS，而是用同一 Git 提交依次证明四件事：代码和镜像可复现构建；隔离 Compose 环境能正确运行、降级、恢复并持久化；历史数据库能按固定顺序安全迁移且原业务数据不被改写；MySQL、Redis 和上传文件能在同一停写切点联合恢复，并能用固定上一版镜像启动。
+
+流程由四个脚本组成。Test-Deploy04Build.ps1 检查 deploy 分支、干净工作区和工具链，启动一次性隔离 MySQL，运行后端 208 个测试、前端 76 个测试与生产构建，再用当前提交短 SHA 构建前后端镜像并记录 immutable image ID。Test-Deploy04Compose.ps1 使用唯一 Compose project、Docker 原子分配的 127.0.0.1 端口和临时随机 Secret，以 --no-build --pull never 启动刚构建的镜像；它验证 HTTP/SPA、liveness/readiness、MySQL 最小权限、Redis 认证、内部端口隔离，并分别模拟 Redis、MySQL、上传目录故障，要求 liveness 保持 200、readiness 变为 503且恢复后回到 200；随后用 MySQL、Redis、上传卷三类 marker 验证不带 -v 的 down/up 不丢数据。
+
+Test-Deploy04Migration.ps1 不使用当前 init.sql 冒充旧库，而是固定历史提交的 schema fixture 和校验 SHA，加载合成旧数据后按 20260714、20260715、20260813 顺序迁移。迁移前后及完整幂等重跑后，对 user、category、file_info、resource、favorite、download_record、audit_record 七张 legacy 表的全部原列按主键生成 NULL/长度/二进制安全摘要，要求完全一致；同时验证 Redis legacy active guard 只拒绝、不修改未知批次，校验新增表、列、索引、CHECK 和生成列，并用隔离 scratch database 证明七类错误结构会被拒绝。
+
+Test-Deploy04Rollback.ps1 从固定提交 6449823045734a24f377c270b4d54d358d99b33c 导出源码并构建带 revision 的上一版镜像。当前候选启动后创建 MySQL、Redis、上传文件三联 marker，依次停止入口和后端，确认调度关闭、没有 syncing 协议 key 和 .part 文件，再检查 Redis AOF 状态，用容器内 mysqldump 加 docker cp 导出 MySQL，正常停止 Redis/MySQL并离线归档完整 Redis /data 和上传卷。备份后写入 post-cut marker，再恢复到全新空卷；恢复结果必须满足切点前 marker 全部存在、切点后 marker 全部不存在。最后以旧镜像运行，核对 tag、image ID、revision、健康接口和上传卷读写兼容性。
+
+四个脚本共享 Deploy04.Common.ps1 的命令捕获、随机 Secret、源码快照、受控清理和 JSON 证据能力。正式执行要求 deploy 分支和干净工作区；开始与结束的分支、HEAD、Git 状态、tracked diff 及每个 untracked 普通文件摘要必须一致。每次运行使用唯一容器/project 名称，清理前核对精确 ID 和归属 label；证据路径拒绝仓库内部路径以及 symlink、junction、ReparsePoint 绕过。清理或源码复核失败会把整体结果改为 FAILED。JSON 只记录状态、哈希、字节数、镜像 ID 和安全的阶段信息，不记录密码、Token、数据库导出、Redis value 或文件内容。
+
+开发采用小阶段提交：1a8a4e36 完成候选构建，2aa4fa7 完成 Compose 运行演练，79fb3b2f 保存迁移 WIP 检查点，1e475b18 关闭迁移证据与路径安全问题，42b39a18 完成联合恢复和旧镜像回滚，dd2d90a 完成交接文档。审查过程中修正了动态端口竞态、只看镜像 tag、错误权限断言、依赖故障时未检查 liveness、Redis guard 覆盖风险、弱数据摘要、同名 VIEW/错误索引漏检、失败路径缺少源码复核、EvidencePath 链接绕过、未覆盖空表、宿主环境变量覆盖临时 Secret以及 Compose 不预创建未使用卷等问题。
+
+学习时应重点理解四个区别：构建成功不等于可部署；liveness 表示进程存活而 readiness 表示能否接流量；卷重启不丢数据不等于备份可恢复；应用镜像回滚不等于只回滚一个容器，数据库、Redis 和上传文件必须使用同一切点。DEPLOY-04 只证明本地合成环境流程可复现；真实服务器部署属于 DEPLOY-05，生产数据备份保留、加密、异地保存、RPO/RTO 和真实恢复属于 DEPLOY-08。
+
+- 验证依据：当前 deploy@fdd2d90a 的四个 DEPLOY-04 脚本、公共脚本、部署说明和交接文档；本轮仅解释与归档，没有重复运行已完成的 Docker 演练。
