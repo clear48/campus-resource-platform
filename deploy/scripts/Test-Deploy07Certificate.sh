@@ -92,7 +92,27 @@ cleanup() {
     set -e
     [ "$cleanup_failed" -eq 0 ]
 }
-trap 'cleanup || true' EXIT HUP INT TERM
+
+on_exit() {
+    exit_status=$?
+    trap - EXIT HUP INT TERM
+    if ! cleanup && [ "$exit_status" -eq 0 ]; then
+        exit_status=1
+    fi
+    exit "$exit_status"
+}
+
+on_signal() {
+    signal_status=$1
+    trap - EXIT HUP INT TERM
+    cleanup || true
+    exit "$signal_status"
+}
+
+trap on_exit EXIT
+trap 'on_signal 129' HUP
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 
 generate_lineage() {
     parent=$1

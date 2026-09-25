@@ -239,7 +239,7 @@ sudo docker compose --env-file deploy/.env \
   up -d --no-build --pull never --force-recreate frontend
 ```
 
-HTTPS 配置让 HTTP challenge 继续可用，其余 HTTP 请求 301 到根域名；`www` 的 HTTPS 请求也 301 到根域名。TLS 容器端口为非特权 `8443`，容器健康检查单独访问只绑定 loopback 的 `8081`。当前不启用 HSTS，避免证书续期和回滚尚未经过真实服务器验证时让浏览器形成不可逆的长期策略。
+HTTPS 配置让 HTTP challenge 继续可用，其余 HTTP 请求 301 到根域名；`www` 的 HTTPS 请求也 301 到根域名。TLS 容器端口为非特权 `8443`，容器健康检查单独访问只绑定 loopback 的 `8081`。当前仍不启用 HSTS；应先完成 DEPLOY-08 的完整业务、恢复与回滚验收并稳定观察，再单独评估是否让浏览器形成长期强制策略。
 
 ### 9.3 自动续期与回滚
 
@@ -258,8 +258,14 @@ printf "%s\n" \
   > /etc/letsencrypt/renewal-hooks/deploy/50-campusshare-nginx
 chown root:root /etc/letsencrypt/renewal-hooks/deploy/50-campusshare-nginx
 chmod 0750 /etc/letsencrypt/renewal-hooks/deploy/50-campusshare-nginx'
-sudo certbot renew --dry-run --run-deploy-hooks
+sudo certbot renew --dry-run --run-deploy-hooks --no-random-sleep-on-renew
+sudo /usr/local/sbin/campusshare-deploy07-cert \
+  --lineage /etc/letsencrypt/live/campusshare.online \
+  --project-name campus-resource-platform \
+  --tls-volume campus-resource-platform_tls_runtime
 ```
+
+`--run-deploy-hooks` 会让 dry-run 的 staging 证书真实经过 hook 和 Nginx reload，用于覆盖完整续期链路；dry-run 完成后必须立即再次部署生产 lineage，确保运行时卷和公网端点恢复为受信任的生产证书。最后应比较生产 lineage、TLS 卷当前证书和公网端点的指纹。
 
 如果生产 `COMPOSE_PROJECT_NAME` 或 `TLS_RUNTIME_VOLUME` 改名，首次部署命令和 wrapper 必须同步使用 `.env` 中的准确非敏感值。禁止在 wrapper 中 `source deploy/.env`：该文件还包含数据库、Redis 和 JWT Secret，不应进入 Certbot hook 环境。
 
@@ -292,4 +298,4 @@ sudo sh deploy/scripts/Test-Deploy07Certificate.sh
 
 默认容器上限约为后端 `768 MB`、MySQL `512 MB`、Redis `160 MB`、Nginx `64 MB`。JVM 最大堆 512 MB、Hikari 最大连接 8、MySQL Buffer Pool 256 MB、Redis 数据上限 96 MB 且 `noeviction`。持续 Swap 或 OOM 时应停止接流量并升级内存，不在同机运行 Jenkins、Prometheus、Grafana 或病毒扫描守护进程。
 
-DEPLOY-03 生产安全收敛、DEPLOY-04 本地构建/Compose/迁移/联合恢复/旧镜像回滚演练，以及 DEPLOY-05 真实服务器初始化与部署均已完成。下一任务为 DEPLOY-06 DNS 配置；HTTPS、公网业务验收和生产联合备份恢复继续按 DEPLOY-07～08 执行。2 GB 服务器上的 MySQL 稳态内存接近 512 MiB 容器上限，虽然当前无 cgroup 超限、OOM 或持续 Swap，仍应作为首要容量监控项。
+DEPLOY-03 生产安全收敛、DEPLOY-04 本地发布门禁、DEPLOY-05 真实服务器部署、DEPLOY-06 DNS 和 DEPLOY-07 HTTPS/自动续期均已完成。下一任务为 DEPLOY-08 公网业务验收与生产联合备份恢复。2 GB 服务器上的 MySQL 稳态内存接近 512 MiB 容器上限，虽然当前无 cgroup 超限、OOM 或持续 Swap，仍应作为首要容量监控项。

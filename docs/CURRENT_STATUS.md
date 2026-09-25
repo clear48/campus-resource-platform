@@ -1,5 +1,15 @@
 # 当前项目状态
 
+## DEPLOY-07 HTTPS 与证书续期（2026-09-25）
+
+- DEPLOY-06 已完成：根域名 A 记录和 `www` CNAME 均已在公网解析并通过 HTTP 验证。
+- DEPLOY-07 实现提交 `7a32b55e` 已推送到 `origin/deploy`；服务器检出该提交的配置资产，继续使用 DEPLOY-05 冻结并验证过的前后端镜像，未在 2 GB 服务器重新构建镜像。
+- Let's Encrypt 证书覆盖 `campusshare.online` 与 `www.campusshare.online`，生产证书到期日为 2026-12-24；私钥仅存在 Certbot root 目录和受控 Docker 外部卷，未进入仓库或聊天记录。
+- Nginx 已同时监听 80/443：HTTP challenge 保持可用，其余 HTTP 和 `www` HTTPS 统一 301 到根域名；根域名 HTTPS、SPA 与健康检查均为 200，公网证书链校验通过。
+- Certbot deploy hook 使用 root-owned 固定脚本，将证书原子切换到只读 TLS 卷，并完成运行中 Nginx 的 `nginx -t` 与平滑 reload；`renew --dry-run --run-deploy-hooks` 已成功，随后重新部署生产 lineage 并核对宿主机、卷和公网端点证书一致。
+- 四个容器均 healthy 且重启次数为 0；Certbot timer 为 enabled/active。下一部署任务为 `DEPLOY-08` 公网完整业务验收与生产联合备份恢复。
+- 本轮 `npm ci` 审计报告 5 个既有前端依赖问题（3 个 moderate、2 个 high）；DEPLOY-07 未擅自升级依赖，需另开依赖审计任务判断生产可达性并制定兼容升级方案。
+
 ## DEPLOY-05 服务器初始化与部署（2026-09-24）
 
 - 中国香港服务器已完成 Ubuntu 24.04/amd64、2 核 2 GB、40 GB 系统盘与 1.9 GB Swap 基线核对；SSH 已禁用 root、密码和键盘交互登录，AppArmor 与 UFW 正常启用。
@@ -185,7 +195,7 @@
 
 ## 下一步
 
-执行 `DEPLOY-06`：将 `campusshare.online` 的 A 记录指向已完成 DEPLOY-05 验收的服务器，并配置 `www` CNAME；DNS 生效前不开始 DEPLOY-07 HTTPS。
+执行 `DEPLOY-08`：完成公网业务全链路、安全边界、接近 50 MB 上传、宿主机重启持久化，以及 MySQL/Redis/上传目录联合备份恢复和上一镜像回滚验收。
 
 ## 前端浏览器验收修复记录（2026-07-13）
 

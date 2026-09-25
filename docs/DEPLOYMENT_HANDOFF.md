@@ -32,13 +32,14 @@ https://campusshare.online
 | 最终根域名 | `DONE` | 已购买阿里云域名 `campusshare.online` |
 | 域名实名认证 | `DONE` | 用户已确认实名认证完成 |
 | 权威 DNS | `DONE` | 2026-09-21 检测为阿里云 `dns21.hichina.com`、`dns22.hichina.com` |
-| 根域名 A 记录 | `TODO` | 当前未配置；必须等服务器取得固定公网 IPv4 后再添加 |
+| 根域名 A 记录 | `DONE` | 已指向当前生产服务器并完成公网解析与 HTTP/HTTPS 验证 |
+| `www` CNAME | `DONE` | 已指向 `campusshare.online`，HTTP 与 HTTPS 均规范化到根域名 |
 | 中国香港服务器 | `DONE` | 已购买腾讯云中国香港实例，当前状态为运行中 |
 | 服务器规格 | `DONE` | 2 核 CPU、2 GB 内存、40 GB 系统盘，已分配公网 IPv4（仓库不记录具体地址） |
 | 服务器有效期 | `DONE` | 截图显示到期时间为 2026-10-21 16:21:21，应提前设置续费提醒 |
 | Docker 部署资产 | `DONE` | 已完成双阶段镜像、Compose、Nginx、环境变量示例和部署说明；实现提交 `6449823` |
 | 生产安全配置 | `DONE` | 同源 CORS、可信代理、生产 Secret、最小权限、readiness、优雅停机与上传安全边界已完成 |
-| HTTPS | `TODO` | DNS 生效且 Nginx 可访问后申请和部署证书 |
+| HTTPS | `DONE` | Let's Encrypt 双域名证书、443、HTTP 跳转、自动续期 hook 与 dry-run 均已验证 |
 | 上线验收 | `TODO` | 尚未执行公网全链路、重启持久化和备份恢复验证 |
 
 此前讨论过的 `campusshare.click` 只是候选域名，已经作废。后续所有部署配置统一使用 `campusshare.online`。
@@ -316,6 +317,8 @@ npm run build
 
 ### DEPLOY-06：配置 DNS
 
+当前状态：`DONE`（2026-09-25）。根域名 A 和 `www` CNAME 已生效，并通过公网 HTTP 与 ACME challenge 验证。
+
 取得固定公网 IPv4 后，在阿里云云解析 DNS 中添加：
 
 | 类型 | 主机记录 | 记录值 |
@@ -332,6 +335,8 @@ Resolve-DnsName www.campusshare.online -Type CNAME
 
 ### DEPLOY-07：配置 HTTPS
 
+当前状态：`DONE`（2026-09-25）。实现提交 `7a32b55e` 已推送到 `origin/deploy`，生产服务器已启用 HTTPS。
+
 要求：
 
 - 证书覆盖 `campusshare.online`；
@@ -340,6 +345,8 @@ Resolve-DnsName www.campusshare.online -Type CNAME
 - 80 端口统一 301 跳转到 HTTPS；
 - 配置证书自动续期并验证续期流程；
 - 不把证书私钥提交到 Git。
+
+完成结果：证书覆盖根域名和 `www`，HTTP 与 `www` HTTPS 均 301 到根域名，根域名 HTTPS 和健康检查为 200；Certbot timer、deploy hook、原子证书切换、运行中 Nginx reload 和 dry-run 均通过。dry-run 后已重新部署生产 lineage，并确认宿主机、TLS 卷和公网端点证书一致。
 
 ### DEPLOY-08：公网验收与备份恢复
 
@@ -379,6 +386,9 @@ APP_UPLOAD_MAX_FILE_SIZE=50MB
 APP_UPLOAD_MAX_REQUEST_SIZE=60MB
 RANK_DOWNLOAD_DELTA_SYNC_ENABLED=true
 RANK_HOT_RANKING_SYNC_ENABLED=true
+HTTPS_PORT=443
+ACME_WEBROOT_DIR=/srv/campusshare/acme
+TLS_RUNTIME_VOLUME=campus-resource-platform_tls_runtime
 ```
 
 注意：本机已经设置的 Windows 用户级 `JWT_SECRET` 只用于本地开发，不能当作生产密钥复制到服务器。
@@ -399,11 +409,11 @@ RANK_HOT_RANKING_SYNC_ENABLED=true
 
 ## 11. 当前建议的下一步
 
-服务器已经购买，容器化、安全收敛、DEPLOY-04 本地发布门禁和 DEPLOY-05 服务器部署已完成。下一项项目任务为：
+服务器购买、容器化、安全收敛、本地发布门禁、真实服务器部署、DNS 和 HTTPS/证书续期均已完成。下一项项目任务为：
 
-> 执行 `DEPLOY-06`：在阿里云 DNS 中配置根域名 A 记录和 `www` CNAME，等待解析生效并完成权威及公网解析核对。
+> 执行 `DEPLOY-08`：完成公网业务全链路验收，以及 MySQL、Redis 和上传目录的生产联合备份恢复与回滚验证。
 
-DEPLOY-05 已通过公网 IP 与 Host 头验收，可以进入 DNS 配置；仍不得把服务器密码、SSH 私钥、生产 Secret 或证书私钥写入仓库。
+DEPLOY-07 已通过公网 TLS 与自动续期演练；仍不得把服务器密码、SSH 私钥、生产 Secret 或证书私钥写入仓库。
 
 ## 12. 新对话建议提示词
 
@@ -421,8 +431,8 @@ docs/CURRENT_STATUS.md 和 docs/07-project-runbook.md。
 请先检查当前分支、git status、最近提交和部署交接文档，
 DEPLOY-03 已在 deploy 分支完成，基线为 e9730f74，
 实现提交为 3a2c5e96、9272af41、9a3c2d86、5dee7699、740a4d97、248bc29d。
-DEPLOY-04 已在 deploy 分支完成，DEPLOY-05 已在真实服务器完成；
-下一步只执行 DEPLOY-06：配置并验证根域名 A 记录和 www CNAME，暂不提前执行 HTTPS。
+DEPLOY-04 已在 deploy 分支完成，DEPLOY-05 已在真实服务器完成，DEPLOY-06 DNS 与 DEPLOY-07 HTTPS/续期也已完成；
+下一步只执行 DEPLOY-08：完成公网业务验收与生产联合备份恢复。
 ```
 
 当前服务器内存只有 2 GB，所有部署配置必须采用文档第 6 节的资源受限方案，并在本地完成构建。

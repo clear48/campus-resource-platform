@@ -1,5 +1,16 @@
 # 分支交接记录
 
+## 2026-09-25 DEPLOY-07 HTTPS 与证书续期
+
+- 分支：`deploy`；实现提交 `7a32b55e` 已推送到 `origin/deploy`。服务器加载该提交的 Compose/Nginx/证书脚本，但继续运行 DEPLOY-05 已验证的 immutable 前后端镜像。
+- DEPLOY-06 DNS 已完成：根域名 A 和 `www` CNAME 均解析正常；DEPLOY-07 保留两个域名并申请同一张 SAN 证书。
+- 新增 HTTP+ACME 与 HTTPS 两个 Compose override；80 除 challenge 外统一 301 到根域名 HTTPS，443 在容器内使用非特权 8443，健康检查走仅 loopback 的 8081。
+- 证书部署脚本校验 lineage、SAN、有效期、公私钥、卷标签和运行镜像，通过指纹 release、`current.next` 与 `mv -fT` 原子切换；私钥 `0400`、证书 `0444`、Nginx 只读挂载，不暴露 Docker socket。
+- 本地验证通过：证书脚本黑盒测试、DEPLOY-07 HTTPS Compose 演练、后端 208/208、前端 76/76、双镜像构建及 DEPLOY-04 Compose 故障恢复/持久化回归。
+- 生产验证通过：Let's Encrypt 双域名证书、80/443 跳转与页面、ACME 路径、Certbot dry-run、deploy hook 原子切换和运行中 Nginx reload；dry-run 后已重新部署生产 lineage 并核对证书一致。
+- 四个容器均 healthy、重启次数为 0，Certbot timer 为 enabled/active。下一任务为 `DEPLOY-08` 公网完整业务验收与生产联合备份恢复。
+- 本地 `npm ci` 审计报告 5 个既有前端依赖问题（3 个 moderate、2 个 high），本任务未扩大为依赖升级；需在独立任务中核对生产可达性和兼容升级范围。
+
 ## 2026-09-24 DEPLOY-05 服务器初始化与部署
 
 - 分支：`deploy`；服务器部署身份固定为提交 `e554ec5619010e60c29ca3b9798c02cdcfb4c048`，未在服务器重新构建镜像。
