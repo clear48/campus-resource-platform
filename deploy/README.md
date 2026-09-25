@@ -177,7 +177,118 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml down
 
 `docker compose down -v` 会删除 MySQL、Redis 和上传卷，只能用于明确隔离的测试项目。至少执行一次写入测试数据、`down`、重新 `up -d` 的持久化验证。
 
-## 9. 2 GB 服务器预算与下一步
+## 9. DEPLOY-07 HTTPS 与证书续期
+
+HTTPS 分两阶段启用，基础 `docker-compose.yml` 始终保持 DEPLOY-04 的 HTTP 行为。首先创建宿主机 ACME webroot，并把以下非敏感变量写入服务器本地 `deploy/.env`：
+
+```dotenv
+HTTPS_PORT=443
+ACME_WEBROOT_DIR=/srv/campusshare/acme
+TLS_RUNTIME_VOLUME=campus-resource-platform_tls_runtime
+```
+
+### 9.1 首次签发
+
+先启动 HTTP + ACME override；此阶段不需要证书卷，原站点和 `/healthz` 行为保持不变：
+
+```bash
+sudo install -d -o root -g root -m 0755 /srv/campusshare/acme/.well-known/acme-challenge
+sudo docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml \
+  -f deploy/docker-compose.acme.yml \
+  config --quiet
+sudo docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml \
+  -f deploy/docker-compose.acme.yml \
+  up -d --no-build --pull never frontend
+```
+
+确认两个域名的 challenge 均可从公网访问后，用真实通知邮箱替换占位符。邮箱只写命令行或 Certbot 配置，不写仓库文档：
+
+```bash
+sudo certbot certonly --webroot \
+  --webroot-path /srv/campusshare/acme \
+  --cert-name campusshare.online \
+  --email '<CERTBOT_EMAIL>' \
+  --agree-tos \
+  -d campusshare.online \
+  -d www.campusshare.online
+```
+
+将证书写入带项目标签的外部 Docker 卷。脚本要求 root、使用 `flock` 串行化，校验证书 SAN、有效期和公私钥匹配，并通过运行中 frontend 的 immutable image ID 执行候选 `nginx -t`：
+
+```bash
+sudo sh deploy/scripts/deploy07-cert-deploy.sh \
+  --lineage /etc/letsencrypt/live/campusshare.online \
+  --project-name campus-resource-platform \
+  --tls-volume campus-resource-platform_tls_runtime
+```
+
+### 9.2 启用 HTTPS
+
+服务器启用 HTTPS 时必须始终使用以下准确的两个文件；HTTPS override 已包含 ACME 挂载，Compose 合并会保留基础 `80:8080`，并追加 `443:8443`：
+
+```bash
+sudo docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml \
+  -f deploy/docker-compose.https.yml \
+  config --quiet
+sudo docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml \
+  -f deploy/docker-compose.https.yml \
+  up -d --no-build --pull never --force-recreate frontend
+```
+
+HTTPS 配置让 HTTP challenge 继续可用，其余 HTTP 请求 301 到根域名；`www` 的 HTTPS 请求也 301 到根域名。TLS 容器端口为非特权 `8443`，容器健康检查单独访问只绑定 loopback 的 `8081`。当前不启用 HSTS，避免证书续期和回滚尚未经过真实服务器验证时让浏览器形成不可逆的长期策略。
+
+### 9.3 自动续期与回滚
+
+先把主脚本安装到固定的 root 运维路径，再创建只包含非敏感固定参数的 Certbot wrapper。wrapper 不传 `--lineage`，由主脚本读取 Certbot 提供的 `RENEWED_LINEAGE`：
+
+```bash
+sudo install -o root -g root -m 0750 \
+  deploy/scripts/deploy07-cert-deploy.sh \
+  /usr/local/sbin/campusshare-deploy07-cert
+sudo install -d -o root -g root -m 0755 /etc/letsencrypt/renewal-hooks/deploy
+sudo sh -c 'umask 027
+printf "%s\n" \
+  "#!/bin/sh" \
+  "set -eu" \
+  "exec /usr/local/sbin/campusshare-deploy07-cert --project-name campus-resource-platform --tls-volume campus-resource-platform_tls_runtime" \
+  > /etc/letsencrypt/renewal-hooks/deploy/50-campusshare-nginx
+chown root:root /etc/letsencrypt/renewal-hooks/deploy/50-campusshare-nginx
+chmod 0750 /etc/letsencrypt/renewal-hooks/deploy/50-campusshare-nginx'
+sudo certbot renew --dry-run --run-deploy-hooks
+```
+
+如果生产 `COMPOSE_PROJECT_NAME` 或 `TLS_RUNTIME_VOLUME` 改名，首次部署命令和 wrapper 必须同步使用 `.env` 中的准确非敏感值。禁止在 wrapper 中 `source deploy/.env`：该文件还包含数据库、Redis 和 JWT Secret，不应进入 Certbot hook 环境。
+
+续期成功后，hook 会在 TLS 卷内建立指纹 release，通过 `current.next` 原子切换 `current`，再检查并平滑重载 Nginx；失败会恢复旧链接和旧证书。原始 `/etc/letsencrypt` 不会长期挂入应用容器，Docker socket 也不会挂入任何容器。
+
+HTTPS 启动失败时回滚到基础 HTTP + ACME 组合，确保 challenge 仍可用于修复证书：
+
+```bash
+sudo docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml \
+  -f deploy/docker-compose.acme.yml \
+  up -d --no-build --pull never --force-recreate frontend
+```
+
+本地隔离验收使用系统临时目录生成自签 SAN 证书、随机 Compose project/端口/网络/外部 TLS 卷，成功或失败都会按专属标签清理：
+
+```powershell
+& "<仓库根目录>\deploy\scripts\Test-Deploy07Https.ps1"
+```
+
+Linux/root 环境还应直接黑盒验证证书部署脚本的首次发布、幂等、轮换、权限和失败回滚；测试只操作随机命名且经标签核对的隔离资源，不向容器挂载 Docker socket：
+
+```bash
+sudo sh deploy/scripts/Test-Deploy07Certificate.sh
+```
+
+证书、私钥、生产 `.env` 均不得进入 Git。生产和回滚操作都禁止使用 `docker compose down -v`，否则会同时删除 MySQL、Redis 和上传数据卷；外部 TLS 卷也只能在明确废弃证书且完成备份后人工处理。
+
+## 10. 2 GB 服务器预算与下一步
 
 默认容器上限约为后端 `768 MB`、MySQL `512 MB`、Redis `160 MB`、Nginx `64 MB`。JVM 最大堆 512 MB、Hikari 最大连接 8、MySQL Buffer Pool 256 MB、Redis 数据上限 96 MB 且 `noeviction`。持续 Swap 或 OOM 时应停止接流量并升级内存，不在同机运行 Jenkins、Prometheus、Grafana 或病毒扫描守护进程。
 

@@ -1,0 +1,5 @@
+services:
+  frontend:
+    volumes:
+      # 首次签发阶段只读暴露 challenge 文件，不改变现有 HTTP 服务和健康检查。
+      - ${ACME_WEBROOT_DIR:?请在 deploy/.env 中设置 ACME_WEBROOT_DIR}:/var/www/acme:ro

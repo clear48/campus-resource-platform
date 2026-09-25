@@ -1,0 +1,22 @@
+services:
+  frontend:
+    ports:
+      # 基础 Compose 的 80:8080 会保留；这里仅追加公网 HTTPS 入口。
+      - "${HTTPS_PORT:-443}:8443"
+    volumes:
+      - ./nginx/https.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${ACME_WEBROOT_DIR:?请在 deploy/.env 中设置 ACME_WEBROOT_DIR}:/var/www/acme:ro
+      - tls_runtime:/etc/nginx/tls:ro
+    # HTTPS 后 8080 会重定向，健康检查改走仅容器内部监听的独立端口。
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/healthz | grep -q '^ok$' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  tls_runtime:
+    # 证书部署脚本单独创建并校验此卷；Compose 不负责删除或初始化私钥。
+    external: true
+    name: ${TLS_RUNTIME_VOLUME:-campus-resource-platform_tls_runtime}

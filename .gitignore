@@ -50,6 +50,9 @@ campus-resource-platform/data/
 .git-backups/
 .github/modernize/
 
+# DEPLOY-04/05 生成的本地冻结发布目录不属于源码，使用项目专属前缀避免泛化忽略真实资产。
+/campusshare-release-*/
+
 # OS files
 .DS_Store
 Thumbs.db
