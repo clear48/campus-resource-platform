@@ -4,7 +4,7 @@
 
 `DEPLOY-08` 是部署流程的最终生产验收门，目标是证明公网业务、安全边界、持久化、联合恢复和上一镜像回滚真实可用。它不是新业务功能，也不能以“脚本已生成”或“容器 healthy”代替恢复结论。
 
-当前已完成 **D08-1A 公网只读预检资产**和 **D08-2 生产联合备份脚本资产**。D08-2 尚未在真实服务器执行，`DEPLOY-08` 整体状态仍为 `IN_PROGRESS`，不得提前标记为 `DONE`。
+当前已完成 **D08-1A 公网只读预检资产**、**D08-2 生产联合备份脚本资产**和 **D08-3A 独立恢复介质预检资产**。生产备份与独立恢复尚未真实执行，`DEPLOY-08` 整体状态仍为 `IN_PROGRESS`，不得提前标记为 `DONE`。
 
 ## 2. 安全边界
 
@@ -173,6 +173,31 @@ D08-2 资产完成不等于生产备份完成。必须把完整 run-id 目录复
 ## 7. D08-3 独立恢复和上一镜像
 
 生产服务器只有 2 GB 内存，MySQL 已接近其 512 MiB 限制。恢复栈不得与生产栈在同一服务器并行运行。加密备份应复制到本地 Docker 或临时恢复服务器，恢复到新建、空白、带本轮标签的三个卷。
+
+### 7.1 D08-3A 恢复介质只读预检
+
+在独立恢复机准备以下内容：完整 run-id 目录；通过独立可信渠道固定的 `allowed_signers`；只存在于恢复端的 GPG 私钥目录；权限为 root-only 的恢复专用环境文件；已离线导入的当前四服务镜像和上一版前后端镜像。恢复环境文件至少包含 `MYSQL_ROOT_PASSWORD`、`MYSQL_APP_USERNAME`、`MYSQL_APP_PASSWORD`、`REDIS_PASSWORD`、`JWT_SECRET`，不得直接复用生产环境文件路径。
+
+```bash
+sudo bash deploy/scripts/deploy08-restore-preflight.sh \
+  --backup-dir /srv/campusshare-restore/<run-id> \
+  --allowed-signers /root/.config/campusshare/deploy08-allowed-signers \
+  --env-file /root/.config/campusshare/deploy08-restore.env \
+  --gpg-homedir /root/.gnupg-deploy08-restore \
+  --previous-backend-image 'sha256:<上一版后端镜像ID>' \
+  --previous-frontend-image 'sha256:<上一版前端镜像ID>' \
+  --previous-commit '<上一版40位源码revision>'
+```
+
+脚本要求上述目录和文件均为 `root:root` 且不向 group/other 开放；备份、密钥和 Secret 不得位于仓库内。它依次验证独立固定的 Ed25519 签名、相对 manifest 摘要、严格的 manifest v2 schema、六个加密产物大小和 SHA-256、GPG 私钥指纹及完整解密、Secret 最低边界、当前/上一版 immutable image ID，以及当前签名 `applicationRevision` 与上一版源码 revision 标签。部署资产的 `manifest.commit` 与冻结应用镜像 revision 是两个不同概念，不得混用。
+
+只要当前 Docker daemon 存在 `campus-resource-platform` Compose 项目标记的任一容器、卷或网络，预检就会失败。这是“不得在生产 Docker daemon 恢复”的硬门禁。脚本中不存在 `docker run/create/volume create`，通过只代表介质和前置条件齐备，不代表数据已恢复。
+
+```bash
+sudo bash deploy/scripts/Test-Deploy08RestorePreflight.sh
+```
+
+D08-3B 仍需在该独立 Docker daemon 上新建带本轮标签的空卷，恢复并比对 MySQL 表行数/校验值、永久 Redis Key 内容摘要和上传文件全量摘要；随后依次使用 manifest 当前镜像和独立提供的上一版镜像完成 readiness、登录、检索、详情、下载等业务验证。D08-3A 不会代替这些步骤。
 
 恢复后必须：
 

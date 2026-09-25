@@ -300,4 +300,4 @@ sudo sh deploy/scripts/Test-Deploy07Certificate.sh
 
 DEPLOY-03 生产安全收敛、DEPLOY-04 本地发布门禁、DEPLOY-05 真实服务器部署、DEPLOY-06 DNS 和 DEPLOY-07 HTTPS/自动续期均已完成。下一任务为 DEPLOY-08 公网业务验收与生产联合备份恢复。2 GB 服务器上的 MySQL 稳态内存接近 512 MiB 容器上限，虽然当前无 cgroup 超限、OOM 或持续 Swap，仍应作为首要容量监控项。
 
-DEPLOY-08 已提供 `scripts/Test-Deploy08PublicAcceptance.ps1` 只读公网预检和 `scripts/deploy08-backup.sh` 生产联合备份脚本。备份脚本默认只预检，真实执行必须显式确认停机；它在同一停写切点导出 MySQL、归档 Redis AOF 卷和上传卷，并使用预先导入的 GPG 公钥加密。完整命令、安全边界、尚未执行项和恢复要求见 `docs/DEPLOY-08-RUNBOOK.md`。脚本资产完成不代表生产备份或恢复已经通过。
+DEPLOY-08 已提供 `scripts/Test-Deploy08PublicAcceptance.ps1` 只读公网预检、`scripts/deploy08-backup.sh` 生产联合备份脚本和 `scripts/deploy08-restore-preflight.sh` 独立恢复介质预检。备份脚本默认只预检，真实执行必须显式确认停机；它在同一停写切点导出 MySQL、归档 Redis AOF 卷和上传卷，并使用预先导入的 GPG 公钥加密。恢复预检会核对独立固定的签名信任链、六个加密产物、恢复私钥、Secret、隔离 Docker daemon 以及当前/上一版镜像，但不会创建资源。完整命令、安全边界、尚未执行项和恢复要求见 `docs/DEPLOY-08-RUNBOOK.md`。脚本资产完成不代表生产备份或恢复已经通过。
