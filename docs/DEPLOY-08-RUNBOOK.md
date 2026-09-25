@@ -4,7 +4,7 @@
 
 `DEPLOY-08` 是部署流程的最终生产验收门，目标是证明公网业务、安全边界、持久化、联合恢复和上一镜像回滚真实可用。它不是新业务功能，也不能以“脚本已生成”或“容器 healthy”代替恢复结论。
 
-当前仅完成 **D08-1A 公网只读预检资产**。`DEPLOY-08` 整体状态仍为 `IN_PROGRESS`，不得提前标记为 `DONE`。
+当前已完成 **D08-1A 公网只读预检资产**和 **D08-2 生产联合备份脚本资产**。D08-2 尚未在真实服务器执行，`DEPLOY-08` 整体状态仍为 `IN_PROGRESS`，不得提前标记为 `DONE`。
 
 ## 2. 安全边界
 
@@ -89,6 +89,70 @@ D08-1B 会在生产环境创建测试用户、文件、资料、审核流水、�
 
 ## 6. D08-2 生产联合备份
 
+脚本路径：`deploy/scripts/deploy08-backup.sh`。默认只做预检；真实执行必须同时提供 `--execute` 与 `--acknowledge-downtime`。
+
+### 6.1 准备加密公钥和目录
+
+备份使用 GPG 公钥加密，因为 MySQL 导出、Redis AOF 和上传文件本身都属于敏感数据。该命令是服务器运维依赖，不修改 Java、Node 或项目运行依赖；脚本发现 `gpg` 缺失时只会停止，不会擅自安装。
+
+恢复私钥只能保存在独立恢复端。生产服务器只导入对应加密公钥，并另外创建一把用途隔离、root-only 的 Ed25519 备份签名私钥。签名公钥必须在首次备份前通过独立可信渠道固定到恢复端，不能把备份目录中附带的公钥当作信任根。
+
+```bash
+sudo install -d -o root -g root -m 0700 /srv/campusshare/backups
+sudo gpg --import /受控路径/deploy08-backup-public-key.asc
+sudo install -d -o root -g root -m 0700 /root/.config/campusshare
+sudo ssh-keygen -t ed25519 -N '' \
+  -f /root/.config/campusshare/deploy08-backup-signing-key
+```
+
+将 `deploy08-backup-signing-key.pub` 的内容通过独立可信渠道带到恢复端，写成 OpenSSH `allowed_signers` 格式：
+
+```text
+campusshare-deploy08-backup ssh-ed25519 <已固定的签名公钥正文>
+```
+
+不要把签名私钥、解密私钥、公钥文件路径、UID 中的个人信息或真实指纹写入仓库。签名私钥无口令是为了维护窗口内非交互恢复生产服务，必须严格保持 root 所有、`600` 权限和用途隔离。
+
+### 6.2 预检
+
+```bash
+cd /srv/campusshare/app
+sudo bash deploy/scripts/deploy08-backup.sh \
+  --gpg-recipient '<在服务器上唯一匹配的公钥指纹>' \
+  --signing-key /root/.config/campusshare/deploy08-backup-signing-key
+```
+
+预检核对：干净的 `deploy` 分支、四服务健康、三个卷标签、immutable image ID、GPG 公钥、输出目录权限和磁盘水位。它不会停止服务或创建备份。
+
+### 6.3 真实执行
+
+只有在已经公告维护窗口、确认管理员业务验收停止写入后执行：
+
+```bash
+cd /srv/campusshare/app
+sudo bash deploy/scripts/deploy08-backup.sh \
+  --gpg-recipient '<在服务器上唯一匹配的公钥指纹>' \
+  --signing-key /root/.config/campusshare/deploy08-backup-signing-key \
+  --execute \
+  --acknowledge-downtime
+```
+
+脚本输出目录只包含 GPG 加密业务产物，以及不含 Secret 的 `manifest.json`、相对路径摘要和 detached signature。若任何步骤失败，退出 trap 会先尝试以原镜像和原卷恢复四个生产服务，再清理本轮 `.partial`；服务恢复失败属于立即人工介入的严重错误。
+
+复制到恢复端后，先验证独立固定的签名和相对摘要：
+
+```bash
+cd /受控恢复目录/<run-id>
+ssh-keygen -Y verify \
+  -f /受控路径/deploy08-allowed-signers \
+  -I campusshare-deploy08-backup \
+  -n campusshare-deploy08 \
+  -s manifest.json.sig < manifest.json
+sha256sum -c manifest.json.sha256
+```
+
+同目录 SHA 只能发现传输损坏；detached signature 和恢复端预先固定的公钥才承担来源认证。
+
 后续生产备份必须采用同一停写切点：
 
 1. 停止公网入口；
@@ -103,6 +167,8 @@ D08-1B 会在生产环境创建测试用户、文件、资料、审核流水、�
 10. 无论成功失败都恢复原有服务并验证 readiness。
 
 生产脚本不得使用 `down --volumes`，不得自动安装依赖，不得猜测异地目标，也不得把 TLS 私钥或生产 `.env` 放入业务数据备份。
+
+D08-2 资产完成不等于生产备份完成。必须把完整 run-id 目录复制到独立恢复机，核对 `manifest.json.sha256` 和每个加密产物摘要，并成功完成 D08-3，才算第 11 项通过。
 
 ## 7. D08-3 独立恢复和上一镜像
 
