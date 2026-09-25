@@ -431,6 +431,16 @@ frontend_image=$(docker inspect --format '{{.Image}}' "$frontend_container")
 for service_image in "$mysql_image" "$redis_image" "$backend_image" "$frontend_image"; do
     case "$service_image" in sha256:*) ;; *) fail '无法取得四服务 immutable image ID。' ;; esac
 done
+backend_revision=$(docker image inspect --format \
+    '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$backend_image")
+frontend_revision=$(docker image inspect --format \
+    '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$frontend_image")
+case "$backend_revision" in ''|*[!0-9a-f]*) fail '后端镜像缺少有效源码 revision 标签。' ;; esac
+case "$frontend_revision" in ''|*[!0-9a-f]*) fail '前端镜像缺少有效源码 revision 标签。' ;; esac
+[ "${#backend_revision}" -eq 40 ] && [ "${#frontend_revision}" -eq 40 ] \
+    || fail '前后端镜像源码 revision 必须是 40 位小写十六进制。'
+[ "$backend_revision" = "$frontend_revision" ] || fail '前后端镜像源码 revision 不一致。'
+application_revision=$backend_revision
 # 恢复服务时固定使用当前运行中的不可变镜像，避免维护窗口内可变 tag 漂移。
 export BACKEND_IMAGE=$backend_image
 export FRONTEND_IMAGE=$frontend_image
@@ -615,19 +625,20 @@ manifest_signature_partial="$manifest_partial.sig"
 PARTIAL_FILES+=("$manifest_partial")
 PARTIAL_FILES+=("$manifest_signature_partial")
 python3 - "$manifest_partial" "$ARTIFACT_INDEX" "$RUN_ID" "$cut_at" "$branch" "$commit" \
-    "$mysql_image" "$redis_image" "$backend_image" "$frontend_image" "$recipient_fingerprint" <<'PY'
+    "$mysql_image" "$redis_image" "$backend_image" "$frontend_image" "$application_revision" \
+    "$recipient_fingerprint" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 
-output, artifact_index, run_id, cut_at, branch, commit, mysql_image, redis_image, backend_image, frontend_image, fingerprint = sys.argv[1:]
+output, artifact_index, run_id, cut_at, branch, commit, mysql_image, redis_image, backend_image, frontend_image, application_revision, fingerprint = sys.argv[1:]
 artifacts = []
 with open(artifact_index, encoding="utf-8") as source:
     for line in source:
         name, sha256, size = line.rstrip("\n").split("\t")
         artifacts.append({"name": name, "sha256": sha256, "bytes": int(size)})
 manifest = {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "runId": run_id,
     "status": "PASSED",
     "cutAt": cut_at,
@@ -641,6 +652,7 @@ manifest = {
         "backend": backend_image,
         "frontend": frontend_image,
     },
+    "applicationRevision": application_revision,
     "gpgRecipientFingerprint": fingerprint,
     "artifacts": artifacts,
 }

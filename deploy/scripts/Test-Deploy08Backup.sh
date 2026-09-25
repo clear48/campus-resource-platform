@@ -273,6 +273,14 @@ test_manifest_excludes_secrets() {
     printf '%s\n' "$manifest_block" | grep -F -- '"artifacts": artifacts' >/dev/null
     printf '%s\n' "$manifest_block" | grep -F -- '"mysql": mysql_image' >/dev/null
     printf '%s\n' "$manifest_block" | grep -F -- '"redis": redis_image' >/dev/null
+    printf '%s\n' "$manifest_block" | grep -F -- '"schemaVersion": 2' >/dev/null
+    printf '%s\n' "$manifest_block" | grep -F -- '"applicationRevision": application_revision' >/dev/null
+}
+
+test_application_revision_is_bound() {
+    assert_contains 'org.opencontainers.image.revision' || return 1
+    assert_contains '[ "$backend_revision" = "$frontend_revision" ]' || return 1
+    assert_contains 'application_revision=$backend_revision' || return 1
 }
 
 check 'Bash 语法通过' bash -n "$TARGET"
@@ -294,6 +302,7 @@ check 'manifest 在签名成功后发布' test_manifest_published_after_signatur
 check '清单逐项读取失败时关闭' test_inventory_commands_fail_closed
 check '管道成功后才原子完成加密产物' test_partial_finalized_after_pipeline
 check 'manifest 不包含 Secret' test_manifest_excludes_secrets
+check '当前应用镜像源码 revision 已绑定' test_application_revision_is_bound
 
 printf 'DEPLOY-08 备份脚本测试完成：passed=%s failed=%s\n' "$passed" "$failed"
 [ "$failed" -eq 0 ]
