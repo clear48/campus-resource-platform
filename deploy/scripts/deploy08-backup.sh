@@ -122,21 +122,22 @@ assert_container_healthy() {
     [ "$health" = 'healthy' ] || fail "$service 容器不健康：$health"
 }
 
-wait_service_healthy() {
-    local service=$1
-    local timeout_seconds=${2:-240}
-    local deadline container_id state
+wait_container_healthy() {
+    local container_id=$1
+    local service=$2
+    local timeout_seconds=${3:-300}
+    local deadline state health
     deadline=$((SECONDS + timeout_seconds))
     while [ "$SECONDS" -lt "$deadline" ]; do
-        container_id=$(compose ps --all --quiet "$service" 2>/dev/null || true)
-        if [ -n "$container_id" ]; then
-            state=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
-                "$container_id" 2>/dev/null || true)
-            [ "$state" = 'healthy' ] && return 0
-            case "$state" in exited|dead) return 1 ;; esac
-        fi
+        state=$(docker inspect --format '{{.State.Status}}' "$container_id" 2>/dev/null || true)
+        health=$(docker inspect --format \
+            '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \
+            "$container_id" 2>/dev/null || true)
+        [ "$state" = 'running' ] && [ "$health" = 'healthy' ] && return 0
+        case "$state" in exited|dead|'') return 1 ;; esac
         sleep 2
     done
+    printf 'DEPLOY-08：等待原 %s 容器健康超时。\n' "$service" >&2
     return 1
 }
 
@@ -222,35 +223,40 @@ record_artifact() {
 }
 
 restore_services() {
-    local restored_backend restored_frontend restored_backend_container restored_frontend_container
+    local service restored_container restored_image expected_image
     [ "$SERVICES_TOUCHED" -eq 1 ] || return 0
+    # EXIT trap 可能在主流程恢复失败后再次调用；每次尝试必须独立计算结果。
+    RESTORE_FAILED=0
     printf '%s\n' '[DEPLOY-08] 正在恢复生产服务到运行状态。'
-    if ! compose up -d --no-build --pull never mysql redis backend frontend >/dev/null; then
+    # 只启动停机前捕获的原容器，禁止 Compose 在失败恢复路径重建容器或让新镜像接触生产卷。
+    if ! docker start "$mysql_container" "$redis_container" >/dev/null; then
         RESTORE_FAILED=1
-        printf '%s\n' 'DEPLOY-08 严重错误：无法重新启动生产服务。' >&2
+        printf '%s\n' 'DEPLOY-08 严重错误：无法重新启动原 MySQL/Redis 容器。' >&2
         return 1
     fi
+    wait_container_healthy "$mysql_container" mysql 300 || RESTORE_FAILED=1
+    wait_container_healthy "$redis_container" redis 300 || RESTORE_FAILED=1
+    [ "$RESTORE_FAILED" -eq 0 ] || return 1
+    docker start "$backend_container" >/dev/null || { RESTORE_FAILED=1; return 1; }
+    wait_container_healthy "$backend_container" backend 300 || { RESTORE_FAILED=1; return 1; }
+    docker start "$frontend_container" >/dev/null || { RESTORE_FAILED=1; return 1; }
+    wait_container_healthy "$frontend_container" frontend 300 || { RESTORE_FAILED=1; return 1; }
+
+    # 四个服务都必须恢复到停机前的不可变镜像，数据服务版本同样属于恢复证据。
     for service in mysql redis backend frontend; do
-        if ! wait_service_healthy "$service" 300; then
+        case "$service" in
+            mysql) restored_container=$mysql_container; expected_image=$mysql_image ;;
+            redis) restored_container=$redis_container; expected_image=$redis_image ;;
+            backend) restored_container=$backend_container; expected_image=$backend_image ;;
+            frontend) restored_container=$frontend_container; expected_image=$frontend_image ;;
+        esac
+        restored_image=$(docker inspect --format '{{.Image}}' "$restored_container" 2>/dev/null || true)
+        if [ -z "$restored_container" ] || [ "$restored_image" != "$expected_image" ]; then
             RESTORE_FAILED=1
-            printf 'DEPLOY-08 严重错误：恢复后服务未健康：%s\n' "$service" >&2
+            printf 'DEPLOY-08 严重错误：恢复后的 %s 镜像身份与停机前不一致。\n' "$service" >&2
             return 1
         fi
     done
-    restored_backend_container=$(compose ps --all --quiet backend 2>/dev/null || true)
-    restored_frontend_container=$(compose ps --all --quiet frontend 2>/dev/null || true)
-    if [ -z "$restored_backend_container" ] || [ -z "$restored_frontend_container" ]; then
-        RESTORE_FAILED=1
-        printf '%s\n' 'DEPLOY-08 严重错误：恢复后无法定位应用容器。' >&2
-        return 1
-    fi
-    restored_backend=$(docker inspect --format '{{.Image}}' "$restored_backend_container" 2>/dev/null || true)
-    restored_frontend=$(docker inspect --format '{{.Image}}' "$restored_frontend_container" 2>/dev/null || true)
-    if [ "$restored_backend" != "$backend_image" ] || [ "$restored_frontend" != "$frontend_image" ]; then
-        RESTORE_FAILED=1
-        printf '%s\n' 'DEPLOY-08 严重错误：恢复后的应用镜像身份与停机前不一致。' >&2
-        return 1
-    fi
     return 0
 }
 
@@ -418,10 +424,13 @@ for volume in "$mysql_volume" "$redis_volume" "$uploads_volume"; do
         fail "输出目录不得与生产数据卷重叠：$volume"
     fi
 done
+mysql_image=$(docker inspect --format '{{.Image}}' "$mysql_container")
+redis_image=$(docker inspect --format '{{.Image}}' "$redis_container")
 backend_image=$(docker inspect --format '{{.Image}}' "$backend_container")
 frontend_image=$(docker inspect --format '{{.Image}}' "$frontend_container")
-case "$backend_image" in sha256:*) ;; *) fail '无法取得后端 immutable image ID。' ;; esac
-case "$frontend_image" in sha256:*) ;; *) fail '无法取得前端 immutable image ID。' ;; esac
+for service_image in "$mysql_image" "$redis_image" "$backend_image" "$frontend_image"; do
+    case "$service_image" in sha256:*) ;; *) fail '无法取得四服务 immutable image ID。' ;; esac
+done
 # 恢复服务时固定使用当前运行中的不可变镜像，避免维护窗口内可变 tag 漂移。
 export BACKEND_IMAGE=$backend_image
 export FRONTEND_IMAGE=$frontend_image
@@ -606,12 +615,12 @@ manifest_signature_partial="$manifest_partial.sig"
 PARTIAL_FILES+=("$manifest_partial")
 PARTIAL_FILES+=("$manifest_signature_partial")
 python3 - "$manifest_partial" "$ARTIFACT_INDEX" "$RUN_ID" "$cut_at" "$branch" "$commit" \
-    "$backend_image" "$frontend_image" "$recipient_fingerprint" <<'PY'
+    "$mysql_image" "$redis_image" "$backend_image" "$frontend_image" "$recipient_fingerprint" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
 
-output, artifact_index, run_id, cut_at, branch, commit, backend_image, frontend_image, fingerprint = sys.argv[1:]
+output, artifact_index, run_id, cut_at, branch, commit, mysql_image, redis_image, backend_image, frontend_image, fingerprint = sys.argv[1:]
 artifacts = []
 with open(artifact_index, encoding="utf-8") as source:
     for line in source:
@@ -626,7 +635,12 @@ manifest = {
     "project": "campus-resource-platform",
     "branch": branch,
     "commit": commit,
-    "images": {"backend": backend_image, "frontend": frontend_image},
+    "images": {
+        "mysql": mysql_image,
+        "redis": redis_image,
+        "backend": backend_image,
+        "frontend": frontend_image,
+    },
     "gpgRecipientFingerprint": fingerprint,
     "artifacts": artifacts,
 }

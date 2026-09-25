@@ -202,9 +202,20 @@ test_encrypted_artifacts_only() {
 }
 
 test_restore_trap() {
+    local retry_reset data_start
     assert_contains 'trap on_exit EXIT'
     assert_contains 'restore_services'
-    assert_contains 'compose up -d --no-build --pull never mysql redis backend frontend'
+    assert_not_contains 'compose up -d --no-build --pull never mysql redis backend frontend'
+    assert_contains 'docker start "$mysql_container" "$redis_container"'
+    assert_contains 'docker start "$backend_container"'
+    assert_contains 'docker start "$frontend_container"'
+    assert_contains 'wait_container_healthy "$mysql_container" mysql'
+    assert_contains 'for service in mysql redis backend frontend; do'
+    assert_contains 'mysql) restored_container=$mysql_container; expected_image=$mysql_image'
+    assert_contains 'redis) restored_container=$redis_container; expected_image=$redis_image'
+    retry_reset=$(line_number 'RESTORE_FAILED=0')
+    data_start=$(line_number 'docker start "$mysql_container" "$redis_container"')
+    [ -n "$retry_reset" ] && [ -n "$data_start" ] && [ "$retry_reset" -lt "$data_start" ]
 }
 
 test_output_volume_isolation_and_signature() {
@@ -260,6 +271,8 @@ test_manifest_excludes_secrets() {
         grep -Ei -- 'MYSQL_PWD|REDIS_PASSWORD|JWT|PASSWORD|SECRET|TOKEN|private.?key' >/dev/null
     printf '%s\n' "$manifest_block" | grep -F -- '"gpgRecipientFingerprint": fingerprint' >/dev/null
     printf '%s\n' "$manifest_block" | grep -F -- '"artifacts": artifacts' >/dev/null
+    printf '%s\n' "$manifest_block" | grep -F -- '"mysql": mysql_image' >/dev/null
+    printf '%s\n' "$manifest_block" | grep -F -- '"redis": redis_image' >/dev/null
 }
 
 check 'Bash 语法通过' bash -n "$TARGET"
