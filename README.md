@@ -10,7 +10,9 @@
 ![Redis](https://img.shields.io/badge/Redis-6%2B-DC382D?logo=redis&logoColor=white)
 ![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs&logoColor=white)
 
-[快速启动](#快速启动) · [容器部署](deploy/README.md) · [后端亮点](#值得阅读的后端实现) · [面试复盘](docs/interview/README.md) · [接口文档](docs/api/api-reference.md) · [项目结构](#项目结构) · [已知边界](#当前边界与后续方向)
+[快速启动](#快速启动) · [部署上线](#部署上线) · [部署运行手册](deploy/README.md) · [后端亮点](#值得阅读的后端实现) · [面试复盘](docs/interview/README.md) · [接口文档](docs/api/api-reference.md) · [项目结构](#项目结构) · [已知边界](#当前边界与后续方向)
+
+正式站点：[https://campusshare.online](https://campusshare.online)。部署资产维护在 [`deploy` 分支](https://github.com/clear48/campus-resource-platform/tree/deploy)；服务器、DNS 与 HTTPS 的历史验收已完成，公网完整业务和生产备份恢复仍处于 DEPLOY-08 阶段，详见[部署交接](docs/DEPLOYMENT_HANDOFF.md)。
 
 课程课件、复习笔记和实验资料容易散落在群聊与个人网盘中。本项目围绕「上传 → 审核 → 公开检索 → 下载 / 收藏」建立完整业务闭环，用具体业务展示 **Spring Boot、MyBatis、MySQL、Redis、JWT、事务与并发控制** 的使用方式，并提供 Vue 演示界面和按模块整理的开发文档。
 
@@ -99,6 +101,7 @@ campus-resource-platform/               # Git 仓库根目录
 │       ├── main/resources/             # application.yaml 与 mapper XML
 │       └── test/                       # 后端单元与集成测试
 ├── frontend/                           # Vue 演示前端与组件测试
+├── deploy/                             # Compose、Nginx、环境变量模板、发布与恢复检查脚本
 ├── sql/                                # 新库初始化和存量迁移
 ├── scripts/                            # API 驱动的测试数据准备脚本
 ├── docs/                               # 需求、API、数据库、Redis、面试复盘
@@ -231,6 +234,137 @@ WHERE NOT EXISTS (
 
 批量测试数据可参考[数据准备脚本说明](docs/10-bulk-test-data-seeding.md)。更完整的启动和排障说明见[运行手册](docs/07-project-runbook.md)。
 
+## 部署上线
+
+以下命令均从**仓库根目录**执行。部署采用 Docker Compose 单机方案：Nginx 提供 Vue 静态页面，将同源 `/api/v1/**` 代理到 Spring Boot，后端访问私网 MySQL 和 Redis。只运行一个后端实例，上传文件保存在固定的 `/data/uploads` 持久卷中。
+
+### 1. 服务器与部署文件
+
+当前方案面向 Ubuntu 24.04 / Linux amd64、2 核 2 GB 内存、40 GB 磁盘的演示服务器，需要 Docker Engine、Compose 插件；HTTPS 还需要宿主机上的 Certbot、OpenSSL 及证书脚本使用的 `flock`。镜像在本地构建并验证，2 GB 服务器只加载镜像和运行容器。
+
+```bash
+# 首次部署创建固定发布目录；已部署服务器继续使用原仓库和环境文件。
+sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 0755 /srv/campusshare
+git clone --branch deploy https://github.com/clear48/campus-resource-platform.git /srv/campusshare/app
+cd /srv/campusshare/app
+# 正式发布前检出与发布证据对应的已验证提交，避免直接追随变化中的分支。
+git checkout --detach '<已验证的配置提交SHA>'
+```
+
+服务器示例统一使用 `/srv/campusshare/app`，它也是证书脚本安装后的默认配置查找目录。自定义发布目录时，需按[续期说明](deploy/README.md#93-自动续期与回滚)在 Certbot wrapper 和手工发布命令显式设置 `CAMPUSSHARE_HTTPS_CONFIG`，仅在其他目录 clone 不足以保证自动续期正常。
+
+| 文件 | 用途 |
+| --- | --- |
+| [deploy/docker-compose.yml](deploy/docker-compose.yml) | 四服务基础编排、内存预算、健康检查、私网和持久卷；默认只启用 HTTP |
+| [deploy/.env.example](deploy/.env.example) | 复制为服务器本地 `deploy/.env`，填写 Secret、镜像标签及资源配置 |
+| [deploy/docker-compose.acme.yml](deploy/docker-compose.acme.yml) | 首次签发证书时挂载 HTTP-01 challenge 目录 |
+| [deploy/docker-compose.https.yml](deploy/docker-compose.https.yml) | 与基础编排合并，追加 443、TLS 卷和 HTTPS Nginx 配置 |
+| [deploy/nginx](deploy/nginx) | HTTP / HTTPS 反代、SPA 回退、转发头和上传请求上限 |
+| [后端 Dockerfile](campus-resource-platform/Dockerfile)、[前端 Dockerfile](frontend/Dockerfile) | 固定基础镜像 digest 的多阶段构建 |
+| [deploy/scripts](deploy/scripts) | 本地发布门禁、证书发布、公网预检、联合备份和恢复介质预检 |
+
+安全组与宿主机防火墙仅对外放行 80 / 443；SSH 按运维来源限制。后端 8080、MySQL 3306 和 Redis 6379 不发布到宿主机。
+
+### 2. 生产环境变量
+
+```bash
+# 仅在首次部署且目标文件不存在时复制，已有环境继续使用原文件。
+cp -n deploy/.env.example deploy/.env
+chmod 600 deploy/.env
+```
+
+编辑 `deploy/.env`，至少核对以下配置。它是 **Compose 插值文件**；后端连接地址和 `prod` Profile 由 Compose 注入，不需要把 `.env` 放进前端，也不要把生产 Secret 写入 `VITE_*`。
+
+| 配置项 | 配置要求 / 默认值 |
+| --- | --- |
+| `COMPOSE_PROJECT_NAME` | 默认 `campus-resource-platform`；已部署后保持不变，避免切换到另一组命名卷 |
+| `BACKEND_IMAGE`、`FRONTEND_IMAGE` | 填本地验证并交付的镜像标签；发布脚本默认使用构建提交的 12 位 SHA，模板中的 `deploy-02` 不是最新发布版本 |
+| `MYSQL_ROOT_PASSWORD` | 独立随机管理员密码，仅用于数据库初始化和维护 |
+| `MYSQL_APP_USERNAME`、`MYSQL_APP_PASSWORD` | 默认账号 `campus_app`，禁止 `root`；应用密码至少 16 字节且满足强度校验 |
+| `REDIS_PASSWORD` | 独立强随机密码，至少 16 字节；Redis 开启 AOF 和 `noeviction` |
+| `JWT_SECRET` | 独立随机密钥，至少 32 个 UTF-8 字节；更换后已有 Token 会失效 |
+| `JWT_EXPIRATION_SECONDS` | 默认 `7200` 秒 |
+| `HTTP_PORT`、`HTTPS_PORT` | 默认 `80` / `443`；仅基础 Compose 不会启用 HTTPS |
+| `ACME_WEBROOT_DIR` | 默认 `/srv/campusshare/acme`，宿主机公开 challenge 目录 |
+| `TLS_RUNTIME_VOLUME` | 默认 `campus-resource-platform_tls_runtime`，由证书脚本创建的外部卷 |
+| `APP_UPLOAD_MIN_FREE_SPACE_BYTES` | 默认 `5368709120`（5 GiB），必须为正数；不足时上传拒绝写入 |
+| `RANK_DOWNLOAD_DELTA_SYNC_ENABLED`、`RANK_HOT_RANKING_SYNC_ENABLED` | 默认均为 `true`；同步协议升级须遵守迁移门禁 |
+
+四项 Secret 分别独立生成：MySQL root / 应用密码、Redis 密码可使用 `openssl rand -hex 32`，JWT 可使用 `openssl rand -base64 48`；在服务器本地受控环境生成并保存，不能复制本地开发密钥或相互复用。不要展示完整 `docker compose config`，校验时用 `config --quiet`，避免展开 Secret。
+
+默认内存预算为后端 `768m`、MySQL `512m`、Redis `160m`、Nginx `64m`。`JAVA_TOOL_OPTIONS` 将 JVM 堆限制为 128～512 MiB，Hikari 最大连接数 8，MySQL Buffer Pool 为 256 MiB、最大连接数 30，Redis 数据上限为 96 MiB。完整变量及调整边界见[部署手册](deploy/README.md)。
+
+### 3. 本地验证、镜像交付与 HTTP 启动
+
+在 Windows PowerShell 7 中，对**干净的 `deploy` 分支候选提交**依次执行：
+
+```powershell
+# 自动创建隔离 MySQL，执行前后端测试、生产构建及双镜像构建。
+pwsh -NoProfile -File .\deploy\scripts\Test-Deploy04Build.ps1
+pwsh -NoProfile -File .\deploy\scripts\Test-Deploy04Compose.ps1
+pwsh -NoProfile -File .\deploy\scripts\Test-Deploy04Migration.ps1
+pwsh -NoProfile -File .\deploy\scripts\Test-Deploy04Rollback.ps1
+```
+
+将验证过的镜像通过 `docker image save` 导出，在服务器核对发布包 SHA-256 后 `docker image load`；交付命令和 image ID 核对见[镜像交付说明](deploy/README.md#41-镜像交付到服务器)。GitHub 保存源码、配置模板与脚本；`git push` 不会自动发布 Docker 镜像，也不会部署服务器。
+
+服务器检出配置提交、加载前后端镜像，提前按固定 digest 拉取 Compose 指定的 MySQL / Redis 镜像，并将准确镜像标签写入 `.env` 后，首次启动执行：
+
+```bash
+sudo docker compose --env-file deploy/.env -f deploy/docker-compose.yml config --quiet
+sudo docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --no-build --pull never
+sudo docker compose --env-file deploy/.env -f deploy/docker-compose.yml ps
+curl --fail http://127.0.0.1/healthz
+curl --fail http://127.0.0.1/api/v1/health/readiness
+```
+
+上述 curl 使用默认 80 端口，修改 `HTTP_PORT` 时要同步调整。**空 MySQL 卷**首次启动自动执行 `sql/init.sql` 和应用账号授权脚本，仅授予业务库 `SELECT/INSERT/UPDATE`；不会生成演示账号或分类。首次业务数据准备参照快速启动第 5 步，并在受控维护窗口核对目标库和账号。
+
+**已有数据库或数据卷**不会重跑初始化。发布前按[数据库变更记录](docs/database/database-change-log.md)核对三份迁移的执行顺序、旧下载同步批次与有效资料重复组，并检查应用账号权限；先备份、在副本演练，再用管理员账号迁移。直接修改 `.env` 的 MySQL 密码不会修改已有数据库用户密码。
+
+### 4. DNS、HTTPS 与证书续期
+
+当前正式域名为 `campusshare.online`：根域名 `A` 指向服务器公网 IPv4，`www` 使用 `CNAME` 指向根域名。HTTPS Nginx 和证书脚本固定校验这两个域名；部署到其他域名时需同步调整配置、证书校验及公网验收脚本，没有可直接替换的 `DOMAIN` 环境变量。
+
+首次启用 HTTPS 必须按[证书签发与续期步骤](deploy/README.md#9-deploy-07-https-与证书续期)依次完成：
+
+1. 创建 `ACME_WEBROOT_DIR`，以基础编排 + ACME override 启动入口，验证两个域名的 challenge 路径。
+2. 使用宿主机 Certbot 为根域名与 `www` 签发同一张 SAN 证书。
+3. 运行 `deploy07-cert-deploy.sh`，校验证书并写入带项目标签的 TLS 外部卷。
+4. 使用基础编排 + HTTPS override 启动；安装 root-owned Certbot deploy hook，验证自动续期和 Nginx 平滑 reload。
+
+证书已签发且 TLS 卷已初始化后，正式 HTTPS 启动命令为：
+
+```bash
+sudo docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.https.yml config --quiet
+sudo docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.https.yml up -d --no-build --pull never
+curl --fail https://campusshare.online/healthz
+curl --fail https://campusshare.online/api/v1/health/readiness
+```
+
+80 保留 HTTP-01 challenge，其余 HTTP 和 `www` HTTPS 均 301 到根域名 HTTPS；443 映射到容器非特权端口 8443，容器健康探针走 loopback 8081。续期 dry-run 启用 deploy hook 后须重新部署生产 lineage，确认运行端恢复为受信任证书。后续 `up/ps/logs/stop/down` 均保留同一 `.env`、项目名和这两个 Compose 文件，避免入口配置回退到 HTTP。
+
+### 5. 验证、持久化与维护
+
+| 检查 | 表示什么 |
+| --- | --- |
+| `/healthz` | Nginx 存活 |
+| `/api/v1/health` | Spring Boot 进程存活 |
+| `/api/v1/health/readiness` | MySQL、Redis、上传目录可写与磁盘水位均正常；失败为 HTTP 503 |
+
+readiness 会短暂创建并删除目录探针；容器 `healthy` 不等于公网业务验收完成，`unhealthy` 也不会自动摘除后端或触发容器重启。入口排障使用：
+
+```bash
+sudo docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.https.yml logs --tail=100 backend frontend
+```
+
+MySQL、Redis 完整 AOF 和上传文件分别使用 `mysql_data`、`redis_data`、`uploads_data`，必须在同一停写切点联合备份恢复。生产停止或更新不得执行 `docker compose down -v`。TLS 私钥和生产 `.env` 单独受控保管，不进入 Git 或业务备份；备份密文与发布镜像归档也应保存在仓库外。
+
+已有只读公网预检、加密联合备份和独立恢复介质预检脚本，具体参数见[DEPLOY-08 运行手册](docs/DEPLOY-08-RUNBOOK.md)。备份默认仅预检，实际备份需要显式停机参数；恢复预检不执行恢复。完整公网业务、独立恢复、上一版镜像回滚及 RPO/RTO 验证尚未完成，DEPLOY-08 保持 `IN_PROGRESS`。
+
 ## 测试与构建
 
 后端在 `campus-resource-platform/` 子目录执行：
@@ -260,6 +394,7 @@ npm run build
 | 如何设计数据与索引 | [数据库设计](docs/database/database-design.md)、[建表 SQL](sql/init.sql) |
 | Redis 为什么这样用 | [Redis 设计](docs/05-redis-design.md)及上方源码入口 |
 | 如何调试接口 | [API 参考](docs/api/api-reference.md)、[Postman 集合](docs/api/postman/campus-resource-platform.postman_collection.json) |
+| 如何部署到公网 | [部署运行手册](deploy/README.md)、[上线交接](docs/DEPLOYMENT_HANDOFF.md)、[生产验收与恢复](docs/DEPLOY-08-RUNBOOK.md) |
 | 如何准备项目面试 | [项目背景与价值](docs/interview/01-project-background-and-value.md)、[技术栈复盘](docs/interview/03-technology-stack-review.md)、[高频问答](docs/interview/04-interview-question-bank.md) |
 | 当前进度和后续改进 | [当前状态](docs/CURRENT_STATUS.md)、[局限与演进路线](docs/interview/05-limitations-and-improvement-roadmap.md)、[文档总索引](docs/README.md) |
 
@@ -272,6 +407,6 @@ npm run build
 - 下载统计在创建记录阶段触发，不能等同于文件已完整传输到客户端。
 - 周期榜使用固定周期 Key 与 TTL，尚非精确自然日 / 周 / 月切桶。
 - Redis 是受保护接口的鉴权依赖；部分缓存可以降级，不代表所有功能都能脱离 Redis 运行。
-- 已提供面向 2 GB 演示服务器的 Docker Compose 单机部署资产；GitHub Actions CI、公开压测、真实 Redis 故障与并发验证仍可补强。
+- 已完成 2 GB 服务器部署及 DNS / HTTPS 历史验收；生产完整业务与备份恢复仍在 DEPLOY-08 阶段，GitHub Actions CI、公开压测和真实 Redis 故障与并发验证仍可补强。
 
 欢迎围绕这些明确的边界提出改进建议。提交问题时请附复现步骤和脱敏日志；提交代码前请运行相关测试。当前仓库尚未添加 `LICENSE`，README 不声明特定开源许可证。

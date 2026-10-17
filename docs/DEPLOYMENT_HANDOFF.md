@@ -1,6 +1,6 @@
 # 项目部署上线交接文档
 
-> 最后更新：2026-09-24
+> 最后更新：2026-10-17（部署配置说明与文档同步，未重新执行生产验收）
 > 当前开发分支：`deploy`
 > DEPLOY-03 开发基线：`e9730f74`
 > DEPLOY-03 实现提交：`3a2c5e96`、`9272af41`、`9a3c2d86`、`5dee7699`、`740a4d97`、`248bc29d`
@@ -40,9 +40,11 @@ https://campusshare.online
 | Docker 部署资产 | `DONE` | 已完成双阶段镜像、Compose、Nginx、环境变量示例和部署说明；实现提交 `6449823` |
 | 生产安全配置 | `DONE` | 同源 CORS、可信代理、生产 Secret、最小权限、readiness、优雅停机与上传安全边界已完成 |
 | HTTPS | `DONE` | Let's Encrypt 双域名证书、443、HTTP 跳转、自动续期 hook 与 dry-run 均已验证 |
-| 上线验收 | `TODO` | 尚未执行公网全链路、重启持久化和备份恢复验证 |
+| 上线验收 | `IN_PROGRESS` | DEPLOY-08 已有公网预检、加密备份与恢复介质预检资产；完整公网业务、生产联合备份与独立恢复尚未完成，DEPLOY-05 的宿主机重启历史验证不替代本阶段验收 |
 
 此前讨论过的 `campusshare.click` 只是候选域名，已经作废。后续所有部署配置统一使用 `campusshare.online`。
+
+2026-10-17 文档同步：部署资产已有提交并保存在 `origin/deploy`；根 [README](../README.md#部署上线)与 [deploy/README.md](../deploy/README.md)现说明 Compose 变量、镜像交付、HTTP / HTTPS 启动、证书续期、持久化和验收边界。本轮只更新文档，不修改服务器、数据库或生产 Secret；下面的生产运行结果均为原阶段的历史证据。
 
 ## 3. 已确认的技术栈
 
@@ -64,10 +66,10 @@ https://campusshare.online
 | 层次 | 推荐实现 |
 | --- | --- |
 | 云服务器 | 腾讯云中国香港实例（已购买） |
-| 操作系统 | 受支持的 Ubuntu LTS |
+| 操作系统 | DEPLOY-05 已验证 Ubuntu 24.04 / amd64 |
 | 容器 | Docker、Docker Compose |
 | Web 入口 | Nginx |
-| HTTPS | Let's Encrypt/Certbot 或阿里云数字证书服务 |
+| HTTPS | 已采用 Let's Encrypt / 宿主机 Certbot 与原子证书部署 hook |
 | 持久化 | MySQL、Redis、上传文件分别使用持久卷 |
 | 备份 | `mysqldump` + Redis 数据 + 上传目录联合备份 |
 
@@ -189,7 +191,7 @@ df -h
 - 已获得腾讯云中国香港服务器和公网 IPv4；
 - 已确认 2 核 CPU、2 GB 内存、40 GB 系统盘和运行状态；
 - 公网 IP 不写入仓库；
-- Ubuntu 具体版本、带宽和安全组规则留在首次登录检查中确认；
+- 初次购机时待核实的操作系统已在 DEPLOY-05 确认为 Ubuntu 24.04 / amd64，安全组与防火墙已完成该阶段检查；
 - 登录密码、SSH 私钥和控制台凭据不得写入仓库或聊天归档。
 
 ### DEPLOY-02：补齐容器化部署资产（`DONE`）
@@ -350,6 +352,10 @@ Resolve-DnsName www.campusshare.online -Type CNAME
 
 ### DEPLOY-08：公网验收与备份恢复
 
+当前状态：`IN_PROGRESS`。已提供 D08-1A 只读公网预检、D08-2 生产联合备份脚本、D08-3A 独立恢复介质预检；实现提交分别包括 `8e6c3acb`、`a1a5b918`、`7ab23087`、`babb85d0` 和 `aa4de3d9`。这些提交已存在于 `origin/deploy`，脚本资产完成不代表生产备份或恢复通过。
+
+后续参数、安全边界和验收状态以 [DEPLOY-08 运行手册](DEPLOY-08-RUNBOOK.md)为准。备份默认只预检，真实执行需明确停机参数；恢复预检仅核对介质、签名、Secret、独立 Docker daemon 和镜像，不会实施恢复。
+
 必须验收：
 
 1. 首页、登录、注册和 Vue 路由刷新；
@@ -362,28 +368,25 @@ Resolve-DnsName www.campusshare.online -Type CNAME
 8. 接近 50 MB 的上传能通过 Nginx 与后端限制；
 9. 伪造转发 IP 头不能绕过限流；
 10. 重启服务器和容器后 MySQL、Redis、上传文件不丢失；
-11. 数据库与上传目录联合备份可以恢复到独立测试环境；
+11. MySQL、Redis 完整 AOF 与上传目录在同一停写切点的联合备份可以恢复到独立测试环境；
 12. 回滚到上一镜像时数据库和文件仍兼容。
 
 ## 9. 生产环境变量清单
 
-以下只记录变量名，不记录真实值：
+服务器 `deploy/.env` 的输入以 [deploy/.env.example](../deploy/.env.example)为准，完整变量说明见[部署手册](../deploy/README.md#21-配置变量与映射)。以下仅为结构示意，占位符必须在服务器本地替换，不能直接启动：
 
 ```dotenv
-SERVER_PORT=8080
-MYSQL_URL=<容器内 MySQL JDBC 地址>
-MYSQL_USERNAME=<最小权限应用账号>
-MYSQL_PASSWORD=<强密码>
-REDIS_HOST=<Compose 服务名>
-REDIS_PORT=6379
+COMPOSE_PROJECT_NAME=campus-resource-platform
+BACKEND_IMAGE=campus-resource-platform-backend:<已验证的应用构建SHA>
+FRONTEND_IMAGE=campus-resource-platform-frontend:<已验证的应用构建SHA>
+HTTP_PORT=80
+MYSQL_ROOT_PASSWORD=<独立随机管理员密码>
+MYSQL_APP_USERNAME=campus_app
+MYSQL_APP_PASSWORD=<独立随机应用密码>
 REDIS_PASSWORD=<强密码>
-REDIS_DATABASE=0
 JWT_SECRET=<生产独立随机密钥，至少 32 字节>
 JWT_EXPIRATION_SECONDS=7200
-APP_UPLOAD_STORAGE_PATH=/data/uploads
 APP_UPLOAD_MIN_FREE_SPACE_BYTES=5368709120
-APP_UPLOAD_MAX_FILE_SIZE=50MB
-APP_UPLOAD_MAX_REQUEST_SIZE=60MB
 RANK_DOWNLOAD_DELTA_SYNC_ENABLED=true
 RANK_HOT_RANKING_SYNC_ENABLED=true
 HTTPS_PORT=443
@@ -391,7 +394,9 @@ ACME_WEBROOT_DIR=/srv/campusshare/acme
 TLS_RUNTIME_VOLUME=campus-resource-platform_tls_runtime
 ```
 
-注意：本机已经设置的 Windows 用户级 `JWT_SECRET` 只用于本地开发，不能当作生产密钥复制到服务器。
+Compose 会将 `MYSQL_APP_USERNAME/PASSWORD` 映射为后端进程的 `MYSQL_USERNAME/PASSWORD`，并固定 `prod`、MySQL JDBC 地址、`redis:6379` 和 `/data/uploads`。请求 / 单文件上限固定为 60 MB / 50 MB，前端固定同源 `/api/v1`。仅在 `.env` 添加后端同名变量不会覆盖未配置的 Compose 映射。
+
+本机已经设置的 Windows 用户级 `JWT_SECRET` 只用于本地开发，不能当作生产密钥复制到服务器。生产项目名和卷身份保持稳定；旧 MySQL 卷修改 `.env` 不会自动轮换数据库密码。模板的 `deploy-02` 镜像标签不是当前发布版本，必须按真实构建证据填写。
 
 ## 10. 停止条件
 
@@ -413,6 +418,8 @@ TLS_RUNTIME_VOLUME=campus-resource-platform_tls_runtime
 
 > 执行 `DEPLOY-08`：完成公网业务全链路验收，以及 MySQL、Redis 和上传目录的生产联合备份恢复与回滚验证。
 
+已完成的预检与脚本资产见第 8 节及 [DEPLOY-08 运行手册](DEPLOY-08-RUNBOOK.md)，从尚未执行的验收项继续，不重做已完成的 DNS / HTTPS 配置。
+
 DEPLOY-07 已通过公网 TLS 与自动续期演练；仍不得把服务器密码、SSH 私钥、生产 Secret 或证书私钥写入仓库。
 
 ## 12. 新对话建议提示词
@@ -432,7 +439,9 @@ docs/CURRENT_STATUS.md 和 docs/07-project-runbook.md。
 DEPLOY-03 已在 deploy 分支完成，基线为 e9730f74，
 实现提交为 3a2c5e96、9272af41、9a3c2d86、5dee7699、740a4d97、248bc29d。
 DEPLOY-04 已在 deploy 分支完成，DEPLOY-05 已在真实服务器完成，DEPLOY-06 DNS 与 DEPLOY-07 HTTPS/续期也已完成；
-下一步只执行 DEPLOY-08：完成公网业务验收与生产联合备份恢复。
+DEPLOY-08 已提供公网只读预检、加密联合备份和独立恢复介质预检脚本；
+请阅读 docs/DEPLOY-08-RUNBOOK.md，核对未完成项后继续公网业务与生产恢复验收，
+不得把脚本已生成或预检通过视为生产恢复通过。
 ```
 
 当前服务器内存只有 2 GB，所有部署配置必须采用文档第 6 节的资源受限方案，并在本地完成构建。
@@ -442,6 +451,8 @@ DEPLOY-04 已在 deploy 分支完成，DEPLOY-05 已在真实服务器完成，D
 项目内文档：
 
 - [项目运行手册](07-project-runbook.md)
+- [部署配置与镜像交付](../deploy/README.md)
+- [DEPLOY-08 公网验收与生产恢复](DEPLOY-08-RUNBOOK.md)
 - [当前项目状态](CURRENT_STATUS.md)
 - [分支交接记录](BRANCH_HANDOFF.md)
 - [数据库变更记录](database/database-change-log.md)

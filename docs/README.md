@@ -13,6 +13,9 @@
 | `interview/` | 面试复盘 | 项目背景、业务流程、技术栈深挖、高频问答与诚实改进边界 |
 | `06-project-progress.md` | 项目总体协作 | 已实现能力、测试记录和进度 |
 | `07-project-runbook.md` | 项目运行维护 | 前后端启动、联调、验收与排查 |
+| `../deploy/README.md` | 生产部署配置 | Compose 变量、镜像交付、HTTP / HTTPS、证书续期与运行维护 |
+| `DEPLOYMENT_HANDOFF.md` | 部署阶段交接 | 服务器方案、部署阶段状态、验收边界与后续步骤 |
+| `DEPLOY-08-RUNBOOK.md` | 生产验收与恢复 | 公网验收矩阵、加密联合备份、签名与独立恢复介质预检 |
 | `08-multi-agent-collaboration.md` | Codex 协作配置 | 项目级 Subagent 角色、调度流程、权限、验证与排查 |
 | `CURRENT_STATUS.md`、`BRANCH_HANDOFF.md` | 当前协作状态 | 当前分支、任务边界与交接信息 |
 | `AGENTS.md` | 项目协作规范 | 开发、测试、文档与提交要求 |
@@ -24,6 +27,15 @@
 - Postman 本地环境示例：[`api/postman/campus-local.postman_environment.json`](api/postman/campus-local.postman_environment.json)
 
 Postman 本地环境文件只保留可公开的示例变量；真实账号、Token、密码和主机配置仍应放在本机环境中，不能提交到仓库。
+
+## 部署上线入口
+
+- 配置总览与操作顺序：[根 README 的部署上线说明](../README.md#部署上线)。
+- 详细命令与变量映射：[生产部署手册](../deploy/README.md)。
+- 历史上线证据与当前阶段：[部署交接](DEPLOYMENT_HANDOFF.md)。
+- 尚未完成的生产验收与恢复：[DEPLOY-08 运行手册](DEPLOY-08-RUNBOOK.md)。
+
+部署资产维护在 `deploy` 分支。GitHub 保存配置模板、Dockerfile 和脚本；真实 `.env`、证书私钥、业务备份与镜像归档保存在仓库外。DEPLOY-08 当前为 `IN_PROGRESS`，不能将脚本预检通过写成生产恢复完成。
 
 ## 业务模块入口
 

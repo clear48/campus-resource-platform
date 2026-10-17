@@ -1,5 +1,16 @@
 # 分支交接记录
 
+## 2026-10-17 部署文件发布与 README 配置说明
+
+- 分支：`deploy`；开始时 HEAD 为 `aa4de3d9`，工作区干净，远程 `origin/deploy` 已包含现有部署配置和脚本。
+- 本轮范围：根 `README.md`、`deploy/README.md`、`docs/README.md`、`docs/DEPLOYMENT_HANDOFF.md`、`docs/CURRENT_STATUS.md` 和本文件；统一部署入口、环境变量、镜像交付、HTTPS 运维与阶段状态。
+- 关键约束：服务器以准确镜像标签及 `--no-build --pull never` 启动；HTTPS 使用基础编排 + HTTPS override；生产项目名、卷和 `/data/uploads` 不随意更改，Secret / 私钥 / 备份不进入 Git。
+- 无新增依赖，无业务代码、接口、数据库结构、Redis Key 或生产服务器变更。本轮任务为文档发布，不执行真实生产上线或备份操作。
+- 验证命令与结果：`pwsh -NoProfile -File deploy/scripts/Test-Deploy08Scripts.ps1` 为 9/9；`pwsh -NoProfile -File deploy/scripts/Test-Deploy07Https.ps1 -StaticOnly` 通过；`docker compose ... config --quiet` 的 HTTP / ACME / HTTPS 三组合及内存内映射断言通过，106 个 Markdown 链接/锚点、两份 README 的 36 个命令块语法、6 个 Shell 的逐项 `bash -n`、8 个 PowerShell 语法解析与 `git diff --check` 通过。
+- Docker Engine 本轮未启动，因此未重跑镜像构建和运行演练。只读审查提出的证书 hook 查找路径问题已在根 README 与部署手册补齐：默认 `/srv/campusshare/app`，自定义目录显式设置宿主机脚本变量 `CAMPUSSHARE_HTTPS_CONFIG`。
+- 本轮提交说明：`docs(deploy): document production configuration and release workflow`；实际提交 ID 与远程推送结果由任务最终答复给出。
+- 下一步仍是 DEPLOY-08 尚未完成的公网业务和生产联合恢复验收，具体按 `docs/DEPLOY-08-RUNBOOK.md` 执行；预检脚本资产不代表生产恢复成功。
+
 ## 2026-09-25 DEPLOY-07 HTTPS 与证书续期
 
 - 分支：`deploy`；实现提交 `7a32b55e` 已推送到 `origin/deploy`。服务器加载该提交的 Compose/Nginx/证书脚本，但继续运行 DEPLOY-05 已验证的 immutable 前后端镜像。

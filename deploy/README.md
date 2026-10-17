@@ -1,24 +1,30 @@
-# DEPLOY-03 生产部署说明
+# 单机生产部署与运维说明
 
 本目录提供校园资料共享与检索平台的单机生产编排。浏览器只访问 Nginx；Spring Boot、MySQL 和 Redis 仅在 Compose 私网中访问。正式站点采用同源 `/api/v1/**`，后端不开放跨域。
+
+部署源码位于 [`deploy` 分支](https://github.com/clear48/campus-resource-platform/tree/deploy)。部署顺序为：本地干净候选验证 → 导出镜像并校验交付 → 服务器配置 `.env` → HTTP 启动 → DNS / ACME 签发 → HTTPS / 续期 → 公网业务与生产恢复验收。根 [README](../README.md#部署上线) 提供配置总览，[部署交接](../docs/DEPLOYMENT_HANDOFF.md)记录阶段状态，[DEPLOY-08 运行手册](../docs/DEPLOY-08-RUNBOOK.md)说明尚未完成的生产验收。
+
+宿主机采用 Linux amd64，当前已验证基线为 Ubuntu 24.04、2 核 2 GB、40 GB 系统盘。命令默认在仓库根目录执行，服务器示例仓库绝对路径为 `/srv/campusshare/app`；证书脚本安装到 `/usr/local/sbin` 后默认从该目录读取 `deploy/nginx/https.conf`，自定义目录必须按第 9.3 节设置 `CAMPUSSHARE_HTTPS_CONFIG`。服务器普通运维账号使用 `sudo docker`，不要求加入 `docker` 组。首次创建环境文件和运行证书脚本前，确认已检出与发布证据对应的配置提交。
 
 ## 1. 服务、端口与数据
 
 | 组件 | 容器端口 | 宿主机发布 | 持久化 |
 | --- | --- | --- | --- |
 | Nginx / Vue | `8080` | `HTTP_PORT`，默认 `80` | 镜像内静态资源 |
+| Nginx HTTPS override | `8443`；健康检查 `127.0.0.1:8081` | `HTTPS_PORT`，默认 `443` | 外部 `TLS_RUNTIME_VOLUME`，只读挂载 |
 | Spring Boot | `8080` | 否 | `uploads_data:/data/uploads` |
 | MySQL | `3306` | 否 | `mysql_data:/var/lib/mysql` |
 | Redis | `6379` | 否 | `redis_data:/data` |
 
-`file_info.storage_path` 保存容器内绝对路径，上传挂载点固定为 `/data/uploads`。本地文件存储只支持一个后端实例，数据库和上传卷必须成对备份、成对恢复。
+`file_info.storage_path` 保存容器内绝对路径，上传挂载点固定为 `/data/uploads`。本地文件存储只支持一个后端实例，MySQL、Redis 完整 AOF 和上传卷必须在同一停写切点联合备份、联合恢复。
 
 入口和后端请求上限为 `60 MB`，单文件上限为 `50 MB`。上传还要求磁盘可用空间大于“本次文件大小 + `APP_UPLOAD_MIN_FREE_SPACE_BYTES`”；示例生产值为 5 GiB。
 
 ## 2. 准备生产环境变量
 
 ```bash
-cp deploy/.env.example deploy/.env
+# 只在首次部署且文件不存在时复制，保留已有生产环境文件。
+cp -n deploy/.env.example deploy/.env
 chmod 600 deploy/.env
 ```
 
@@ -38,6 +44,29 @@ openssl rand -base64 48
 - 非正数的上传磁盘保留水位。
 
 真实 `deploy/.env` 已被 Git 忽略。生产 Secret 必须彼此独立，也不能复用本地开发值。
+
+### 2.1 配置变量与映射
+
+`deploy/.env` 用于 Compose 插值，不由 Spring Boot 自动加载。正式操作始终显式传入 `--env-file deploy/.env`，避免从错误目录读取其他环境文件；不要在 Certbot hook 中 `source` 它。
+
+| 分类 | `.env` 变量 | 含义与约束 |
+| --- | --- | --- |
+| 项目身份 | `COMPOSE_PROJECT_NAME` | 默认 `campus-resource-platform`；生产部署后保持稳定，它决定数据卷和服务身份 |
+| 发布镜像 | `BACKEND_IMAGE`、`FRONTEND_IMAGE` | 与本地发布证据一致的准确标签；默认模板 `deploy-02` 仅为初始标签，不代表最新候选 |
+| 入口 | `HTTP_PORT=80`、`HTTPS_PORT=443` | 基础编排只发布 HTTP，HTTPS 必须加载 override |
+| ACME | `ACME_WEBROOT_DIR` | 宿主机绝对目录，默认 `/srv/campusshare/acme` |
+| TLS | `TLS_RUNTIME_VOLUME` | 默认 `campus-resource-platform_tls_runtime`，证书脚本创建并校验的外部卷 |
+| 数据库管理员 | `MYSQL_ROOT_PASSWORD` | 仅初始化和维护；已有 MySQL 卷不会因修改此变量自动轮换密码 |
+| 应用账号 | `MYSQL_APP_USERNAME`、`MYSQL_APP_PASSWORD` | Compose 映射为后端 `MYSQL_USERNAME`、`MYSQL_PASSWORD`；业务库固定为 `campus_resource_platform` |
+| Redis / JWT | `REDIS_PASSWORD`、`JWT_SECRET`、`JWT_EXPIRATION_SECONDS=7200` | 生产独立 Secret、Token 有效期秒数；连接地址由 Compose 固定为 `redis:6379` |
+| 上传 | `APP_UPLOAD_MIN_FREE_SPACE_BYTES=5368709120` | 5 GiB 保留水位；容器路径固定 `/data/uploads`，请求 / 单文件上限固定 60 MB / 50 MB |
+| 定时同步 | `RANK_DOWNLOAD_DELTA_SYNC_ENABLED`、`RANK_HOT_RANKING_SYNC_ENABLED` | 默认 `true`；协议切换前排查旧同步批次 |
+| JVM / 容器 | `JAVA_TOOL_OPTIONS`、`BACKEND_MEMORY_LIMIT`、`MYSQL_MEMORY_LIMIT`、`REDIS_MEMORY_LIMIT`、`NGINX_MEMORY_LIMIT` | 默认 JVM 堆 128～512 MiB；容器分别 `768m/512m/160m/64m` |
+| 连接池 | `HIKARI_MAXIMUM_POOL_SIZE=8`、`HIKARI_MINIMUM_IDLE=2`、`HIKARI_CONNECTION_TIMEOUT_MS=3000` | 控制后端连接数与等待上限，不能无限放大 |
+| 数据服务预算 | `MYSQL_INNODB_BUFFER_POOL_SIZE=256M`、`MYSQL_MAX_CONNECTIONS=30`、`REDIS_MAXMEMORY=96mb` | 须低于各自容器内存上限；Redis 禁止自动淘汰业务数据 |
+| Redis 超时 | `REDIS_CONNECT_TIMEOUT=2s`、`REDIS_COMMAND_TIMEOUT=2s` | 分别映射连接与命令超时 |
+
+`SPRING_PROFILES_ACTIVE=prod`、MySQL JDBC 地址、Redis 地址和上传路径由 Compose 注入。前端构建时已固定 `VITE_API_BASE_URL=/api/v1`；浏览器只访问同源 Nginx，不需要填写服务器 IP 或数据库地址，也不能通过 `VITE_*` 传递 Secret。
 
 ## 3. MySQL 最小权限
 
@@ -133,10 +162,52 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml build
 
 临时 Secret、数据库导出和卷归档只保存在本次系统临时目录，JSON 证据仅记录状态、摘要、字节数和镜像 ID。成功或失败都会按精确 Compose project/volume label 与 run-id 清理隔离资源和历史临时镜像；这只是合成数据的本地回滚演练，生产备份保留、加密、异地保存和真实数据恢复仍属于 DEPLOY-08。
 
-## 5. 启动、存活与就绪检查
+### 4.1 镜像交付到服务器
+
+GitHub 推送的是源码与配置，镜像需要单独交付。以下本地 PowerShell 示例在四个 DEPLOY-04 门禁通过后执行，候选标签必须与 `Test-Deploy04Build.ps1` 的证据一致；归档保存在系统临时目录，不进入 Git：
+
+```powershell
+$releaseRevision = (git rev-parse --short=12 HEAD).Trim()
+$releaseDirectory = Join-Path ([IO.Path]::GetTempPath()) ("campusshare-release-" + $releaseRevision)
+New-Item -ItemType Directory -Path $releaseDirectory -Force | Out-Null
+$imageArchive = Join-Path $releaseDirectory 'application-images.tar'
+docker image save --output $imageArchive `
+  "campus-resource-platform-backend:$releaseRevision" `
+  "campus-resource-platform-frontend:$releaseRevision"
+if ($LASTEXITCODE -ne 0) { throw '镜像导出失败，停止发布。' }
+Get-FileHash -Algorithm SHA256 -LiteralPath $imageArchive
+# 分别记录两镜像 immutable ID，服务器导入后必须逐项相同。
+docker image inspect --format '{{.Id}}' "campus-resource-platform-backend:$releaseRevision"
+docker image inspect --format '{{.Id}}' "campus-resource-platform-frontend:$releaseRevision"
+```
+
+通过 SSH 等受控通道传输归档，并单独保留本地 SHA-256 和镜像 ID。服务器检出已验证的配置提交；若只更新运维配置并复用旧应用镜像，明确分别记录配置提交和应用构建提交，不能用配置 HEAD 猜测镜像标签。
+
+在服务器仓库根目录执行，替换发布包绝对路径、可信摘要与已验证镜像标签：
 
 ```bash
-docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
+# 先与本地发布记录中的摘要比较，一致后才导入。
+sha256sum /受控发布目录/application-images.tar
+sudo docker image load --input /受控发布目录/application-images.tar
+sudo docker image inspect --format '{{.Id}}' 'campus-resource-platform-backend:<已验证的12位SHA>'
+sudo docker image inspect --format '{{.Id}}' 'campus-resource-platform-frontend:<已验证的12位SHA>'
+```
+
+将上述准确标签填入服务器 `deploy/.env` 的 `BACKEND_IMAGE` 和 `FRONTEND_IMAGE`。核对后，显式拉取当前 Compose 固定 digest 的数据服务镜像，静默验证配置：
+
+```bash
+sudo docker compose --env-file deploy/.env -f deploy/docker-compose.yml pull mysql redis
+sudo docker compose --env-file deploy/.env -f deploy/docker-compose.yml config --quiet
+```
+
+`--pull never` 依赖四个镜像已在服务器存在；缺失时应停止排查发布介质，而不是临时在 2 GB 服务器构建。保留上一版镜像、配置提交与三卷联合恢复点，具体生产恢复和回滚要求见 [DEPLOY-08 手册](../docs/DEPLOY-08-RUNBOOK.md)。
+
+## 5. 启动、存活与就绪检查
+
+以下为首次 HTTP 启动；已启用 HTTPS 的站点后续操作还必须带 `-f deploy/docker-compose.https.yml`，见第 9 节。
+
+```bash
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --no-build --pull never
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml ps
 curl --fail http://127.0.0.1:${HTTP_PORT:-80}/healthz
 curl --fail http://127.0.0.1:${HTTP_PORT:-80}/api/v1/health
@@ -148,6 +219,8 @@ curl --fail http://127.0.0.1:${HTTP_PORT:-80}/api/v1/health/readiness
 - `/api/v1/health/readiness`：检查 MySQL 连接、Redis `PING`、上传目录创建/写探针及磁盘保留水位；任一失败返回 HTTP 503，仅公开组件 `UP`/`DOWN`。数据库取连接默认最多等待 3 秒，Redis 连接和命令默认最多等待 2 秒。
 
 Compose 用 readiness 控制前端启动顺序。Docker 健康状态本身不会自动重启仍在运行但不就绪的后端，也不会让单个 Nginx 动态摘除它，运行期故障仍需监控和人工处置。
+
+上述 `${HTTP_PORT:-80}` 读取的是当前 shell 环境，不会自动读取 `deploy/.env`；如果 `.env` 自定义了端口，curl 中显式使用实际端口即可，不要为了端口查询把含 Secret 的文件整体 `source` 到 shell。
 
 ## 6. 可信代理与同源边界
 
@@ -169,17 +242,30 @@ Nginx 会覆盖 `X-Real-IP`、`X-Forwarded-For`、`X-Forwarded-Proto`，并清�
 
 Spring 使用优雅停机，最多等待 30 秒完成在途请求和调度任务；Compose 预留 40 秒停止宽限期。所有容器使用 `restart: unless-stopped`，JSON 日志单文件最多 10 MB、保留 3 个文件。
 
-普通停止不得添加 `-v`：
+HTTP 部署普通停止不得添加 `-v`：
 
 ```bash
 docker compose --env-file deploy/.env -f deploy/docker-compose.yml down
+```
+
+HTTPS 部署的停止、重建和日志操作均使用同一 `.env` 和两个编排文件，例如：
+
+```bash
+sudo docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.https.yml stop
+sudo docker compose --env-file deploy/.env \
+  -f deploy/docker-compose.yml -f deploy/docker-compose.https.yml logs --tail=100 backend frontend
 ```
 
 `docker compose down -v` 会删除 MySQL、Redis 和上传卷，只能用于明确隔离的测试项目。至少执行一次写入测试数据、`down`、重新 `up -d` 的持久化验证。
 
 ## 9. DEPLOY-07 HTTPS 与证书续期
 
-HTTPS 分两阶段启用，基础 `docker-compose.yml` 始终保持 DEPLOY-04 的 HTTP 行为。首先创建宿主机 ACME webroot，并把以下非敏感变量写入服务器本地 `deploy/.env`：
+HTTPS 分两阶段启用，基础 `docker-compose.yml` 始终保持 DEPLOY-04 的 HTTP 行为。
+
+前置条件为宿主机已安装 Certbot、OpenSSL、`flock`，DNS 根域名 `A` 和 `www` CNAME 均已指向生产服务器，80 / 443 已在安全组及防火墙开放。当前 `https.conf` 和证书脚本固定使用 `campusshare.online` / `www.campusshare.online`；换域名需同步调整 Nginx、证书域名校验及公网预检脚本，没有通用 `DOMAIN` 环境变量。
+
+首先创建宿主机 ACME webroot，并把以下非敏感变量写入服务器本地 `deploy/.env`：
 
 ```dotenv
 HTTPS_PORT=443
@@ -269,6 +355,8 @@ sudo /usr/local/sbin/campusshare-deploy07-cert \
 
 如果生产 `COMPOSE_PROJECT_NAME` 或 `TLS_RUNTIME_VOLUME` 改名，首次部署命令和 wrapper 必须同步使用 `.env` 中的准确非敏感值。禁止在 wrapper 中 `source deploy/.env`：该文件还包含数据库、Redis 和 JWT Secret，不应进入 Certbot hook 环境。
 
+上述安装后命令默认仓库位于 `/srv/campusshare/app`。若使用其他发布目录，在 root-owned wrapper 的 `exec` 前增加 `export CAMPUSSHARE_HTTPS_CONFIG='/实际仓库绝对路径/deploy/nginx/https.conf'`；所有安装后手工发布命令也应改为 `sudo env CAMPUSSHARE_HTTPS_CONFIG='/实际仓库绝对路径/deploy/nginx/https.conf' /usr/local/sbin/campusshare-deploy07-cert ...`。此变量属于宿主机脚本环境，放进 Compose `.env` 不会传给 Certbot hook。配置文件应保持来自可信发布提交，路径在每次续期时都必须存在；安装后先验证 `renew --dry-run --run-deploy-hooks`，随后用相同路径设置重新发布生产 lineage。
+
 续期成功后，hook 会在 TLS 卷内建立指纹 release，通过 `current.next` 原子切换 `current`，再检查并平滑重载 Nginx；失败会恢复旧链接和旧证书。原始 `/etc/letsencrypt` 不会长期挂入应用容器，Docker socket 也不会挂入任何容器。
 
 HTTPS 启动失败时回滚到基础 HTTP + ACME 组合，确保 challenge 仍可用于修复证书：
@@ -298,6 +386,6 @@ sudo sh deploy/scripts/Test-Deploy07Certificate.sh
 
 默认容器上限约为后端 `768 MB`、MySQL `512 MB`、Redis `160 MB`、Nginx `64 MB`。JVM 最大堆 512 MB、Hikari 最大连接 8、MySQL Buffer Pool 256 MB、Redis 数据上限 96 MB 且 `noeviction`。持续 Swap 或 OOM 时应停止接流量并升级内存，不在同机运行 Jenkins、Prometheus、Grafana 或病毒扫描守护进程。
 
-DEPLOY-03 生产安全收敛、DEPLOY-04 本地发布门禁、DEPLOY-05 真实服务器部署、DEPLOY-06 DNS 和 DEPLOY-07 HTTPS/自动续期均已完成。下一任务为 DEPLOY-08 公网业务验收与生产联合备份恢复。2 GB 服务器上的 MySQL 稳态内存接近 512 MiB 容器上限，虽然当前无 cgroup 超限、OOM 或持续 Swap，仍应作为首要容量监控项。
+根据 2026-09-25 的历史生产验收记录，DEPLOY-03 生产安全收敛、DEPLOY-04 本地发布门禁、DEPLOY-05 真实服务器部署、DEPLOY-06 DNS 和 DEPLOY-07 HTTPS/自动续期均已完成。当前任务为 DEPLOY-08 公网业务验收与生产联合备份恢复，状态为 `IN_PROGRESS`。当时 2 GB 服务器上的 MySQL 稳态内存接近 512 MiB 容器上限，虽未发生 cgroup 超限、OOM 或持续 Swap，仍应作为首要容量监控项；历史结论不代替当前运行检查。
 
-DEPLOY-08 已提供 `scripts/Test-Deploy08PublicAcceptance.ps1` 只读公网预检、`scripts/deploy08-backup.sh` 生产联合备份脚本和 `scripts/deploy08-restore-preflight.sh` 独立恢复介质预检。备份脚本默认只预检，真实执行必须显式确认停机；它在同一停写切点导出 MySQL、归档 Redis AOF 卷和上传卷，并使用预先导入的 GPG 公钥加密。恢复预检会核对独立固定的签名信任链、六个加密产物、恢复私钥、Secret、隔离 Docker daemon 以及当前/上一版镜像，但不会创建资源。完整命令、安全边界、尚未执行项和恢复要求见 `docs/DEPLOY-08-RUNBOOK.md`。脚本资产完成不代表生产备份或恢复已经通过。
+DEPLOY-08 已提供 `scripts/Test-Deploy08PublicAcceptance.ps1` 只读公网预检、`scripts/deploy08-backup.sh` 生产联合备份脚本和 `scripts/deploy08-restore-preflight.sh` 独立恢复介质预检。备份脚本默认只预检，真实执行必须显式确认停机；它在同一停写切点导出 MySQL、归档 Redis AOF 卷和上传卷，并使用预先导入的 GPG 公钥加密。恢复预检会核对独立固定的签名信任链、六个加密产物、恢复私钥、Secret、隔离 Docker daemon 以及当前/上一版镜像，但不会创建资源。完整命令、安全边界、尚未执行项和恢复要求见 [DEPLOY-08 运行手册](../docs/DEPLOY-08-RUNBOOK.md)。脚本资产完成不代表生产备份或恢复已经通过。
