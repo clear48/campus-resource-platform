@@ -12,7 +12,7 @@
 
 [快速启动](#快速启动) · [部署上线](#部署上线) · [部署运行手册](deploy/README.md) · [后端亮点](#值得阅读的后端实现) · [面试复盘](docs/interview/README.md) · [接口文档](docs/api/api-reference.md) · [项目结构](#项目结构) · [已知边界](#当前边界与后续方向)
 
-正式站点：[https://campusshare.online](https://campusshare.online)。部署资产维护在 [`deploy` 分支](https://github.com/clear48/campus-resource-platform/tree/deploy)；服务器、DNS 与 HTTPS 的历史验收已完成，公网完整业务和生产备份恢复仍处于 DEPLOY-08 阶段，详见[部署交接](docs/DEPLOYMENT_HANDOFF.md)。
+正式站点：[https://campusshare.online](https://campusshare.online)。`dev`、`codex/deploy-02` 和 `deploy` 的现有提交已汇总到 [`main` 分支](https://github.com/clear48/campus-resource-platform/tree/main)，仓库仅保留 `main` 主干。服务器、DNS 与 HTTPS 的历史验收已完成，公网完整业务和生产备份恢复仍处于 DEPLOY-08 阶段，详见[部署交接](docs/DEPLOYMENT_HANDOFF.md)。
 
 课程课件、复习笔记和实验资料容易散落在群聊与个人网盘中。本项目围绕「上传 → 审核 → 公开检索 → 下载 / 收藏」建立完整业务闭环，用具体业务展示 **Spring Boot、MyBatis、MySQL、Redis、JWT、事务与并发控制** 的使用方式，并提供 Vue 演示界面和按模块整理的开发文档。
 
@@ -118,11 +118,11 @@ campus-resource-platform/               # Git 仓库根目录
 需要 **JDK 17+、MySQL 8.x、Redis 6+、Node.js 22.x（≥22.18）或 ≥24.11，以及 npm**。Node.js 版本范围依据当前锁定依赖。后端自带 Maven Wrapper，首次执行需要下载 Maven 和依赖。以下主要使用 Windows PowerShell，数据库导入单独标注为 MySQL 客户端命令。
 
 ```powershell
-git clone --branch dev https://github.com/clear48/campus-resource-platform.git
+git clone --branch main https://github.com/clear48/campus-resource-platform.git
 Set-Location campus-resource-platform
 ```
 
-`dev` 是当前开发与展示分支；`main` 用于经过验证的稳定版本。macOS / Linux 使用 `cd campus-resource-platform` 进入克隆后的仓库。
+`main` 是已通过本地测试与构建的集成版本，也是当前唯一保留的分支。后续新功能可从 `main` 创建临时功能分支，验证后合回并删除。macOS / Linux 使用 `cd campus-resource-platform` 进入克隆后的仓库。
 
 ### 2. 初始化新数据库
 
@@ -245,7 +245,7 @@ WHERE NOT EXISTS (
 ```bash
 # 首次部署创建固定发布目录；已部署服务器继续使用原仓库和环境文件。
 sudo install -d -o "$(id -un)" -g "$(id -gn)" -m 0755 /srv/campusshare
-git clone --branch deploy https://github.com/clear48/campus-resource-platform.git /srv/campusshare/app
+git clone --branch main https://github.com/clear48/campus-resource-platform.git /srv/campusshare/app
 cd /srv/campusshare/app
 # 正式发布前检出与发布证据对应的已验证提交，避免直接追随变化中的分支。
 git checkout --detach '<已验证的配置提交SHA>'
@@ -296,7 +296,7 @@ chmod 600 deploy/.env
 
 ### 3. 本地验证、镜像交付与 HTTP 启动
 
-在 Windows PowerShell 7 中，对**干净的 `deploy` 分支候选提交**依次执行：
+在 Windows PowerShell 7 中，对**干净的 `main` 分支候选提交**依次执行；若验证临时功能分支，四个脚本均可用 `-RequiredBranch '<实际分支名>'` 显式指定：
 
 ```powershell
 # 自动创建隔离 MySQL，执行前后端测试、生产构建及双镜像构建。

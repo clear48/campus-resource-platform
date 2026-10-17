@@ -35,7 +35,7 @@ Postman 本地环境文件只保留可公开的示例变量；真实账号、Tok
 - 历史上线证据与当前阶段：[部署交接](DEPLOYMENT_HANDOFF.md)。
 - 尚未完成的生产验收与恢复：[DEPLOY-08 运行手册](DEPLOY-08-RUNBOOK.md)。
 
-部署资产维护在 `deploy` 分支。GitHub 保存配置模板、Dockerfile 和脚本；真实 `.env`、证书私钥、业务备份与镜像归档保存在仓库外。DEPLOY-08 当前为 `IN_PROGRESS`，不能将脚本预检通过写成生产恢复完成。
+部署资产已汇总到唯一保留的 `main` 分支；文档中的旧分支名仅作为历史记录。GitHub 保存配置模板、Dockerfile 和脚本；真实 `.env`、证书私钥、业务备份与镜像归档保存在仓库外。DEPLOY-08 当前为 `IN_PROGRESS`，不能将脚本预检通过写成生产恢复完成。
 
 ## 业务模块入口
 

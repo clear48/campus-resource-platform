@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$RequiredBranch = 'deploy',
+    # 合并后只保留 main；临时功能分支仍可通过参数显式指定。
+    [string]$RequiredBranch = 'main',
     [switch]$AllowDirtyWorkingTree,
     [string]$EvidencePath
 )

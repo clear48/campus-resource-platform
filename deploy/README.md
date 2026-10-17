@@ -2,7 +2,7 @@
 
 本目录提供校园资料共享与检索平台的单机生产编排。浏览器只访问 Nginx；Spring Boot、MySQL 和 Redis 仅在 Compose 私网中访问。正式站点采用同源 `/api/v1/**`，后端不开放跨域。
 
-部署源码位于 [`deploy` 分支](https://github.com/clear48/campus-resource-platform/tree/deploy)。部署顺序为：本地干净候选验证 → 导出镜像并校验交付 → 服务器配置 `.env` → HTTP 启动 → DNS / ACME 签发 → HTTPS / 续期 → 公网业务与生产恢复验收。根 [README](../README.md#部署上线) 提供配置总览，[部署交接](../docs/DEPLOYMENT_HANDOFF.md)记录阶段状态，[DEPLOY-08 运行手册](../docs/DEPLOY-08-RUNBOOK.md)说明尚未完成的生产验收。
+部署源码已汇总到唯一保留的 [`main` 分支](https://github.com/clear48/campus-resource-platform/tree/main)。部署顺序为：本地干净候选验证 → 导出镜像并校验交付 → 服务器配置 `.env` → HTTP 启动 → DNS / ACME 签发 → HTTPS / 续期 → 公网业务与生产恢复验收。根 [README](../README.md#部署上线) 提供配置总览，[部署交接](../docs/DEPLOYMENT_HANDOFF.md)记录阶段状态，[DEPLOY-08 运行手册](../docs/DEPLOY-08-RUNBOOK.md)说明尚未完成的生产验收。
 
 宿主机采用 Linux amd64，当前已验证基线为 Ubuntu 24.04、2 核 2 GB、40 GB 系统盘。命令默认在仓库根目录执行，服务器示例仓库绝对路径为 `/srv/campusshare/app`；证书脚本安装到 `/usr/local/sbin` 后默认从该目录读取 `deploy/nginx/https.conf`，自定义目录必须按第 9.3 节设置 `CAMPUSSHARE_HTTPS_CONFIG`。服务器普通运维账号使用 `sudo docker`，不要求加入 `docker` 组。首次创建环境文件和运行证书脚本前，确认已检出与发布证据对应的配置提交。
 
@@ -90,7 +90,7 @@ GRANT SELECT, INSERT, UPDATE ON campus_resource_platform.* TO 'campus_app'@'%';
 & "<仓库根目录>\deploy\scripts\Test-Deploy04Build.ps1"
 ```
 
-脚本会从自身位置解析仓库根目录，不依赖当前工作目录。默认要求当前分支为 `deploy` 且工作区干净；开发脚本期间需要验证未提交改动时，可以显式添加 `-AllowDirtyWorkingTree`，正式候选验证不能使用该参数。
+脚本会从自身位置解析仓库根目录，不依赖当前工作目录。四个 DEPLOY-04 脚本默认要求当前分支为 `main` 且工作区干净；验证临时功能分支时通过 `-RequiredBranch '<实际分支名>'` 显式指定。开发脚本期间需要验证未提交改动时，可以显式添加 `-AllowDirtyWorkingTree`，正式候选验证不能使用该参数。
 
 脚本执行以下操作：
 

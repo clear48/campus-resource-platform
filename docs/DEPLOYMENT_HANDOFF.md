@@ -1,7 +1,7 @@
 # 项目部署上线交接文档
 
 > 最后更新：2026-10-17（部署配置说明与文档同步，未重新执行生产验收）
-> 当前开发分支：`deploy`
+> 当前唯一保留分支：`main`；后续新功能使用临时分支，验证合回后删除
 > DEPLOY-03 开发基线：`e9730f74`
 > DEPLOY-03 实现提交：`3a2c5e96`、`9272af41`、`9a3c2d86`、`5dee7699`、`740a4d97`、`248bc29d`
 > 用途：供后续新对话快速恢复部署上下文、确认当前进度并继续执行上线任务。
@@ -44,7 +44,7 @@ https://campusshare.online
 
 此前讨论过的 `campusshare.click` 只是候选域名，已经作废。后续所有部署配置统一使用 `campusshare.online`。
 
-2026-10-17 文档同步：部署资产已有提交并保存在 `origin/deploy`；根 [README](../README.md#部署上线)与 [deploy/README.md](../deploy/README.md)现说明 Compose 变量、镜像交付、HTTP / HTTPS 启动、证书续期、持久化和验收边界。本轮只更新文档，不修改服务器、数据库或生产 Secret；下面的生产运行结果均为原阶段的历史证据。
+2026-10-17 文档同步：部署资产已有提交并保存在 `origin/deploy`；根 [README](../README.md#部署上线)与 [deploy/README.md](../deploy/README.md)现说明 Compose 变量、镜像交付、HTTP / HTTPS 启动、证书续期、持久化和验收边界。随后按用户要求，将 `dev`、`codex/deploy-02`、`deploy` 的既有提交快进汇总到 `main`，合并前后端全量测试和双镜像构建通过。生产服务器、数据库或生产 Secret 均未修改；下面的生产运行结果仍为原阶段的历史证据，DEPLOY-08 未提前标记完成。
 
 ## 3. 已确认的技术栈
 

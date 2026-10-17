@@ -1,5 +1,16 @@
 # 分支交接记录
 
+## 2026-10-17 四分支合入 main
+
+- 分支关系：远程 `main@af1de973` → `dev@9e1e6d29` → `codex/deploy-02@e9730f74` → `deploy@a224aee0`；后者包含全部既有远程分支历史，因此使用 `git merge --ff-only origin/deploy` 汇入 `main`，无内容冲突或强推。
+- 本地原 `main@744f02ea` 仅新增 15,142 个依赖缓存文件与两份运行上传文件，源码差异为零；原提交以仅本地标签 `codex/main-local-backup-20261017-744f02ea` 完整保留。移动 `main` 引用使用旧 SHA 校验，推送时只显式推送 `main`，不推备份标签或运行数据。
+- 验证：`pwsh -NoProfile -File deploy/scripts/Test-Deploy04Build.ps1` 全部通过，覆盖隔离 MySQL 后端 208/208、后端打包、前端安装/76 项测试/生产构建、Compose 配置与双镜像构建；`Test-Deploy08Scripts.ps1` 9/9、`Test-Deploy07Https.ps1 -StaticOnly` 通过。
+- 合并后用 `git merge-base --is-ancestor` 逐一验证四分支提交均包含在 `main`，并检查 `frontend/node_modules` 与 `campus-resource-platform/data` 未跟踪。新增差异仅涉及分支约定文档和四个验证脚本的默认分支参数，不新增业务代码或修改数据库/Redis/权限规则。
+- `npm ci` 当前报告 9 项既有审计问题（3 moderate、6 high），前端主包大小提示仍存在；不在分支合并任务内升级依赖。DEPLOY-08 仍为 `IN_PROGRESS`，本轮不执行生产验收或恢复。
+- 用户追加要求合并完成后仅保留 `main`；GitHub 默认分支切换为 `main` 后，删除已合入的远程 `dev`、`codex/deploy-02`、`deploy` 及本地 `dev`、`deploy`。本地旧提交备份标签保留，不推远程；历史记录中的旧分支名不代表当前仍有这些分支。
+- DEPLOY-04 四个验证脚本默认 `RequiredBranch=main`，保留显式覆盖临时分支的能力；README、部署指南、文档索引和协作规范同步。提交说明：`chore: consolidate repository onto main branch`，实际提交 ID 和推送结果见任务最终回执。
+- 单主干适配验证：四个默认分支参数的 AST 断言、8 个 PowerShell 脚本语法、106 个文档本地链接/锚点及 `git diff --check` 通过，活动入口无旧分支依赖。
+
 ## 2026-10-17 部署文件发布与 README 配置说明
 
 - 分支：`deploy`；开始时 HEAD 为 `aa4de3d9`，工作区干净，远程 `origin/deploy` 已包含现有部署配置和脚本。
