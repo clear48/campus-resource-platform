@@ -67,6 +67,21 @@ function Assert-CrpPathsSeparated {
     }
 }
 
+function Assert-CrpPathDoesNotContainProtectedRoot {
+    param(
+        [Parameter(Mandatory)] [string] $Candidate,
+        [Parameter(Mandatory)] [string] $CandidateLabel,
+        [Parameter(Mandatory)] [string] $ProtectedRoot,
+        [Parameter(Mandatory)] [string] $ProtectedLabel
+    )
+
+    $protectedPath = [IO.Path]::GetFullPath($ProtectedRoot).TrimEnd(
+        [IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    if (Test-CrpPathInsideOrEqual -Candidate $protectedPath -Container $Candidate) {
+        throw "$CandidateLabel 不得等于或包含 $ProtectedLabel。"
+    }
+}
+
 function Assert-CrpNoReparsePoints {
     param(
         [Parameter(Mandatory)] [string] $Path,
@@ -230,6 +245,66 @@ function Invoke-CrpProcess {
     }
 }
 
+function Invoke-CrpProcessWithInputFile {
+    param(
+        [Parameter(Mandatory)] [string] $FilePath,
+        [string[]] $PrefixArguments = @(),
+        [string[]] $Arguments = @(),
+        [hashtable] $Environment = @{},
+        [Parameter(Mandatory)] [string] $InputFile,
+        [Parameter(Mandatory)] [string] $Stage
+    )
+
+    $resolvedCommand = Get-Command $FilePath -ErrorAction Stop
+    $inputItem = Get-Item -LiteralPath $InputFile -Force
+    if ($inputItem.PSIsContainer -or ($inputItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "$Stage 的输入必须是普通文件。"
+    }
+
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $resolvedCommand.Source
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardInput = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in @($PrefixArguments) + @($Arguments)) {
+        [void]$startInfo.ArgumentList.Add($argument)
+    }
+    foreach ($entry in $Environment.GetEnumerator()) {
+        $startInfo.Environment[[string]$entry.Key] = [string]$entry.Value
+    }
+
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) {
+            throw "$Stage 无法启动外部命令。"
+        }
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $inputStream = [IO.File]::OpenRead($inputItem.FullName)
+        try {
+            $inputStream.CopyTo($process.StandardInput.BaseStream)
+        }
+        finally {
+            $inputStream.Dispose()
+            $process.StandardInput.Close()
+        }
+        $process.WaitForExit()
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+        if ($process.ExitCode -ne 0) {
+            $errorType = if ([string]::IsNullOrWhiteSpace($stderr)) { 'NO_DIAGNOSTIC' } else { 'EXTERNAL_COMMAND_ERROR' }
+            throw "$Stage 失败：exitCode=$($process.ExitCode), errorType=$errorType"
+        }
+        return [pscustomobject]@{ stdout = $stdout; stderr = $stderr; exitCode = $process.ExitCode }
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
 function Get-CrpArtifactDescriptor {
     param(
         [Parameter(Mandatory)] [string] $Path,
@@ -276,6 +351,116 @@ function Test-CrpTcpPortOpen {
     }
     finally {
         $client.Dispose()
+    }
+}
+
+function Get-CrpValidatedBackupManifest {
+    param([Parameter(Mandatory)] [string] $BackupDirectory)
+
+    $backupPath = Resolve-CrpExistingDirectory -Path $BackupDirectory -Label '备份目录'
+    if ([IO.Path]::GetFileName($backupPath).EndsWith('.partial', [StringComparison]::OrdinalIgnoreCase)) {
+        throw '不能使用未完成的 .partial 备份目录。'
+    }
+    Assert-CrpNoReparsePoints -Path $backupPath -Label '备份目录' -Recursive
+
+    $manifestPath = Join-Path $backupPath 'manifest.json'
+    $manifestHashPath = Join-Path $backupPath 'manifest.json.sha256'
+    foreach ($requiredPath in @($manifestPath, $manifestHashPath)) {
+        if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+            throw "备份缺少必需文件：$([IO.Path]::GetFileName($requiredPath))"
+        }
+    }
+    $hashLine = (Get-Content -LiteralPath $manifestHashPath -Raw).Trim()
+    if ($hashLine -notmatch '^([0-9a-f]{64})  manifest\.json$') {
+        throw 'manifest.json.sha256 格式无效。'
+    }
+    $actualManifestHash = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualManifestHash -cne $Matches[1]) {
+        throw 'manifest.json SHA-256 校验失败。'
+    }
+
+    try {
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -Depth 10
+    }
+    catch {
+        throw 'manifest.json 不是有效 JSON。'
+    }
+    if ([int]$manifest.schemaVersion -ne 1 -or [string]$manifest.status -cne 'PASSED') {
+        throw 'manifest schema 或状态无效。'
+    }
+    if ([string]$manifest.runId -cne [IO.Path]::GetFileName($backupPath) `
+            -or [string]$manifest.runId -notmatch '^\d{8}T\d{6}Z$') {
+        throw 'manifest runId 与备份目录不一致。'
+    }
+    if ([string]$manifest.source.database -notmatch '^[A-Za-z0-9_]+$') {
+        throw 'manifest 数据库名称无效。'
+    }
+    $manifestUploadRootText = [string]$manifest.source.uploadRoot
+    if (-not [IO.Path]::IsPathRooted($manifestUploadRootText) -or $manifestUploadRootText.StartsWith('\\')) {
+        throw 'manifest 上传目录必须是本机绝对路径。'
+    }
+    $manifestUploadRoot = [IO.Path]::GetFullPath($manifestUploadRootText).TrimEnd(
+        [IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    Assert-CrpNotVolumeRoot -Path $manifestUploadRoot -Label 'manifest 上传目录'
+
+    $databaseInventory = @($manifest.database)
+    if ($databaseInventory.Count -eq 0) {
+        throw 'manifest 数据库清单为空。'
+    }
+    $seenTables = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($record in $databaseInventory) {
+        $tableName = [string]$record.table
+        if ($tableName -notmatch '^[A-Za-z0-9_]+$' -or -not $seenTables.Add($tableName) -or [long]$record.rows -lt 0) {
+            throw "manifest 数据库清单无效：$tableName"
+        }
+    }
+
+    $expectedArtifactNames = @('mysql.sql', 'redis.rdb')
+    $actualArtifactNames = @($manifest.artifacts | ForEach-Object { [string]$_.name } | Sort-Object)
+    if (($actualArtifactNames -join '|') -cne (($expectedArtifactNames | Sort-Object) -join '|')) {
+        throw 'manifest 备份产物集合无效。'
+    }
+    foreach ($artifact in @($manifest.artifacts)) {
+        if ([long]$artifact.bytes -le 0 -or [string]$artifact.sha256 -notmatch '^[0-9a-f]{64}$') {
+            throw "manifest 备份产物元数据无效：$($artifact.name)"
+        }
+        $artifactPath = Join-Path $backupPath ([string]$artifact.name)
+        $actual = Get-CrpArtifactDescriptor -Path $artifactPath -Name ([string]$artifact.name)
+        if ([long]$actual.bytes -ne [long]$artifact.bytes -or [string]$actual.sha256 -cne [string]$artifact.sha256) {
+            throw "备份产物校验失败：$($artifact.name)"
+        }
+    }
+
+    $expectedUploads = @($manifest.uploads)
+    foreach ($upload in $expectedUploads) {
+        Assert-CrpSafeRelativePath -RelativePath ([string]$upload.path)
+        if ([long]$upload.bytes -lt 0 -or [string]$upload.sha256 -notmatch '^[0-9a-f]{64}$') {
+            throw "manifest 上传文件元数据无效：$($upload.path)"
+        }
+    }
+    $uploadBackupPath = Resolve-CrpExistingDirectory -Path (Join-Path $backupPath 'uploads') -Label '备份上传目录'
+    $actualUploads = @(Get-CrpFileInventory -Root $uploadBackupPath)
+    Assert-CrpInventoryMatches -Expected $expectedUploads -Actual $actualUploads -Label '备份上传文件'
+
+    $allowedTopLevelFiles = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($name in @('manifest.json', 'manifest.json.sha256', 'mysql.sql', 'redis.rdb')) {
+        [void]$allowedTopLevelFiles.Add($name)
+    }
+    foreach ($child in Get-ChildItem -LiteralPath $backupPath -Force) {
+        if ($child.PSIsContainer) {
+            if ($child.Name -cne 'uploads') {
+                throw "备份包含协议外目录：$($child.Name)"
+            }
+        }
+        elseif (-not $allowedTopLevelFiles.Contains($child.Name)) {
+            throw "备份包含协议外文件：$($child.Name)"
+        }
+    }
+
+    return [pscustomobject]@{
+        Path       = $backupPath
+        Manifest   = $manifest
+        UploadPath = $uploadBackupPath
     }
 }
 

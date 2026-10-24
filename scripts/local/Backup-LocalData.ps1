@@ -115,6 +115,16 @@ Assert-CrpNotVolumeRoot -Path $uploadRoot -Label '上传目录'
 Assert-CrpNotVolumeRoot -Path $backupRootPath -Label '备份根目录'
 Assert-CrpPathsSeparated -First $uploadRoot -FirstLabel '上传目录' -Second $backupRootPath -SecondLabel '备份根目录'
 Assert-CrpPathsSeparated -First $backupRootPath -FirstLabel '备份根目录' -Second $repositoryRootPath -SecondLabel 'Git 仓库目录'
+Assert-CrpPathDoesNotContainProtectedRoot -Candidate $uploadRoot -CandidateLabel '上传目录' `
+    -ProtectedRoot $repositoryRootPath -ProtectedLabel 'Git 仓库目录'
+if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+    Assert-CrpPathDoesNotContainProtectedRoot -Candidate $uploadRoot -CandidateLabel '上传目录' `
+        -ProtectedRoot $env:USERPROFILE -ProtectedLabel '用户主目录'
+}
+if (-not [string]::IsNullOrWhiteSpace($env:SystemRoot)) {
+    Assert-CrpPathDoesNotContainProtectedRoot -Candidate $uploadRoot -CandidateLabel '上传目录' `
+        -ProtectedRoot $env:SystemRoot -ProtectedLabel 'Windows 系统目录'
+}
 Assert-CrpNoReparsePoints -Path $uploadRoot -Label '上传目录' -Recursive
 Assert-CrpNoReparsePoints -Path $backupRootPath -Label '备份根目录'
 

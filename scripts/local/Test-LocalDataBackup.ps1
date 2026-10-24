@@ -111,7 +111,11 @@ exit 13
     }
     Remove-Item -LiteralPath (Join-Path $uploadRoot 'stale.part') -Force
 
-    Write-Host '本地备份专项测试通过：6/6'
+    Assert-Throws -ExpectedText '不得等于或包含 Git 仓库目录' -Action {
+        & $backupScript @commonArguments -UploadPath $repositoryRoot -RunId '20261024T120003Z'
+    }
+
+    Write-Host '本地备份专项测试通过：7/7'
 }
 finally {
     $env:CRP_BACKUP_MYSQL_PASSWORD = $oldMySqlPassword
