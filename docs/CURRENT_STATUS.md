@@ -1,5 +1,15 @@
 # 当前项目状态
 
+## 本地开发数据保护（2026-10-24）
+
+- 当前开发分支为`dev`，从干净的`main@8bde7775`创建；联合备份`bfd983d`、隔离恢复`c03e9c4`和MySQL边界加固`d1b7742`均已推送到`origin/dev`。
+- 新增PowerShell本地数据保护资产：公共路径/进程/清单安全函数，MySQL、Redis RDB与上传目录联合备份，严格SHA-256 manifest校验，以及默认隔离数据库、隔离Redis RDB和可回退上传目录切换的恢复流程。
+- 备份强制后端停写、下载增量连续两次为空、无`.part`/ReparsePoint、路径不重叠且备份位于仓库外；失败只保留未完成状态，不覆盖正式run或自动删除历史备份。
+- MySQL协议明确限制为基础表：备份发现视图、触发器、例程或事件时停止。`Restore`校验专用账号的实际认证Host和纯`USAGE`状态，只临时授权全新的`*_restore_*`数据库，导入对账后撤权；Redis RDB不覆盖运行中或共享实例。可选上传切换要求精确确认原路径，会先在同盘stage复验，再把原目录保留到`quarantine`；切换失败独立执行尽力补偿，补偿不完整时保留现场并明确报错。
+- 新开发环境建议使用`C:\campusshare-dev\uploads`等仓库外固定路径；现有`file_info.storage_path`是绝对路径，本轮不自动迁移存量文件或数据库路径。
+- 模拟专项测试覆盖备份8/8、恢复14/14，PowerShell AST与`git diff --check`纳入最终验证。当前机器缺少`redis-cli`/`redis-check-rdb`且本地MySQL、Redis服务未运行，因此尚未完成真实联合备份恢复，不能描述为端到端恢复通过。
+- 完整命令、凭据边界、停止条件和真实演练要求见`docs/LOCAL-DATA-PROTECTION.md`。
+
 ## 四分支集成到 main（2026-10-17）
 
 - 用户要求将 GitHub 的 `main`、`dev`、`codex/deploy-02`、`deploy` 汇总到 `main`。四个远程分支构成线性祖先链，`main` 从 `af1de973` 快进到已验证的 `a224aee0`，完整保留其他三个分支的 157 条提交，无内容冲突；本轮额外变更为分支相关文档和四个验证脚本的默认分支参数。

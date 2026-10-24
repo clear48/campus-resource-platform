@@ -13,6 +13,7 @@
 | `interview/` | 面试复盘 | 项目背景、业务流程、技术栈深挖、高频问答与诚实改进边界 |
 | `06-project-progress.md` | 项目总体协作 | 已实现能力、测试记录和进度 |
 | `07-project-runbook.md` | 项目运行维护 | 前后端启动、联调、验收与排查 |
+| `LOCAL-DATA-PROTECTION.md` | 本地数据保护 | Windows本地MySQL、Redis、上传文件联合备份、SHA-256校验与隔离恢复 |
 | `../deploy/README.md` | 生产部署配置 | Compose 变量、镜像交付、HTTP / HTTPS、证书续期与运行维护 |
 | `DEPLOYMENT_HANDOFF.md` | 部署阶段交接 | 服务器方案、部署阶段状态、验收边界与后续步骤 |
 | `DEPLOY-08-RUNBOOK.md` | 生产验收与恢复 | 公网验收矩阵、加密联合备份、签名与独立恢复介质预检 |

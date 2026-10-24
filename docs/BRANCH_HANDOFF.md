@@ -1,5 +1,16 @@
 # 分支交接记录
 
+## 2026-10-24 本地开发数据保护
+
+- 分支：`dev`，从`main@8bde7775`创建并跟踪`origin/dev`；用户明确要求重新建立该开发分支。本任务不修改Java业务代码、数据库结构、Redis Key、前端或生产部署脚本。
+- 首个小功能`bfd983d feat(local-backup): add verified local data backup`已推送：新增公共安全函数、联合备份脚本和备份黑盒测试；测试为6/6。
+- 第二个小功能`c03e9c4 feat(local-backup): add isolated local restore`已推送：实现严格manifest校验、专用最小权限账号隔离MySQL恢复、隔离Redis RDB校验，以及可选的上传目录stage/quarantine同盘切换；任何目标已存在、路径重叠、ReparsePoint、摘要不一致或目标库非全新时停止。
+- 安全加固`d1b7742 fix(local-backup): harden mysql restore isolation`已推送：备份协议收缩为基础表，发现视图/触发器/例程/事件即停止；恢复使用导入凭据核对实际`CURRENT_USER()`与纯`USAGE`授权，只临时授权目标库并在导入对账后撤权。
+- 最终模拟专项测试为备份8/8、恢复14/14；上传切换异常执行尽力补偿而非事务性保证，补偿不完整时必须保持停机并人工检查活动目录、`quarantine`和失败目录。
+- 本地固定目录仅作为新环境建议。历史数据库保存绝对`storage_path`，本轮不移动现有运行文件；迁移固定目录必须单独完成文件复制、路径更新和下载验证。
+- 本轮只完成伪MySQL/Redis客户端驱动的模拟黑盒测试；当前机器缺少`redis-cli`和`redis-check-rdb`，3306/6379也未提供专用本地服务，尚不能宣称真实联合恢复成功。
+- 操作手册：`docs/LOCAL-DATA-PROTECTION.md`；运行入口同步到`docs/07-project-runbook.md`和`docs/README.md`。
+
 ## 2026-10-17 四分支合入 main
 
 - 分支关系：远程 `main@af1de973` → `dev@9e1e6d29` → `codex/deploy-02@e9730f74` → `deploy@a224aee0`；后者包含全部既有远程分支历史，因此使用 `git merge --ff-only origin/deploy` 汇入 `main`，无内容冲突或强推。

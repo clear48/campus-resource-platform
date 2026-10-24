@@ -22,6 +22,7 @@ Redis 6+ ──┘                          │
 | `frontend/` | Vue 3 + Vite 演示前端 |
 | `docs/api/api-reference.md` | 后端接口文档 |
 | `docs/05-redis-design.md` | Redis 设计与 Key 说明 |
+| `docs/LOCAL-DATA-PROTECTION.md` | 本地MySQL、Redis与上传文件联合备份/恢复手册 |
 
 ## 2. 环境要求
 
@@ -146,7 +147,7 @@ $env:REDIS_PORT = '6379'
 $env:REDIS_PASSWORD = ''                       # 无密码实例保持空字符串
 $env:REDIS_DATABASE = '0'
 $env:JWT_SECRET = '<仅本地使用的随机长字符串>'
-$env:APP_UPLOAD_STORAGE_PATH = (Join-Path (Get-Location) 'data\user-uploads')
+$env:APP_UPLOAD_STORAGE_PATH = 'C:\campusshare-dev\uploads' # 新环境建议使用仓库外固定目录
 ```
 
 `JWT_SECRET` 为必填安全变量，必须使用至少 32 个 UTF-8 字节的随机值。变量缺失、长度不足或仍使用历史公开默认值时，后端会在启动阶段拒绝运行；更换密钥会让既有 Token 立即失效。
@@ -162,7 +163,7 @@ $env:APP_UPLOAD_STORAGE_PATH = (Join-Path (Get-Location) 'data\user-uploads')
 | `RANK_DOWNLOAD_DELTA_SYNC_ENABLED` | `true` | 排查时临时关闭下载量同步 |
 | `RANK_HOT_RANKING_SYNC_ENABLED` | `true` | 排查时临时关闭排行榜维护 |
 
-上传目录是运行时数据。存在 `file_info` 记录时不要随意删除或移动其中的文件，否则下载演示会失效。
+上传目录是运行时数据。存在 `file_info` 记录时不要随意删除或移动其中的文件，否则下载演示会失效。历史环境的 `file_info.storage_path` 已保存绝对路径，因此不能只改环境变量；在完成受控迁移前，应继续使用原来的 `data\user-uploads`。固定目录初始化、联合备份与恢复方法见 [`LOCAL-DATA-PROTECTION.md`](LOCAL-DATA-PROTECTION.md)。
 
 ### 5.2 编译并运行
 
