@@ -77,6 +77,21 @@ function Get-DatabaseInventory {
     return @($inventory)
 }
 
+function Assert-DatabaseContainsOnlyBaseTables {
+    $databaseLiteral = $DatabaseName.Replace("'", "''")
+    $query = "SELECT ((SELECT COUNT(*) FROM information_schema.tables WHERE TABLE_SCHEMA='$databaseLiteral' AND TABLE_TYPE<>'BASE TABLE') + " +
+        "(SELECT COUNT(*) FROM information_schema.triggers WHERE TRIGGER_SCHEMA='$databaseLiteral') + " +
+        "(SELECT COUNT(*) FROM information_schema.routines WHERE ROUTINE_SCHEMA='$databaseLiteral') + " +
+        "(SELECT COUNT(*) FROM information_schema.events WHERE EVENT_SCHEMA='$databaseLiteral'));"
+    $result = (Invoke-MySqlQuery -Query $query).stdout.Trim()
+    if ($result -notmatch '^\d+$') {
+        throw 'MySQL 非表对象检查结果格式无效。'
+    }
+    if ([long]$result -ne 0) {
+        throw '数据库包含视图、触发器、例程或事件；当前本地恢复协议仅支持基础表，拒绝生成不完整备份。'
+    }
+}
+
 function Assert-RedisDownloadDeltaDrained {
     $commonArguments = @('-h', $RedisHost, '-p', [string]$RedisPort, '-n', [string]$RedisDatabase, '--raw')
     for ($attempt = 0; $attempt -lt 2; $attempt++) {
@@ -146,6 +161,7 @@ $lock = Enter-CrpExclusiveLock -BackupRoot $backupRootPath
 try {
     # 后端停写后连续确认下载增量为空，才把后续顺序导出视为同一逻辑恢复点。
     Assert-RedisDownloadDeltaDrained
+    Assert-DatabaseContainsOnlyBaseTables
     $cutAt = (Get-Date).ToUniversalTime().ToString('o')
     $sourceInventory = @(Get-CrpFileInventory -Root $uploadRoot)
     $sourceBytes = [long](($sourceInventory | Measure-Object -Property bytes -Sum).Sum ?? 0)
@@ -161,7 +177,7 @@ try {
     $mysqlDumpPath = Join-Path $partialDirectory 'mysql.sql'
     $dumpArguments = @(
         "--host=$MySqlHost", "--port=$MySqlPort", "--user=$MySqlUsername",
-        '--single-transaction', '--quick', '--routines', '--triggers', '--events', '--hex-blob',
+        '--single-transaction', '--quick', '--skip-triggers', '--hex-blob',
         '--default-character-set=utf8mb4', "--result-file=$mysqlDumpPath", $DatabaseName
     )
     [void](Invoke-CrpProcess -FilePath $MySqlDumpExecutable -PrefixArguments $MySqlDumpPrefixArguments `

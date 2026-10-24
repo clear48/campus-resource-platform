@@ -13,6 +13,7 @@ $backupRoot = Join-Path $testRoot 'backups'
 $fakeRoot = Join-Path $testRoot 'fake-tools'
 $oldMySqlPassword = $env:CRP_BACKUP_MYSQL_PASSWORD
 $oldRedisPassword = $env:CRP_BACKUP_REDIS_PASSWORD
+$oldUnsupportedObjectCount = $env:CRP_TEST_UNSUPPORTED_OBJECT_COUNT
 
 function Assert-True {
     param([bool] $Condition, [string] $Message)
@@ -49,6 +50,7 @@ if (-not $resultArgument) { exit 11 }
     $fakeMySql = Join-Path $fakeRoot 'fake-mysql.ps1'
     @'
 $query = ($args | Where-Object { $_ -like '--execute=*' } | Select-Object -First 1)
+if ($query -like '*information_schema.triggers*') { $env:CRP_TEST_UNSUPPORTED_OBJECT_COUNT ?? '0'; exit 0 }
 if ($query -like '*information_schema.tables*') { "file_info`nresource"; exit 0 }
 if ($query -like '*file_info*') { '2'; exit 0 }
 if ($query -like '*resource*') { '3'; exit 0 }
@@ -115,11 +117,17 @@ exit 13
         & $backupScript @commonArguments -UploadPath $repositoryRoot -RunId '20261024T120003Z'
     }
 
-    Write-Host '本地备份专项测试通过：7/7'
+    $env:CRP_TEST_UNSUPPORTED_OBJECT_COUNT = '1'
+    Assert-Throws -ExpectedText '当前本地恢复协议仅支持基础表' -Action {
+        & $backupScript @commonArguments -RunId '20261024T120004Z'
+    }
+
+    Write-Host '本地备份专项测试通过：8/8'
 }
 finally {
     $env:CRP_BACKUP_MYSQL_PASSWORD = $oldMySqlPassword
     $env:CRP_BACKUP_REDIS_PASSWORD = $oldRedisPassword
+    $env:CRP_TEST_UNSUPPORTED_OBJECT_COUNT = $oldUnsupportedObjectCount
     Remove-Item Env:CRP_TEST_DUMP_PATH -ErrorAction SilentlyContinue
     Remove-Item Env:CRP_TEST_RDB_PATH -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $testRoot) {

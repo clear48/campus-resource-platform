@@ -57,6 +57,17 @@ function Invoke-RestoreMySqlQuery {
         -Arguments $arguments -Environment (Get-MySqlEnvironment) -Stage 'MySQL 恢复查询'
 }
 
+function Invoke-ImportMySqlQuery {
+    param([Parameter(Mandatory)] [string] $Query)
+
+    $arguments = @(
+        "--host=$MySqlHost", "--port=$MySqlPort", "--user=$MySqlImportUsername",
+        '--batch', '--skip-column-names', "--execute=$Query"
+    )
+    return Invoke-CrpProcess -FilePath $MySqlExecutable -PrefixArguments $MySqlPrefixArguments `
+        -Arguments $arguments -Environment (Get-MySqlImportEnvironment) -Stage 'MySQL 导入账号自检'
+}
+
 function Assert-RestoredDatabaseInventory {
     param([Parameter(Mandatory)] [object[]] $Expected)
 
@@ -219,14 +230,16 @@ try {
     }
 
     $accountLiteral = "'$MySqlImportUsername'@'$MySqlImportAccountHost'"
-    $grants = (Invoke-RestoreMySqlQuery -Query "SHOW GRANTS FOR $accountLiteral;").stdout
+    $actualAccount = (Invoke-ImportMySqlQuery -Query 'SELECT CURRENT_USER();').stdout.Trim()
+    $expectedAccount = "$MySqlImportUsername@$MySqlImportAccountHost"
+    if (-not [string]::Equals($actualAccount, $expectedAccount, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "MySQL 实际认证账号与声明不一致：expected=$expectedAccount actual=$actualAccount"
+    }
+    $grants = (Invoke-ImportMySqlQuery -Query 'SHOW GRANTS;').stdout
     foreach ($grant in $grants -split "`r?`n") {
         if ([string]::IsNullOrWhiteSpace($grant)) { continue }
-        if ($grant -match '(?i)\sON\s+\*\.\*\s+TO\s+' -and $grant -notmatch '(?i)^GRANT\s+USAGE\s+ON\s+\*\.\*\s+TO\s+') {
-            throw 'MySQL 恢复账号拥有全局权限，拒绝导入。'
-        }
-        if ($grant -match ('(?i)\sON\s+`?' + [regex]::Escape($sourceDatabase) + '`?\.')) {
-            throw 'MySQL 恢复账号拥有源数据库权限，拒绝导入。'
+        if ($grant -notmatch '(?i)^GRANT\s+USAGE\s+ON\s+\*\.\*\s+TO\s+') {
+            throw 'MySQL 恢复账号必须仅有 USAGE；检测到数据库权限、全局权限、角色或代理授权。'
         }
     }
 
@@ -239,12 +252,36 @@ try {
         -Arguments @($restoredRdb) -Stage 'Redis RDB 校验')
 
     [void](Invoke-RestoreMySqlQuery -Query "CREATE DATABASE ``$RestoreDatabase`` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;")
-    [void](Invoke-RestoreMySqlQuery -Query "GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES, CREATE VIEW, SHOW VIEW, TRIGGER, EXECUTE ON ``$RestoreDatabase``.* TO $accountLiteral;")
-    $mysqlArguments = @("--host=$MySqlHost", "--port=$MySqlPort", "--user=$MySqlImportUsername", "--database=$RestoreDatabase")
-    [void](Invoke-CrpProcessWithInputFile -FilePath $MySqlExecutable -PrefixArguments $MySqlPrefixArguments `
-        -Arguments $mysqlArguments -Environment (Get-MySqlImportEnvironment) `
-        -InputFile (Join-Path $validated.Path 'mysql.sql') -Stage 'MySQL 隔离恢复')
-    Assert-RestoredDatabaseInventory -Expected @($manifest.database)
+    $importGrantIssued = $false
+    $databaseRestoreError = $null
+    try {
+        [void](Invoke-RestoreMySqlQuery -Query "GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES ON ``$RestoreDatabase``.* TO $accountLiteral;")
+        $importGrantIssued = $true
+        $mysqlArguments = @("--host=$MySqlHost", "--port=$MySqlPort", "--user=$MySqlImportUsername", "--database=$RestoreDatabase")
+        [void](Invoke-CrpProcessWithInputFile -FilePath $MySqlExecutable -PrefixArguments $MySqlPrefixArguments `
+            -Arguments $mysqlArguments -Environment (Get-MySqlImportEnvironment) `
+            -InputFile (Join-Path $validated.Path 'mysql.sql') -Stage 'MySQL 隔离恢复')
+        Assert-RestoredDatabaseInventory -Expected @($manifest.database)
+    }
+    catch {
+        $databaseRestoreError = $_
+    }
+    $revokeError = $null
+    if ($importGrantIssued) {
+        try {
+            [void](Invoke-RestoreMySqlQuery -Query "REVOKE ALL PRIVILEGES ON ``$RestoreDatabase``.* FROM $accountLiteral;")
+        }
+        catch {
+            $revokeError = $_
+        }
+    }
+    if ($null -ne $revokeError) {
+        $suffix = if ($null -ne $databaseRestoreError) { '，且数据库恢复同时失败' } else { '' }
+        throw "无法撤销MySQL导入账号的临时目标库权限$suffix；请保持停机并人工撤权。"
+    }
+    if ($null -ne $databaseRestoreError) {
+        throw $databaseRestoreError
+    }
 
     if (-not $ActivateUploadDirectory) {
         $isolatedUploads = Join-Path $workspacePath 'uploads'
