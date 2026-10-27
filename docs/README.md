@@ -15,6 +15,7 @@
 | `07-project-runbook.md` | 项目运行维护 | 前后端启动、联调、验收与排查 |
 | `LOCAL-DATA-PROTECTION.md` | 本地数据保护 | Windows本地MySQL、Redis、上传文件联合备份、SHA-256校验与隔离恢复 |
 | `../deploy/README.md` | 生产部署配置 | Compose 变量、镜像交付、HTTP / HTTPS、证书续期与运行维护 |
+| `DEPLOYMENT-QA-QUICK-REVIEW.md` | 部署学习复盘 | 本次部署对话的 14 个问题、精简解答与关键流程速查 |
 | `DEPLOYMENT_HANDOFF.md` | 部署阶段交接 | 服务器方案、部署阶段状态、验收边界与后续步骤 |
 | `DEPLOY-08-RUNBOOK.md` | 生产验收与恢复 | 公网验收矩阵、加密联合备份、签名与独立恢复介质预检 |
 | `08-multi-agent-collaboration.md` | Codex 协作配置 | 项目级 Subagent 角色、调度流程、权限、验证与排查 |
@@ -33,6 +34,7 @@ Postman 本地环境文件只保留可公开的示例变量；真实账号、Tok
 
 - 配置总览与操作顺序：[根 README 的部署上线说明](../README.md#部署上线)。
 - 详细命令与变量映射：[生产部署手册](../deploy/README.md)。
+- 快速回忆概念与流程：[部署关键流程问答速查](DEPLOYMENT-QA-QUICK-REVIEW.md)。
 - 历史上线证据与当前阶段：[部署交接](DEPLOYMENT_HANDOFF.md)。
 - 尚未完成的生产验收与恢复：[DEPLOY-08 运行手册](DEPLOY-08-RUNBOOK.md)。
 
