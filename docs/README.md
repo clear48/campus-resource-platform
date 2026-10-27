@@ -14,6 +14,7 @@
 | `06-project-progress.md` | 项目总体协作 | 已实现能力、测试记录和进度 |
 | `07-project-runbook.md` | 项目运行维护 | 前后端启动、联调、验收与排查 |
 | `LOCAL-DATA-PROTECTION.md` | 本地数据保护 | Windows本地MySQL、Redis、上传文件联合备份、SHA-256校验与隔离恢复 |
+| `12-local-load-test-plan.md` | 本地性能测试 | 单实例后端、MySQL、Redis、本地文件的压测流程、负载阶梯、限流边界与统计对账 |
 | `../deploy/README.md` | 生产部署配置 | Compose 变量、镜像交付、HTTP / HTTPS、证书续期与运行维护 |
 | `DEPLOYMENT-QA-QUICK-REVIEW.md` | 部署学习复盘 | 本次部署对话的 14 个问题、精简解答与关键流程速查 |
 | `DEPLOYMENT_HANDOFF.md` | 部署阶段交接 | 服务器方案、部署阶段状态、验收边界与后续步骤 |
