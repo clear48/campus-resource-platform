@@ -89,10 +89,39 @@ class SpecialsTests(unittest.TestCase):
     def test_cli_passes_selected_case_and_defaults_to_all(self):
         with patch.object(specials, "execute") as execute:
             specials.main(["--context", "synthetic.json", "--mode", "correctness", "--case", "resource"])
-            execute.assert_called_once_with("synthetic.json", "correctness", "resource")
+            execute.assert_called_once_with("synthetic.json", "correctness", "resource", None)
         with patch.object(specials, "execute") as execute:
             specials.main(["--context", "synthetic.json", "--mode", "correctness"])
-            execute.assert_called_once_with("synthetic.json", "correctness", "all")
+            execute.assert_called_once_with("synthetic.json", "correctness", "all", None)
+
+    def test_cli_passes_100_start_threads(self):
+        with patch.object(specials, "execute") as execute:
+            specials.main(["--context", "synthetic.json", "--mode", "upload", "--start-threads", "100"])
+            execute.assert_called_once_with("synthetic.json", "upload", "all", 100)
+
+    def test_upload_100_start_adapts_only_large_buffered_files(self):
+        matrix = specials.upload_matrix(100)
+        self.assertEqual([(100 * 1024, 100, 100), (1024 ** 2, 100, 100), (10 * 1024 ** 2, 10, 20)], matrix)
+        self.assertLess(sum(size * count * 2 for size, _, count in matrix), 2 * 1024 ** 3)
+        self.assertEqual(12, len(specials.upload_matrix()))
+
+    def test_100_signature_results_are_counted_once_and_ip_rejections_remain_strict(self):
+        rows = []
+        for index in range(30):
+            rows.append({"status": 200, "body": {"code": 0, "data": {
+                "resourceId": 7, "downloadRecordId": index + 1, "downloadTicket": "synthetic-only",
+                "downloadUrl": f"/api/v1/download-records/{index + 1}/file", "counted": index % 2 == 0}}})
+        rows.extend([{"status": 429, "body": {"code": 42901, "message": "当前 IP 下载过于频繁"}} for _ in range(70)])
+        accounts = [{"userId": index} for index in range(100)]
+        tracker = specials.Downloads({})
+        tickets, owners = specials.collect_signature_batch(tracker, accounts, rows, 7)
+        self.assertEqual((30, 70), specials.assert_ip_burst(rows, tickets, 100))
+        self.assertEqual(30, tracker.post_success)
+        self.assertEqual(15, tracker.counted[7])
+        self.assertEqual(accounts[:30], owners)
+        rows[-1]["body"]["message"] = "下载限流服务暂不可用，请稍后重试"
+        with self.assertRaises(RuntimeError):
+            specials.assert_ip_burst(rows, tickets, 100)
 
     def test_case_selection_is_rejected_for_other_modes(self):
         with self.assertRaises(RuntimeError):
@@ -118,16 +147,17 @@ class SpecialsTests(unittest.TestCase):
         reader = unittest.mock.Mock()
         reader.command.side_effect = [1, 0, 1900]
         def concurrent(_count, _operation, callback):
-            callback([good] * 20)
-            return [good] * 20, .01
+            callback([good] * _count)
+            return [good] * _count, .01
         with tempfile.TemporaryDirectory(prefix="crp-cache-test-") as root, \
                 patch.object(specials, "timed_request", side_effect=[good, hidden, hidden, hidden, missing, unauthorized]), \
                 patch.object(specials, "mysql", return_value="10004"), \
                 patch.object(specials, "RedisReader", return_value=reader), \
                 patch.object(specials, "parallel", side_effect=concurrent):
             report = {"batches": []}
-            specials.public_visibility_and_cache({}, {"resources": resources}, Path(root), report)
-        self.assertEqual(20, report["coldCache"]["success"])
+            specials.public_visibility_and_cache({}, {"resources": resources}, Path(root), report, start_threads=100)
+        self.assertEqual(100, report["coldCache"]["success"])
+        self.assertEqual(100, report["coldCache"]["threads"])
         self.assertFalse(report["coldCache"]["sqlQueriesMeasured"])
         self.assertTrue(report["visibility"]["noToken401"])
         self.assertEqual([unittest.mock.call("DEL", "crp:cache:resource:detail:1"),

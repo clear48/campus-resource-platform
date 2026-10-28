@@ -117,6 +117,26 @@ python .\tests\performance\specials.py --context '<仓库外context.json>' --mod
 
 两者分别写 `correctness-favorite.special.json` 与 `correctness-resource.special.json`，默认all仍写 `correctness.special.json`，互不覆盖。favorite仅验证收藏/取消，resource仅新增文件、竞争创建资料及竞争审批；各用例开始及资料用例批次结束均核对收藏SQL聚合。resource通过不能用于声称favorite通过，失败快照和lastAttempt始终保留在当前独立用例文件中。
 
+### 从100线程起测
+
+用户要求后续测试从100线程开始，再按实际限制调整。当前执行须显式传 `--start-threads 100`；参数省略时为 `None`，仅为复现历史保留下文旧矩阵，不自动替换历史结果或放宽业务断言。参数范围为1～100。
+
+```powershell
+python .\tests\performance\specials.py --context '<仓库外context.json>' --mode correctness --case resource --start-threads 100
+python .\tests\performance\specials.py --context '<仓库外context.json>' --mode upload --start-threads 100
+python .\tests\performance\specials.py --context '<仓库外context.json>' --mode download --start-threads 100
+python .\tests\performance\specials.py --context '<仓库外context.json>' --mode verify --start-threads 100
+```
+
+| 模式 | 100线程起测后的实际配置 |
+| --- | --- |
+| correctness | 只跑100并发，各3批；favorite仍严格要求全部幂等成功，真实失败保留 |
+| upload | 同内容100账号并发一批；100KiB和1MiB各100线程100请求；10MiB因urllib整包、多份客户端/服务端缓冲，同机100并发不适合，预先调整为10线程20请求并记录原因。源+存储计划约620MiB，小于2GiB |
+| download | 用户10/IP30规则与低速完整链路保持原语义；重放100并发。等待62秒空窗后100个不同账号各签票一次，严格要求30成功、70次IP原因429，再30并发读完有效票据；记录requestedThreads/allowed/rejected/effectiveGetThreads和调整原因，不跑旧1/5/10/20突发矩阵 |
+| verify | 冷缓存100并发；SQL对账和权限功能断言无线程数量含义 |
+
+签票HTTP请求并发，但所有响应结束后由主线程统一登记下载流水成功数和counted=true；所有成功票据均纳入最终MySQL增量对账，绝不在线程中竞争递增tracker。准备票据必须在55秒内完成；超时/未知结果、Redis异常原因429都失败，禁止自动重试以凑满30张。
+
 专项开始先核对清单API地址以及SQL/API分类映射。兼容首轮缺少mysqlTarget的清单，但不能跳过实时绑定。每种模式在 `<evidenceDir>/<mode>.special.json` 保存聚合结果和进行中状态；已有结果拒绝自动重跑/覆盖。Token、票据、原始响应不进入结果JSON。异常、超时或断言失败立即停止，写请求不重试，必须人工处理结果不确定项。
 
 关键并发断言前会先持久化 `lastAttempt`，记录操作、并发、批次、HTTP状态/业务码/duplicateIgnored计数；不确定响应也保留计数。并发正确性失败时，另查SQL的用户资料有效收藏数、资料favorite_count、有效收藏聚合与全库计数不一致数，保留实际失败状态而不放宽断言。下载429原因只归类为用户阈值/IP阈值/限流服务不可用/其他，不保存原始消息或票据。

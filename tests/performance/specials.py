@@ -182,7 +182,7 @@ def favorite_discrepancies(context):
                      "ON f.resource_id=r.id WHERE r.favorite_count<>COALESCE(f.n,0);"))
 
 
-def correctness(context, manifest, evidence, report, case="all"):
+def correctness(context, manifest, evidence, report, case="all", start_threads=None):
     account = manifest["accounts"][0]
     admin = manifest["admin"]
     resource_id = int(manifest["approvedIds"][0])
@@ -190,7 +190,9 @@ def correctness(context, manifest, evidence, report, case="all"):
     output_mode = report["mode"]
     expect(favorite_discrepancies(context) == 0, "专项开始前收藏SQL聚合已不一致，禁止混入独立验证")
     manifest.setdefault("baseResourceCount", len(manifest["resources"]))
-    for concurrency in (2, 5, 10, 20):
+    concurrency_levels = (2, 5, 10, 20) if start_threads is None else (start_threads,)
+    report["configuration"] = {"threads": list(concurrency_levels), "repetitions": 3}
+    for concurrency in concurrency_levels:
         require_space(evidence, 200 * 1024)
         for repetition in range(3):
             def mark(operation, rows):
@@ -318,15 +320,30 @@ def upload_prechecks(context, manifest, evidence, report):
     save_progress(evidence, "upload", report)
 
 
-def upload(context, manifest, evidence, report):
+def upload_matrix(start_threads=None):
+    """100起步保留大小维度；10MiB整包客户端按已知内存预算降至10线程。"""
+    if start_threads is None:
+        return [(size, concurrency, max(concurrency * 2, 20))
+                for size in (100 * 1024, 1024 ** 2, 10 * 1024 ** 2) for concurrency in (1, 2, 5, 10)]
+    return [(100 * 1024, start_threads, start_threads), (1024 ** 2, start_threads, start_threads),
+            (10 * 1024 ** 2, min(start_threads, 10), 20)]
+
+
+def upload(context, manifest, evidence, report, start_threads=None):
     report["transport"] = "Python urllib短批，无连接池/无keepalive；不是JMeter五分钟稳态容量"
     accounts = manifest["accounts"]
-    expect(len(accounts) >= 20, "上传并发专项至少需要20账号")
+    required_accounts = 20 if start_threads is None else start_threads
+    expect(len(accounts) >= required_accounts, "上传并发专项账号不足")
     upload_prechecks(context, manifest, evidence, report)
     # 80个各档大小文件的源副本+服务端副本总量约1.74GiB，额外去重批次只占少量空间。
-    planned_bytes = sum((100 * 1024, 1024 ** 2, 10 * 1024 ** 2)) * 20 * 4 * 2
+    matrix = upload_matrix(start_threads)
+    planned_bytes = sum(size * count * 2 for size, _, count in matrix) + 4 * 100 * 1024 * 2 + 4096
     expect(planned_bytes < 2 * 1024 ** 3, "上传源+服务端计划超过2GiB")
-    for concurrency in (2, 5, 10, 20):
+    report["configuration"] = {"requestedStartThreads": start_threads, "plannedSourceAndStoredBytes": planned_bytes,
+        "uniqueContent": [{"size": size, "threads": threads, "requests": count} for size, threads, count in matrix],
+        "adjustmentReason": "10MiB上传使用urllib整包缓冲，同机100并发会产生多份百MiB/ GiB级缓冲，降为10线程20请求"
+                            if start_threads and start_threads > 10 else None}
+    for concurrency in ((2, 5, 10, 20) if start_threads is None else (start_threads,)):
         require_space(evidence, 200 * 1024)
         source, digest = source_file(evidence, "upload-dedup", 100 * 1024)
         results, duration = parallel(concurrency, lambda index: timed_request(
@@ -347,9 +364,7 @@ def upload(context, manifest, evidence, report):
                                   **batch_metrics(results, duration, [100 * 1024] * concurrency),
                                   "uniqueFileRows": 1, "authorizedUsers": concurrency})
         save_progress(evidence, "upload", report)
-    for size in (100 * 1024, 1024 ** 2, 10 * 1024 ** 2):
-        for concurrency in (1, 2, 5, 10):
-            count = max(concurrency * 2, 20)
+    for size, concurrency, count in matrix:
             require_space(evidence, count * size * 2)
             sources = [source_file(evidence, "upload-new", size) for _ in range(count)]
             # 固定worker数；文件在计时前生成，HTTP每次内容唯一，禁止生成成本混入上传耗时。
@@ -471,14 +486,18 @@ class Downloads:
         result = timed_request(self.context, f"/resources/{resource_id}/download-records", "POST", token=account["token"])
         if self.on_sign:
             self.on_sign(result)
+        return self.register_signature(result, resource_id), result
+
+    def register_signature(self, result, resource_id):
+        """并发HTTP结束后由主线程统一登记，禁止共享tracker在线程内递增。"""
         if successful(result):
             ticket = result["body"]["data"]
             expect(ticket["resourceId"] == resource_id and ticket["downloadTicket"], "下载票据字段不完整")
             expect(ticket["downloadUrl"] == f"/api/v1/download-records/{ticket['downloadRecordId']}/file", "下载URL不符")
             self.post_success += 1
             self.counted[resource_id] += bool(ticket["counted"])
-            return ticket, result
-        return None, result
+            return ticket
+        return None
 
     def get(self, account, ticket):
         return timed_request(self.context, f"/download-records/{int(ticket['downloadRecordId'])}/file",
@@ -496,9 +515,30 @@ class Downloads:
         self.get_complete += 1
 
 
-def download(context, manifest, evidence, report):
+def collect_signature_batch(tracker, accounts, rows, resource_id):
+    """HTTP并发结束后调用；所有可确认成功都由当前主线程计入账本。"""
+    tickets, owners = [], []
+    for index, row in enumerate(rows):
+        ticket = tracker.register_signature(row, resource_id)
+        if ticket is not None:
+            tickets.append(ticket)
+            owners.append(accounts[index])
+    return tickets, owners
+
+
+def assert_ip_burst(rows, tickets, requested):
+    allowed = min(requested, 30)
+    denied = [row for row in rows if not successful(row)]
+    expect(len(rows) == requested and len(tickets) == allowed and len(denied) == requested - allowed and
+           all(rejected(row, 429, 42901) and row["body"].get("message") == "当前 IP 下载过于频繁" for row in denied),
+           "并发签票未严格符合IP30阈值；不能把Redis故障或用户限流当正常拒绝")
+    return allowed, len(denied)
+
+
+def download(context, manifest, evidence, report, start_threads=None):
     accounts = manifest["accounts"]
     expect(len(accounts) >= 60, "下载规则/突发专项至少需要60账号")
+    expect(start_threads is None or len(accounts) >= start_threads, "签票突发账号不足")
     resources = [row for row in manifest["resources"] if row["status"] == 1][:3]
     expect(len(resources) == 3, "下载至少需要三个已通过资料")
     ids = ",".join(str(int(row["resourceId"])) for row in resources)
@@ -535,12 +575,13 @@ def download(context, manifest, evidence, report):
 
     ticket, _ = tracker.sign(accounts[5], small["resourceId"])
     expect(ticket is not None, "重放专项签票失败")
-    results, _ = parallel(5, lambda _: tracker.get(accounts[5], ticket),
-                          lambda rows: record_attempt(evidence, "download", report, "ticket.replay", rows, 5))
+    replay_threads = start_threads or 5
+    results, _ = parallel(replay_threads, lambda _: tracker.get(accounts[5], ticket),
+                          lambda rows: record_attempt(evidence, "download", report, "ticket.replay", rows, replay_threads))
     expect(sum(row["status"] == 200 for row in results) == 1 and
-           sum(rejected(row, 400, 40901) for row in results) == 4, "一次票据并发重放结果错误")
+           sum(rejected(row, 400, 40901) for row in results) == replay_threads - 1, "一次票据并发重放结果错误")
     tracker.validate_file(next(row for row in results if row["status"] == 200), small)
-    report["batches"].append({"kind": "ticket-replay", "requests": 5, "success": 1, "rejected": 4})
+    report["batches"].append({"kind": "ticket-replay", "requests": replay_threads, "success": 1, "rejected": replay_threads - 1})
     expired, _ = tracker.sign(accounts[6], small["resourceId"])
     expect(expired is not None, "过期专项签票失败")
     pause(62, "等待一次性票据过期")
@@ -575,24 +616,43 @@ def download(context, manifest, evidence, report):
         report["batches"].append({"kind": kind, "allowed": allowed, "thresholdRejected": 1})
         save_progress(evidence, "download", report)
 
-    for concurrency in (1, 5, 10, 20):
+    for concurrency in ((1, 5, 10, 20) if start_threads is None else (start_threads,)):
         pause(62, "文件突发签票前恢复窗口")
         tickets = []
         first_issued = time.monotonic()
-        for index in range(concurrency):
-            ticket, _ = tracker.sign(accounts[40 + index], small["resourceId"])
-            expect(ticket is not None, "突发文件预签失败")
-            tickets.append(ticket)
+        ticket_accounts = []
+        if start_threads is None:
+            for index in range(concurrency):
+                ticket, _ = tracker.sign(accounts[40 + index], small["resourceId"])
+                expect(ticket is not None, "突发文件预签失败")
+                tickets.append(ticket)
+                ticket_accounts.append(accounts[40 + index])
+            burst_result = {}
+        else:
+            def collect_signatures(rows):
+                record_attempt(evidence, "download", report, "signature.concurrent-burst", rows, concurrency)
+                collected, owners = collect_signature_batch(tracker, accounts, rows, small["resourceId"])
+                tickets.extend(collected)
+                ticket_accounts.extend(owners)
+                report["knownPostSuccess"] = tracker.post_success
+                report["knownCountedTrue"] = sum(tracker.counted.values())
+                save_progress(evidence, "download", report)
+            signed, _ = parallel(concurrency, lambda index: timed_request(context,
+                f"/resources/{small['resourceId']}/download-records", "POST", token=accounts[index]["token"]), collect_signatures)
+            allowed, denied = assert_ip_burst(signed, tickets, concurrency)
+            burst_result = {"requestedThreads": concurrency, "allowed": allowed, "rejected": denied,
+                            "effectiveGetThreads": allowed, "adjustmentReason": "单IP每60秒30次签票，100线程不能取得100张有效票据"}
         expect(time.monotonic() - first_issued < 55, "预签耗时过长，不能在票据期内完成公平突发")
-        results, duration = parallel(concurrency, lambda index: tracker.get(accounts[40 + index], tickets[index]),
-                                     lambda rows: record_attempt(evidence, "download", report, "presigned-file-burst", rows, concurrency))
+        effective_threads = len(tickets)
+        results, duration = parallel(effective_threads, lambda index: tracker.get(ticket_accounts[index], tickets[index]),
+                                     lambda rows: record_attempt(evidence, "download", report, "presigned-file-burst", rows, effective_threads))
         for row in results:
             tracker.validate_file(row, small)
         delays = [row["elapsedMs"] for row in results]
         report["batches"].append({"kind": "presigned-file-burst", "threads": concurrency,
-                                  "completeGets": concurrency, "durationSeconds": round(duration, 4),
-                                  "bytes": concurrency * small["size"],
-                                  "MiBPerSecond": round(concurrency * small["size"] / 1024 ** 2 / max(duration, .001), 3),
+                                  **burst_result, "completeGets": effective_threads, "durationSeconds": round(duration, 4),
+                                  "bytes": effective_threads * small["size"],
+                                  "MiBPerSecond": round(effective_threads * small["size"] / 1024 ** 2 / max(duration, .001), 3),
                                   "p95Ms": round(percentile(delays, .95), 3), "lowSamplePercentiles": True,
                                   "p99Ms": round(percentile(delays, .99), 3),
                                   "note": "短时预签票GET，不代表持续完整下载业务容量"})
@@ -635,7 +695,7 @@ def verify_manifest_links(manifest, files, resources, relations):
     return {resource_id: values[0] for resource_id, values in actual_resources.items()}
 
 
-def verify(context, manifest, evidence, report):
+def verify(context, manifest, evidence, report, start_threads=None):
     checks = {}
     checks["favoriteCountMismatches"] = favorite_discrepancies(context)
     checks["favoriteDuplicateRelations"] = int(mysql(context, "SELECT COUNT(*) FROM "
@@ -683,10 +743,10 @@ def verify(context, manifest, evidence, report):
                         "auditRows": len(audits), "partFiles": 0, "orphanPhysicalFiles": 0,
                         "manifestAuthorizationsVerified": True, "manifestFileIdentityVerified": True,
                         "resourceFileAndUploaderVerified": True, "auditStateChainsVerified": True}
-    public_visibility_and_cache(context, manifest, evidence, report)
+    public_visibility_and_cache(context, manifest, evidence, report, start_threads)
 
 
-def public_visibility_and_cache(context, manifest, evidence, report):
+def public_visibility_and_cache(context, manifest, evidence, report, start_threads=None):
     """停压后验证公开边界，再只删除单个详情缓存制造20并发冷回填。"""
     approved = next(row for row in manifest["resources"] if row["status"] == 1)
     result = timed_request(context, f"/resources/{int(approved['resourceId'])}")
@@ -711,8 +771,9 @@ def public_visibility_and_cache(context, manifest, evidence, report):
         # 仅此一个已确认压测资料的详情Key，不删除锁、黑名单、票据或统计数据。
         deleted = reader.command("DEL", key)
         expect(reader.command("EXISTS", key) == 0, "指定详情缓存未进入冷状态")
-        rows, duration = parallel(20, lambda _: timed_request(context, f"/resources/{int(approved['resourceId'])}"),
-            lambda results: record_attempt(evidence, "verify", report, "cache.cold-detail", results, 20))
+        cold_threads = start_threads or 20
+        rows, duration = parallel(cold_threads, lambda _: timed_request(context, f"/resources/{int(approved['resourceId'])}"),
+            lambda results: record_attempt(evidence, "verify", report, "cache.cold-detail", results, cold_threads))
         expect(all(successful(row) and row["body"]["data"]["resourceId"] == approved["resourceId"]
                    and row["body"]["data"]["status"] == 1 for row in rows), "冷缓存并发详情不正确")
         ttl = reader.command("TTL", key)
@@ -721,7 +782,7 @@ def public_visibility_and_cache(context, manifest, evidence, report):
         reader.close()
     report["visibility"] = {"approvedVisible": True, "pendingRejected": True, "rejectedHidden": True,
                             "offlineHidden": True, "missing404": True, "noToken401": True}
-    report["coldCache"] = {"threads": 20, "success": 20, "deletedTargetKeys": deleted, "ttlSeconds": ttl,
+    report["coldCache"] = {"threads": cold_threads, "success": len(rows), "deletedTargetKeys": deleted, "ttlSeconds": ttl,
                            **batch_metrics(rows, duration), "sqlQueriesMeasured": False,
                            "note": "只验证返回与回填TTL，不声称SQL只执行一次"}
 
@@ -733,7 +794,8 @@ def report_mode(mode, case="all"):
     return f"correctness-{case}" if mode == "correctness" and case != "all" else mode
 
 
-def execute(context_path, mode, case="all"):
+def execute(context_path, mode, case="all", start_threads=None):
+    expect(start_threads is None or 1 <= start_threads <= 100, "start-threads需为1～100")
     context = load_context(context_path)
     evidence = Path(context["evidenceDir"])
     manifest = read_json(evidence / "manifest.json")
@@ -744,13 +806,14 @@ def execute(context_path, mode, case="all"):
     output_mode = report_mode(mode, case)
     output = evidence / (output_mode + ".special.json")
     expect(not output.exists(), "专项已有结果，拒绝自动重跑或覆盖")
-    report = {"mode": output_mode, "case": case, "status": "RUNNING", "started": time.time(), "batches": []}
+    report = {"mode": output_mode, "case": case, "requestedStartThreads": start_threads,
+              "status": "RUNNING", "started": time.time(), "batches": []}
     save_progress(evidence, output_mode, report)
     try:
         if mode == "correctness":
-            correctness(context, manifest, evidence, report, case)
+            correctness(context, manifest, evidence, report, case, start_threads)
         else:
-            {"upload": upload, "download": download, "verify": verify}[mode](context, manifest, evidence, report)
+            {"upload": upload, "download": download, "verify": verify}[mode](context, manifest, evidence, report, start_threads)
         report.update(status="PASSED", ended=time.time())
     except Exception as error:
         capture_failure_database_state(context, report)
@@ -768,10 +831,11 @@ def main(argv=None):
     parser.add_argument("--context", required=True)
     parser.add_argument("--mode", required=True, choices=("correctness", "upload", "download", "verify"))
     parser.add_argument("--case", default="all", choices=("all", "favorite", "resource"))
+    parser.add_argument("--start-threads", type=int, default=None)
     arguments = parser.parse_args(argv)
     if arguments.mode != "correctness" and arguments.case != "all":
         parser.error("--case 仅适用于 --mode correctness")
-    return execute(arguments.context, arguments.mode, arguments.case)
+    return execute(arguments.context, arguments.mode, arguments.case, arguments.start_threads)
 
 
 if __name__ == "__main__":
