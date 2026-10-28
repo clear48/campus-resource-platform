@@ -1,6 +1,6 @@
 # 本地架构压测流程设计
 
-设计日期：2026-10-27。范围：本地单实例 Spring Boot、MySQL、Redis 和本地文件目录。本文交付流程设计，不代表已运行压测；JMeter 计划、批量造数器和性能报告尚未实现。接口、限流、缓存及统计语义以当前 Java 代码为准。
+设计日期：2026-10-27。范围：本地单实例 Spring Boot、MySQL、Redis 和本地文件目录。2026-10-28 已开始落地，合成造数、JMX 生成与运行工具见 [压测工具说明](../tests/performance/README.md)。本文中的负载和指标仍为设计目标，实际完成范围与成绩以执行报告为准。接口、限流、缓存及统计语义以当前 Java 代码为准。
 
 ## 1. 要回答的问题与本地拓扑
 
@@ -84,7 +84,7 @@ flowchart LR
 
 选用 Apache JMeter 作为独立本地发压工具，不给应用增加 Maven/npm 依赖。本轮不安装工具。GUI 仅用于构建与少量调试，正式运行使用 CLI，关闭结果树等高开销监听器；依据 [JMeter 官方最佳实践](https://jmeter.apache.org/usermanual/best-practices.html)。
 
-后续最小脚本布局建议为 `tests/performance/jmeter/`，依次实现只读、收藏、上传、下载计划。该目录和 `.jmx` 本轮尚未创建，不能声称已有一键压测命令。
+实际脚本位于 `tests/performance/`：`seed.py` 经 API 生成合成数据，`generate_plan.py` 在仓库外生成 JMX，`run.py` 执行 JMeter 并按真实样本统计。上传、下载和并发竞争须结合专项步骤验证，不能将通用计划执行成功当作全部场景通过。
 
 每份计划至少包括：
 
