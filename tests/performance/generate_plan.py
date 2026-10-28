@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 
 PREPROCESSOR = r'''
-import groovy.json.JsonSlurper
+import groovy.json.JsonSlurperClassic
 import groovy.json.JsonOutput
 import java.net.URLEncoder
 
@@ -22,7 +22,8 @@ if (manifest == null) {
         if (manifest == null) {
             def manifestFile = new File(props.getProperty('manifest', ''))
             if (!manifestFile.isFile()) throw new IllegalArgumentException('缺少有效 manifest 文件')
-            manifest = new JsonSlurper().parse(manifestFile, 'UTF-8')
+            // LazyMap会在首次get时再填充内部Map；共享前必须递归解析为普通Map/List。
+            manifest = new JsonSlurperClassic().parseText(manifestFile.getText('UTF-8'))
             if (manifest.status != 'COMPLETE' || !manifest.approvedIds || !manifest.accounts) {
                 throw new IllegalArgumentException('manifest 尚未完成或数据池为空')
             }
@@ -33,6 +34,18 @@ if (manifest == null) {
             manifest._basePath = target.path.replaceAll('/+$', '')
             manifest._host = target.host
             manifest._port = target.port > 0 ? target.port.toString() : '80'
+            if (!(manifest.categories instanceof List) || manifest.categories.isEmpty()) {
+                throw new IllegalArgumentException('分类数据池为空或格式不合法')
+            }
+            // 在同步发布前校验并建立独立的不可变ID列表，HTTP组URL不再访问可惰性构建的分类对象。
+            def categoryIds = manifest.categories.collect { row ->
+                def rawId = row?.categoryId
+                if (!(rawId instanceof Number)) throw new IllegalArgumentException('分类ID必须为正整数')
+                long id = new BigDecimal(rawId.toString()).longValueExact()
+                if (id < 1) throw new IllegalArgumentException('分类ID必须为正整数')
+                id.toString()
+            }
+            manifest._categoryIds = Collections.unmodifiableList(categoryIds)
             manifest._approvedSet = manifest.approvedIds.collect { it.toString() }.toSet()
             manifest._owned = manifest.resources.findAll { it.status == 1 }.groupBy { it.userId.toString() }
             props.put('__crpManifest', manifest)
@@ -73,7 +86,13 @@ switch (chosen) {
         String sort = variant in ['downloadCount', 'favoriteCount', 'hotScore', 'createdAt'] ? variant : 'createdAt'
         int page = variant == 'deep' ? Math.max(1, manifest.approvedIds.size().intdiv(10) - 1) : 1
         path = '/search/resources?keyword=' + URLEncoder.encode(keyword, 'UTF-8') + '&pageNo=' + page + '&pageSize=10&sortBy=' + sort + '&order=desc'
-        if (variant == 'category') path += '&categoryId=' + manifest.categories[threadIndex % manifest.categories.size()].categoryId
+        if (variant == 'category') {
+            String categoryId = manifest._categoryIds[threadIndex % manifest._categoryIds.size()]
+            if (categoryId == null || !(categoryId ==~ /[1-9][0-9]*/)) {
+                throw new IllegalArgumentException('分类ID未安全初始化，拒绝生成请求URL')
+            }
+            path += '&categoryId=' + categoryId
+        }
         vars.put('searchVariant', variant)
         break
     case 'detail':
@@ -101,7 +120,7 @@ switch (chosen) {
                 if (loginPassword == null) {
                     def contextFile = new File(props.getProperty('context', ''))
                     if (!contextFile.isFile()) throw new IllegalArgumentException('登录场景需要 context 文件')
-                    loginPassword = new JsonSlurper().parse(contextFile, 'UTF-8').userPassword
+                    loginPassword = new JsonSlurperClassic().parseText(contextFile.getText('UTF-8')).userPassword
                     if (!loginPassword) throw new IllegalArgumentException('登录场景缺少密码')
                     props.put('__crpLoginPassword', loginPassword)
                 }

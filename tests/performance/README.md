@@ -95,6 +95,10 @@ python .\tests\performance\run.py `
 
 所有场景均使用原生 `HTTPSamplerProxy`、HTTPClient4、Keep-Alive、3秒连接超时、10秒响应超时，同时断言HTTP200、业务code=0和场景字段。不使用父事务样本，吞吐不会重复统计。JMeter Groovy预处理仅在首次加载清单，随后共享只读集合；账号固定到线程，单次请求失败不重试。
 
+共享清单必须用 `JsonSlurperClassic.parseText` 完整构建普通Map/List后，在同步块内发布。原 `JsonSlurper` 的LazyMap会首次get时构建内部Map，并发共享读取可能出现null或构建异常；因此分类ID在发布前转换成正整数、预生成不可变列表，组URL前再次拒绝null/非法值。分类接口的400断言保持失败，不通过放宽断言掩盖发压器错误。同步读取登录context也采用Classic保持一致，但原登录只共享已解析的密码String，不能据此声称它存在同一Map竞态。响应断言中的解析器只处理当前请求的局部数据，未改响应断言。
+
+修正生成器后应生成新文件如 `generic-v2.jmx`，保留原计划与两版SHA-256；已运行结果注明对应计划版本，避免将发压器null参数导致的400和后续端口耗尽混入正常接口容量。
+
 上传、下载限流/票据/完整文件传输、审核竞争与数据对账不由这份通用JMX实现，必须按设计专项执行，不能把通用JMX运行完成视为全部场景通过。
 
 ## 3. 并发、上传、下载与最终对账专项
@@ -168,3 +172,14 @@ print('Python / JMX 静态校验通过')
 隔离与统计单测可执行 `python -m unittest discover -s tests/performance -p test_harness.py -v`，使用临时文件和模拟API/SQL，覆盖远程目标、日常库、仓库内/链接证据目录、非空文件表、HTTP/SQL错绑、源文件覆盖、完成清单目标切换、HTTP200断言失败计数、升压排除和0样本无效。缺失manifest还应使用真实JMeter负向冒烟，要求非零样本全部失败、URL为无效配置路径，不能以0样本或health成功误报通过。
 
 全部工具单测：`python -m unittest discover -s tests/performance -p "test_*.py" -v`。专项单测只模拟协议/请求，不连接真实HTTP、SQL、Redis；它们不能替代真实专项结果。
+
+可显式启用JMeter自带Groovy的100线程共享读取回归（128MiB JVM，纯内存，无HTTP），默认工具单测跳过该外部进程：
+
+```powershell
+$env:CRP_GROOVY_JMETER_HOME = '<JMeter目录>'
+$env:CRP_GROOVY_REPORT = '<仓库外新报告文件.json>'
+# 可选CRP_GROOVY_JAVA指定java.exe；未设置时使用PATH中的java。
+python -m unittest discover -s tests/performance -p test_harness.py -v
+```
+
+回归将轻量合成对象的LazyMap与Classic各做3批×100线程对比，再直接执行真实生成器预处理器100线程，记录旧实现null/异常、Classic异常和无效分类URL数量。旧竞态是否在某次调度复现不作必达断言；Classic及真实预处理器必须全部正确。此测试不发API请求，不能替代分类场景的真实100线程复测。

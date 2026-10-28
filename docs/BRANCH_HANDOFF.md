@@ -13,6 +13,8 @@
 
 - 按用户要求后续负载从100线程开始，专项新增`--start-threads 100`：正确性/小文件/冷缓存/重放100并发；10MiB上传按整包内存降10，签票100请求按原IP阈值严格30成功/70拒绝后30并发取流，调整原因入报告。40/40工具单测通过；提交说明：`feat(perf): support 100-thread initial load scenarios`。
 
+- 真实100线程分类诊断发现工具共享LazyMap产生`categoryId=null`。修复为Classic完整解析、正整数分类ID不可变列表及URL组装门禁；原响应断言保持严格。41项常规测试通过，另1项JMeter/Groovy真实100线程内存回归通过；旧实现复现null/并发异常，V2无非法URL。V1/V2计划均留仓库外并记录各自hash；提交说明：`fix(perf): eagerly materialize shared JMeter data`。
+
 ## 2026-10-27 本地压测设计
 
 - 当前分支 `dev`；本次仅新增 `docs/12-local-load-test-plan.md` 并同步索引、状态和交接，不修改业务代码、SQL、Redis Key、前端或部署资产。

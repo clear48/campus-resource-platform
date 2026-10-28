@@ -2,6 +2,8 @@
 
 import json
 import csv
+import os
+import subprocess
 from pathlib import Path
 import re
 import stat
@@ -13,6 +15,70 @@ from unittest.mock import patch
 import common
 import seed
 import run as load_runner
+import generate_plan
+
+
+GROOVY_SHARED_MAP_REGRESSION = r'''
+import groovy.json.JsonSlurper
+import groovy.json.JsonSlurperClassic
+import groovy.json.JsonOutput
+import java.util.concurrent.*
+
+class FakeVars extends HashMap {
+    void putObject(String key, Object value) { put(key, value) }
+}
+class FakeCtx { int threadNum }
+class FakeSampler { String name, domain, protocol, method, path; int port }
+
+def pool = Executors.newFixedThreadPool(100)
+def result = [threads:100, oldLazyNulls:0, oldLazyExceptions:0, classicNulls:0, classicExceptions:0, generatedInvalidUrls:0, generatedSamples:0]
+try {
+    // 放大首次get的填充窗口，轻量复现LazyMap先发布内部Map再逐项填充的真实读取竞态。
+    def values = new LinkedHashMap()
+    (0..<512).each { values['field'+it] = it }
+    values.categories = [[categoryId:1],[categoryId:2]]
+    String fixture = JsonOutput.toJson(values)
+    [false,true].each { eager ->
+        3.times {
+            def shared = eager ? new JsonSlurperClassic().parseText(fixture) : new JsonSlurper().parseText(fixture)
+            def gate = new CyclicBarrier(100)
+            def futures = (0..<100).collect {
+                pool.submit({ ->
+                    gate.await(10, TimeUnit.SECONDS)
+                    try { return [value:shared.categories?.getAt(0)?.categoryId, error:false] }
+                    catch(Throwable ignored) { return [value:null,error:true] }
+                } as Callable)
+            }
+            def observations = futures.collect { it.get(15,TimeUnit.SECONDS) }
+            int invalid = observations.count { it.value != 1 && !it.error }
+            int errors = observations.count { it.error }
+            if(eager) { result.classicNulls += invalid; result.classicExceptions += errors }
+            else { result.oldLazyNulls += invalid; result.oldLazyExceptions += errors }
+        }
+    }
+    // 直接执行生成器内的真实预处理器；只有FakeSampler存URL，不访问网络。
+    Class scriptType = new GroovyClassLoader().parseClass(new File(args[0]).getText('UTF-8'))
+    def props = new Properties()
+    props.setProperty('manifest',args[1]); props.setProperty('scenario','search'); props.setProperty('searchVariant','category')
+    def gate = new CyclicBarrier(100)
+    def futures = (0..<100).collect { index ->
+        pool.submit({ ->
+            gate.await(10,TimeUnit.SECONDS)
+            def sampler = new FakeSampler()
+            def instance = scriptType.getDeclaredConstructor().newInstance()
+            instance.binding = new Binding([props:props,vars:new FakeVars(),ctx:new FakeCtx(threadNum:index),sampler:sampler])
+            try { instance.run(); return sampler.path ==~ /.*&categoryId=[1-5]/ }
+            catch(Throwable ignored) { return false }
+        } as Callable)
+    }
+    result.generatedInvalidUrls = futures.count { !it.get(15,TimeUnit.SECONDS) }
+    result.generatedSamples = futures.size()
+    println(JsonOutput.toJson(result))
+    assert result.classicNulls == 0
+    assert result.classicExceptions == 0
+    assert result.generatedInvalidUrls == 0
+} finally { pool.shutdownNow() }
+'''
 
 
 class IsolationTests(unittest.TestCase):
@@ -159,6 +225,44 @@ class IsolationTests(unittest.TestCase):
                 patch.object(load_runner, "verify_category_binding") as binding:
             load_runner.validate_manifest(self.context, self.root)
         binding.assert_called_once_with(self.context, valid["categories"])
+
+    def test_shared_manifest_is_eager_and_category_urls_are_guarded(self):
+        script = generate_plan.PREPROCESSOR
+        self.assertIn("new JsonSlurperClassic().parseText(manifestFile.getText('UTF-8'))", script)
+        self.assertIn("new JsonSlurperClassic().parseText(contextFile.getText('UTF-8'))", script)
+        self.assertIn("longValueExact()", script)
+        self.assertIn("Collections.unmodifiableList(categoryIds)", script)
+        self.assertIn("categoryId == null", script)
+        self.assertNotIn("new JsonSlurper()", script)
+
+    @unittest.skipUnless(os.environ.get("CRP_GROOVY_JMETER_HOME"), "需要显式指定JMeter自带Groovy，默认不启动外部进程")
+    def test_jmeter_groovy_100_thread_shared_read_without_http(self):
+        jmeter_home = Path(os.environ["CRP_GROOVY_JMETER_HOME"])
+        preprocessor = self.root / "preprocessor.groovy"
+        preprocessor.write_text(generate_plan.PREPROCESSOR, encoding="utf-8")
+        runner = self.root / "regression.groovy"
+        runner.write_text(GROOVY_SHARED_MAP_REGRESSION, encoding="utf-8")
+        manifest = {"status":"COMPLETE", "apiBase":"http://127.0.0.1:18080/api/v1",
+                    "accounts":[{"userId":i+1,"token":"synthetic-only"} for i in range(100)],
+                    "approvedIds":list(range(1,101)), "categories":[{"categoryId":i+1} for i in range(5)],
+                    "resources":[{"userId":i%100+1,"resourceId":i+1,"status":1} for i in range(1000)]}
+        manifest_file = self.root / "manifest.json"
+        manifest_file.write_text(json.dumps(manifest), encoding="utf-8")
+        command = [os.environ.get("CRP_GROOVY_JAVA", "java"), "-Xms32m", "-Xmx128m", "-cp",
+                   str(jmeter_home / "lib" / "*"), "groovy.ui.GroovyMain", str(runner), str(preprocessor), str(manifest_file)]
+        completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(0, completed.returncode, "Groovy回归失败：" + completed.stderr[-1200:])
+        reports = [json.loads(line) for line in completed.stdout.splitlines() if line.startswith('{')]
+        self.assertEqual(1, len(reports))
+        report = reports[0]
+        self.assertEqual(100, report["generatedSamples"])
+        self.assertEqual(0, report["classicNulls"])
+        self.assertEqual(0, report["classicExceptions"])
+        self.assertEqual(0, report["generatedInvalidUrls"])
+        report_path = os.environ.get("CRP_GROOVY_REPORT")
+        if report_path:
+            Path(report_path).write_text(json.dumps(report, indent=2), encoding="utf-8")
+        print(json.dumps({"groovySharedReadRegression":report}), flush=True)
 
 
 if __name__ == "__main__":
