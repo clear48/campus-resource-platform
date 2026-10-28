@@ -7,6 +7,7 @@
 - 验证：后端 208/208 及打包通过，工具单测 12/12，缺 manifest 负向 6 个请求全失败，JDK21 下搜索冒烟 2254/2254。实际压测尚在继续，后续单独提交报告与最终状态，不能将本阶段当作全部压测完成。
 - 提交说明：`test(perf): add isolated local load testing tools`。真实凭据、Token、清单、JTL、合成源文件和数据库都留在仓库外。
 - 后续运行器加固提交说明：`fix(perf): bind runtime targets and share throughput windows`。新增发压入口清单身份/实时 SQL/API 绑定门禁，并统一混合标签吞吐分母；14/14 隔离/统计测试通过。当前在跑的单接口轮次目标由本轮启动器确认，单标签的吞吐不受分母修正影响。
+- 专项工具提交说明：`test(perf): add concurrent and download validation scenarios`。31/31工具回归通过；`correctness --case favorite|resource`分别保留严格的失败或成功证据。已确认收藏恢复并发40901但SQL计数一致，业务代码未改；执行报告当前标为IN_PROGRESS，继续完成独立场景与最终对账。
 
 ## 2026-10-27 本地压测设计
 

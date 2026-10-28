@@ -69,7 +69,9 @@ python .\tests\performance\run.py `
 
 `run.py` 没有固定机器路径，`--java` 可省略而使用PATH中的java；默认计划为 `<evidenceDir>/generic.jmx`，不存在时自动生成，也可用 `--plan` 显式指定。`--exclude` 必须不小于 `--ramp` 且小于总时长；统计以首个HTTP样本开始时间为基准剔除指定秒数，因此保守排除相应启动/升压区间。
 
-运行器把本轮 `.jtl/.log/.console/.meta.json/.summary.json` 和 `active-jmeter.json/progress.json` 全部写到 `context.evidenceDir`，拒绝覆盖同名证据。后两项是当前状态文件，外部资源采样器应从此目录读取PID，不能假设文件位于context的父目录。summary按真实请求label输出样本数、成功/失败、成功/尝试RPS、分位延迟与HTTP码；HTTP200但断言失败仍计失败，0样本视为无效。任何失败样本、非零进程退出、超时或保护停止都会使运行器非零退出，不能跳过失败后继续升压。
+运行器发压前要求manifest的runId、apiBase、mysqlTarget与context严格一致，并实时核对SQL/API分类绑定；旧清单缺少目标绑定也拒绝发压，必须先独立核实目标后补充，不能仅凭COMPLETE标记放行。
+
+运行器把本轮 `.jtl/.log/.console/.meta.json/.summary.json` 和 `active-jmeter.json/progress.json` 全部写到 `context.evidenceDir`，拒绝覆盖同名证据。后两项是当前状态文件，外部资源采样器应从此目录读取PID，不能假设文件位于context的父目录。summary按真实请求label输出样本数、成功/失败、成功/尝试RPS、分位延迟与HTTP码；各label的RPS均使用整体共同稳态窗口分母，另列activeWindowSeconds描述该label活跃跨度，因此各label成功RPS之和与overall一致（允许四舍五入误差）。HTTP200但断言失败仍计失败，0样本视为无效。任何失败样本、非零进程退出、超时或保护停止都会使运行器非零退出，不能跳过失败后继续升压。
 
 资源保护默认磁盘至少10GiB、可用物理内存比例至少10%；内存连续一分钟低于门槛停止，进程超过 `duration+120秒` 停止。可通过 `--min-disk-gib` 和 `--memory-threshold` 在运行前设定并记录条件。进程/CPU、GC、SQL、Redis等资源时间线仍由独立采样器收集，运行器并不替代完整性能分析。
 
@@ -95,7 +97,38 @@ python .\tests\performance\run.py `
 
 上传、下载限流/票据/完整文件传输、审核竞争与数据对账不由这份通用JMX实现，必须按设计专项执行，不能把通用JMX运行完成视为全部场景通过。
 
-## 3. 静态校验与冒烟
+## 3. 并发、上传、下载与最终对账专项
+
+专项只在容量场景停止后运行，避免新增公开资料使正在运行的JMeter白名单过时。依次执行：
+
+```powershell
+python .\tests\performance\specials.py --context '<仓库外context.json>' --mode correctness
+python .\tests\performance\specials.py --context '<仓库外context.json>' --mode upload
+python .\tests\performance\specials.py --context '<仓库外context.json>' --mode download
+python .\tests\performance\specials.py --context '<仓库外context.json>' --mode verify
+```
+
+`correctness` 支持 `--case all|favorite|resource`，默认all。已发现某个独立用例失败时保留其失败，不放宽断言；先确认SQL计数一致，再单独验证其他用例：
+
+```powershell
+python .\tests\performance\specials.py --context '<仓库外context.json>' --mode correctness --case favorite
+python .\tests\performance\specials.py --context '<仓库外context.json>' --mode correctness --case resource
+```
+
+两者分别写 `correctness-favorite.special.json` 与 `correctness-resource.special.json`，默认all仍写 `correctness.special.json`，互不覆盖。favorite仅验证收藏/取消，resource仅新增文件、竞争创建资料及竞争审批；各用例开始及资料用例批次结束均核对收藏SQL聚合。resource通过不能用于声称favorite通过，失败快照和lastAttempt始终保留在当前独立用例文件中。
+
+专项开始先核对清单API地址以及SQL/API分类映射。兼容首轮缺少mysqlTarget的清单，但不能跳过实时绑定。每种模式在 `<evidenceDir>/<mode>.special.json` 保存聚合结果和进行中状态；已有结果拒绝自动重跑/覆盖。Token、票据、原始响应不进入结果JSON。异常、超时或断言失败立即停止，写请求不重试，必须人工处理结果不确定项。
+
+关键并发断言前会先持久化 `lastAttempt`，记录操作、并发、批次、HTTP状态/业务码/duplicateIgnored计数；不确定响应也保留计数。并发正确性失败时，另查SQL的用户资料有效收藏数、资料favorite_count、有效收藏聚合与全库计数不一致数，保留实际失败状态而不放宽断言。下载429原因只归类为用户阈值/IP阈值/限流服务不可用/其他，不保存原始消息或票据。
+
+- `correctness`：2/5/10/20并发，各3批，屏障同时起跑。验证收藏只有一次真实新增、取消只有一次成功、同用户同文件有效资料只有一次创建、同资料审批只有一次状态流转及流水；对账收藏聚合。新文件/资料追加到清单，保留原始索引和 `baseResourceCount`，因此后续JMeter需重新加载清单。
+- `upload`：先验证已授权预检命中、未授权false/null、新文件首次miss与后续NOT_FOUND负缓存（TTL不超过300秒），上传后正缓存覆盖负哨兵且预检命中；新增文件记入清单。同内容2/5/10/20账号并发后核对唯一文件、各账号授权、物理字节与MD5；新内容分别100KiB/1MiB/10MiB、1/2/5/10线程，每档20请求。文件均提前独占生成，计时只涵盖HTTP窗口；持久源文件和服务端副本计划合计小于2GiB。磁盘须至少剩10GiB加本批待新增字节。这是Python urllib无连接池/keepalive的短批实验，P95/P99为低样本参考，不可冒充JMeter五分钟稳态容量。
+- `download`：12次低速完整下载，每次全局间隔5秒，3对账号/资料轮换；验证首次计数和10分钟去重、真实字节/MD5/附件头。验证一次票据并发重放、过期与换账号；分开验证用户11次/IP31次阈值及拒绝消息；1/5/10/20预签票后并发取流。各限流轮次之间等62秒，所有签票均纳入counted汇总。最后只读检查delta/current/所有UUID批次，并要求空状态跨60秒稳定，再与MySQL增量对账。正常约需10～15分钟，期间禁止其他下载流量；文件GET耗时是读完整内容，未单独测首字节。
+- `verify`：收藏聚合/关系唯一、有效资料防重、文件MD5+size唯一、所有有效物理文件大小和摘要、上传用户授权、资料数量状态与审核链；核对 `.part` 与多余物理文件均为0。验证待审/拒绝/下架详情400/40901、不存在404、无Token个人接口401、批准详情公开。停压后仅DEL一个明确的详情缓存Key，20并发GET验证ID/状态全部正确，回填TTL在1～2100秒；不测量或声称SQL只执行一次。瞬时 `.readiness-*.tmp` 探针不参与文件集合比较，最终停止请求后仍须检查目录。
+
+`upload/download/verify` 需要context另含专用本地 `redisPort`（可选redisHost/redisDatabase/redisPassword），`verify` 需要 `uploadDir` 指向本轮独立上传目录。Redis对账读取使用只读命令与SELECT/AUTH；唯一DEL是verify明确指定的单个详情缓存Key，不清空实例或删除锁/票据/统计键。容量结束后应先核对清单仍有效、后台任务开启和依赖正常，再启动专项。
+
+## 4. 静态校验与冒烟
 
 在不生成仓库内缓存文件的情况下，可验证 Python 语法和 JMX 结构：
 
@@ -113,3 +146,5 @@ print('Python / JMX 静态校验通过')
 静态校验不能代替真实 HTTP 冒烟。至少先以1线程分别运行查询、鉴权和收藏，再核对JTL没有断言失败、日志没有脚本异常，才逐档升压；JMeter进程退出码0本身不表示请求全部成功。
 
 隔离与统计单测可执行 `python -m unittest discover -s tests/performance -p test_harness.py -v`，使用临时文件和模拟API/SQL，覆盖远程目标、日常库、仓库内/链接证据目录、非空文件表、HTTP/SQL错绑、源文件覆盖、完成清单目标切换、HTTP200断言失败计数、升压排除和0样本无效。缺失manifest还应使用真实JMeter负向冒烟，要求非零样本全部失败、URL为无效配置路径，不能以0样本或health成功误报通过。
+
+全部工具单测：`python -m unittest discover -s tests/performance -p "test_*.py" -v`。专项单测只模拟协议/请求，不连接真实HTTP、SQL、Redis；它们不能替代真实专项结果。
