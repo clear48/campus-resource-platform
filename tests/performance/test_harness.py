@@ -120,14 +120,19 @@ class IsolationTests(unittest.TestCase):
             writer.writeheader()
             writer.writerows([
                 {"timeStamp": 1000, "elapsed": 10, "label": "search", "success": "true", "responseCode": "200"},
+                {"timeStamp": 1050, "elapsed": 10, "label": "keyword", "success": "true", "responseCode": "200"},
                 {"timeStamp": 1100, "elapsed": 30, "label": "detail", "success": "false", "responseCode": "200"},
                 {"timeStamp": 1200, "elapsed": 40, "label": "search", "success": "true", "responseCode": "200"}])
         summary = load_runner.summarize(path)
-        self.assertEqual(3, summary["overall"]["samples"])
+        self.assertEqual(4, summary["overall"]["samples"])
         self.assertEqual(1, summary["overall"]["failures"])
         self.assertEqual(40, summary["overall"]["p95Ms"])
         self.assertEqual(2, summary["labels"]["search"]["samples"])
         self.assertEqual(1, summary["labels"]["detail"]["failures"])
+        self.assertAlmostEqual(summary["overall"]["successfulRps"],
+                               sum(row["successfulRps"] for row in summary["labels"].values()), delta=.003)
+        self.assertEqual(summary["overall"]["windowSeconds"], summary["labels"]["keyword"]["windowSeconds"])
+        self.assertLess(summary["labels"]["keyword"]["activeWindowSeconds"], summary["overall"]["windowSeconds"])
         # 排除最初150ms后只剩最后一条，证明升压样本不会偷偷进入稳态统计。
         self.assertEqual(1, load_runner.summarize(path, .15)["overall"]["samples"])
 
@@ -135,6 +140,25 @@ class IsolationTests(unittest.TestCase):
         path = self.root / "empty.jtl"
         path.write_text("timeStamp,elapsed,label,success,responseCode\n", encoding="utf-8")
         self.assertEqual({"samples": 0, "valid": False}, load_runner.summarize(path)["overall"])
+
+    def test_runtime_manifest_rejects_api_run_and_sql_mismatches_before_binding(self):
+        valid = {"status": "COMPLETE", "runId": self.context["runId"], "apiBase": self.context["apiBase"],
+                 "mysqlTarget": seed.mysql_target(self.context), "categories": []}
+        mismatches = ({"runId": "different"}, {"apiBase": "http://127.0.0.1:8080/api/v1"},
+                      {"mysqlTarget": None}, {"mysqlTarget": {"database": "campus_loadtest_other"}})
+        for change in mismatches:
+            with self.subTest(change=change), patch.object(load_runner, "read_json", return_value={**valid, **change}), \
+                    patch.object(load_runner, "verify_category_binding") as binding, self.assertRaises(ValueError):
+                load_runner.validate_manifest(self.context, self.root)
+            binding.assert_not_called()
+
+    def test_runtime_manifest_requires_live_category_binding(self):
+        valid = {"status": "COMPLETE", "runId": self.context["runId"], "apiBase": self.context["apiBase"],
+                 "mysqlTarget": seed.mysql_target(self.context), "categories": [{"categoryId": 1, "categoryName": "marker"}]}
+        with patch.object(load_runner, "read_json", return_value=valid), \
+                patch.object(load_runner, "verify_category_binding") as binding:
+            load_runner.validate_manifest(self.context, self.root)
+        binding.assert_called_once_with(self.context, valid["categories"])
 
 
 if __name__ == "__main__":

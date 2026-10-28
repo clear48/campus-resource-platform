@@ -17,6 +17,7 @@ import time
 
 from common import load_context, read_json, write_json
 from generate_plan import generate
+from seed import mysql_target, verify_category_binding
 
 
 def percentile(values, fraction):
@@ -41,10 +42,12 @@ class SampleStats:
         self.end = timestamp + elapsed if self.end is None else max(self.end, timestamp + elapsed)
         self.response_codes[code] += 1
 
-    def result(self):
+    def result(self, common_window=None):
         if not self.delays:
             return {"samples": 0, "valid": False}
-        seconds = max((self.end - self.start) / 1000, 0.001)
+        # 混合场景各label使用共同观测窗口，不能用稀疏label自身的短活跃跨度夸大RPS。
+        window_start, window_end = common_window or (self.start, self.end)
+        seconds = max((window_end - window_start) / 1000, 0.001)
         samples = len(self.delays)
         failures = samples - self.successes
         return {"samples": samples, "valid": True, "success": self.successes,
@@ -54,7 +57,9 @@ class SampleStats:
                 "p95Ms": percentile(self.delays, .95), "p99Ms": percentile(self.delays, .99),
                 "maxMs": max(self.delays), "meanMs": round(sum(self.delays) / samples, 3),
                 "responseCodes": dict(self.response_codes),
-                "startEpoch": self.start / 1000, "endEpoch": self.end / 1000}
+                "startEpoch": window_start / 1000, "endEpoch": window_end / 1000,
+                "activeStartEpoch": self.start / 1000, "activeEndEpoch": self.end / 1000,
+                "activeWindowSeconds": round(max((self.end - self.start) / 1000, .001), 3)}
 
 
 def summarize(path, exclude=0):
@@ -72,7 +77,19 @@ def summarize(path, exclude=0):
             values = (timestamp, int(row["elapsed"]), row["success"] == "true", row["responseCode"])
             overall.add(*values)
             labels[row["label"]].add(*values)
-    return {"overall": overall.result(), "labels": {name: stats.result() for name, stats in labels.items()}}
+    window = (overall.start, overall.end) if overall.start is not None else None
+    return {"overall": overall.result(), "labels": {name: stats.result(window) for name, stats in labels.items()}}
+
+
+def validate_manifest(context, evidence):
+    """发压前绑定批次、API、SQL目标与实时分类；不信任复制来的完成标记。"""
+    manifest = read_json(Path(evidence) / "manifest.json")
+    if (manifest.get("status") != "COMPLETE" or manifest.get("runId") != context["runId"]
+            or manifest.get("apiBase") != context["apiBase"]
+            or manifest.get("mysqlTarget") != mysql_target(context)):
+        raise ValueError("manifest 批次/API/SQL目标绑定不完整或不匹配，禁止发压")
+    verify_category_binding(context, manifest["categories"])
+    return manifest
 
 
 def available_memory_fraction():
@@ -123,8 +140,7 @@ def execute(context_path, jmeter_home, java, name, scenario, threads, duration,
     if min_disk_gib < 1 or not 0 < memory_threshold < 1:
         raise ValueError("资源保护门槛不合法")
     manifest_file = evidence / "manifest.json"
-    if read_json(manifest_file).get("status") != "COMPLETE":
-        raise ValueError("manifest 尚未完成")
+    validate_manifest(context, evidence)
     java_binary = shutil.which(java) or (str(Path(java).resolve()) if Path(java).is_file() else None)
     jmeter_jar = Path(jmeter_home).resolve() / "bin" / "ApacheJMeter.jar"
     if not java_binary or not jmeter_jar.is_file():

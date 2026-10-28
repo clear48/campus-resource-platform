@@ -6,6 +6,7 @@
 - 工具包含本机/专用库约束、SQL/API 随机分类绑定、证据路径隔离、JMX 原生 HTTP Sampler 和 HTTP/业务双断言；0 样本或断言失败不能因为 JMeter 退出码为 0 被算通过。
 - 验证：后端 208/208 及打包通过，工具单测 12/12，缺 manifest 负向 6 个请求全失败，JDK21 下搜索冒烟 2254/2254。实际压测尚在继续，后续单独提交报告与最终状态，不能将本阶段当作全部压测完成。
 - 提交说明：`test(perf): add isolated local load testing tools`。真实凭据、Token、清单、JTL、合成源文件和数据库都留在仓库外。
+- 后续运行器加固提交说明：`fix(perf): bind runtime targets and share throughput windows`。新增发压入口清单身份/实时 SQL/API 绑定门禁，并统一混合标签吞吐分母；14/14 隔离/统计测试通过。当前在跑的单接口轮次目标由本轮启动器确认，单标签的吞吐不受分母修正影响。
 
 ## 2026-10-27 本地压测设计
 
