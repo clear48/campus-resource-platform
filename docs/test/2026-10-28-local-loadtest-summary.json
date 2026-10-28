@@ -1,0 +1,5824 @@
+{
+  "runId": "local-20261028-ceb4f3de",
+  "scope": "local only, shared development host, no online deployment",
+  "environment": {
+    "os": "Windows 11 Pro 10.0.26300 (Build26300)",
+    "cpu": "Intel Core i7-14650HX",
+    "physicalCores": 16,
+    "logicalProcessors": 24,
+    "physicalMemoryMiB": 16091.87,
+    "jdk": "21.0.10",
+    "jmeter": "5.6.3",
+    "mysql": "8.0.45",
+    "redis": "6.0.16 in local WSL Ubuntu22.04",
+    "pythonForCurrentRunner": "3.14.2",
+    "applicationJvm": [
+      "-Xms256m",
+      "-Xmx1024m",
+      "-XX:+UseG1GC"
+    ],
+    "jmeterJvm": [
+      "-Xms128m",
+      "-Xmx512m"
+    ],
+    "hikariMaxConfigured": 10,
+    "hikariWaitMsConfigured": 3000,
+    "tomcatThreadsMaxConfigured": 200,
+    "mysqlBufferPoolMiB": 256,
+    "mysqlMaxConnections": 151,
+    "mysqlIsolation": "REPEATABLE-READ",
+    "redisAof": "everysec",
+    "redisSave": "60 1",
+    "redisPort": 16379,
+    "mysqlPort": 13306,
+    "apiPort": 18080,
+    "exclusiveHost": false,
+    "codeAtInitialTests": "4e2c6650",
+    "businessCodeChanged": false,
+    "applicationJarSha256": "e05d0bbd86c41da1f631a8b8a0acedbf6ccc562ab068a43e9f3c123601f1da1d"
+  },
+  "exportedAt": 1793175812.4281363,
+  "runs": [
+    {
+      "name": "detail-c1-r1",
+      "scenario": "detail",
+      "threads": 1,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793153676.3956873,
+      "ended": 1793154029.5750325,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 198026,
+        "valid": true,
+        "success": 198026,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.218,
+        "successfulRps": 642.487,
+        "attemptedRps": 642.487,
+        "p50Ms": 1,
+        "p95Ms": 2,
+        "p99Ms": 2,
+        "maxMs": 38,
+        "meanMs": 1.253,
+        "responseCodes": {
+          "200": 198026
+        },
+        "startEpoch": 1793153709.963,
+        "endEpoch": 1793154018.181
+      },
+      "labels": {
+        "detail": {
+          "samples": 198026,
+          "valid": true,
+          "success": 198026,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.218,
+          "successfulRps": 642.487,
+          "attemptedRps": 642.487,
+          "p50Ms": 1,
+          "p95Ms": 2,
+          "p99Ms": 2,
+          "maxMs": 38,
+          "meanMs": 1.253,
+          "responseCodes": {
+            "200": 198026
+          },
+          "startEpoch": 1793153709.963,
+          "endEpoch": 1793154018.181
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 31,
+        "minimumAvailableMiB": 5277.24,
+        "minimumDiskFreeGiB": 76.81,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 2.138,
+            "maxRssMiB": 360.27
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.029,
+            "maxRssMiB": 30.75
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 1.533,
+            "maxRssMiB": 150.43
+          }
+        },
+        "meanHostCpuPercent": 19.942,
+        "maxHostCpuPercent": 33.85
+      },
+      "gcWindow": {
+        "pauses": 32,
+        "fullPauses": 0,
+        "p95PauseMs": 3.49,
+        "maxPauseMs": 3.928,
+        "sumPauseMs": 93.4
+      }
+    },
+    {
+      "name": "detail-c10-r1",
+      "scenario": "detail",
+      "threads": 10,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793154393.734209,
+      "ended": 1793154764.0141168,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 1400864,
+        "valid": true,
+        "success": 1400864,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.328,
+        "successfulRps": 4543.421,
+        "attemptedRps": 4543.421,
+        "p50Ms": 2,
+        "p95Ms": 3,
+        "p99Ms": 4,
+        "maxMs": 76,
+        "meanMs": 1.784,
+        "responseCodes": {
+          "200": 1400864
+        },
+        "startEpoch": 1793154427.19,
+        "endEpoch": 1793154735.518
+      },
+      "labels": {
+        "detail": {
+          "samples": 1400864,
+          "valid": true,
+          "success": 1400864,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.328,
+          "successfulRps": 4543.421,
+          "attemptedRps": 4543.421,
+          "p50Ms": 2,
+          "p95Ms": 3,
+          "p99Ms": 4,
+          "maxMs": 76,
+          "meanMs": 1.784,
+          "responseCodes": {
+            "200": 1400864
+          },
+          "startEpoch": 1793154427.19,
+          "endEpoch": 1793154735.518
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 31,
+        "minimumAvailableMiB": 4675.4,
+        "minimumDiskFreeGiB": 76.49,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 11.899,
+            "maxRssMiB": 356.56
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.025,
+            "maxRssMiB": 38.42
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 10.443,
+            "maxRssMiB": 253.76
+          }
+        },
+        "meanHostCpuPercent": 40.531,
+        "maxHostCpuPercent": 51.06
+      },
+      "gcWindow": {
+        "pauses": 224,
+        "fullPauses": 0,
+        "p95PauseMs": 2.838,
+        "maxPauseMs": 3.67,
+        "sumPauseMs": 566.207
+      }
+    },
+    {
+      "name": "detail-c100-r1",
+      "scenario": "detail",
+      "threads": 100,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793155511.2773695,
+      "ended": 1793155885.198692,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 1574132,
+        "valid": true,
+        "success": 1574132,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 307.36,
+        "successfulRps": 5121.46,
+        "attemptedRps": 5121.46,
+        "p50Ms": 21,
+        "p95Ms": 28,
+        "p99Ms": 33,
+        "maxMs": 147,
+        "meanMs": 18.058,
+        "responseCodes": {
+          "200": 1574132
+        },
+        "startEpoch": 1793155545.893,
+        "endEpoch": 1793155853.253
+      },
+      "labels": {
+        "detail": {
+          "samples": 1574132,
+          "valid": true,
+          "success": 1574132,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 307.36,
+          "successfulRps": 5121.46,
+          "attemptedRps": 5121.46,
+          "p50Ms": 21,
+          "p95Ms": 28,
+          "p99Ms": 33,
+          "maxMs": 147,
+          "meanMs": 18.058,
+          "responseCodes": {
+            "200": 1574132
+          },
+          "startEpoch": 1793155545.893,
+          "endEpoch": 1793155853.253
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 30,
+        "minimumAvailableMiB": 4298.96,
+        "minimumDiskFreeGiB": 75.85,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 12.323,
+            "maxRssMiB": 346.25
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.038,
+            "maxRssMiB": 34.28
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 12.242,
+            "maxRssMiB": 274.43
+          }
+        },
+        "meanHostCpuPercent": 44.13,
+        "maxHostCpuPercent": 90.23
+      },
+      "gcWindow": {
+        "pauses": 257,
+        "fullPauses": 0,
+        "p95PauseMs": 3.767,
+        "maxPauseMs": 5.738,
+        "sumPauseMs": 782.053
+      }
+    },
+    {
+      "name": "detail-c20-r1",
+      "scenario": "detail",
+      "threads": 20,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793154764.057198,
+      "ended": 1793155136.851413,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 1556029,
+        "valid": true,
+        "success": 1556029,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 307.954,
+        "successfulRps": 5052.797,
+        "attemptedRps": 5052.797,
+        "p50Ms": 3,
+        "p95Ms": 6,
+        "p99Ms": 9,
+        "maxMs": 38,
+        "meanMs": 3.339,
+        "responseCodes": {
+          "200": 1556029
+        },
+        "startEpoch": 1793154798.04,
+        "endEpoch": 1793155105.994
+      },
+      "labels": {
+        "detail": {
+          "samples": 1556029,
+          "valid": true,
+          "success": 1556029,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 307.954,
+          "successfulRps": 5052.797,
+          "attemptedRps": 5052.797,
+          "p50Ms": 3,
+          "p95Ms": 6,
+          "p99Ms": 9,
+          "maxMs": 38,
+          "meanMs": 3.339,
+          "responseCodes": {
+            "200": 1556029
+          },
+          "startEpoch": 1793154798.04,
+          "endEpoch": 1793155105.994
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 30,
+        "minimumAvailableMiB": 4328.05,
+        "minimumDiskFreeGiB": 76.29,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 12.377,
+            "maxRssMiB": 350.5
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.029,
+            "maxRssMiB": 38.86
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 11.337,
+            "maxRssMiB": 155.25
+          }
+        },
+        "meanHostCpuPercent": 42.616,
+        "maxHostCpuPercent": 58.9
+      },
+      "gcWindow": {
+        "pauses": 249,
+        "fullPauses": 0,
+        "p95PauseMs": 2.962,
+        "maxPauseMs": 3.548,
+        "sumPauseMs": 631.402
+      }
+    },
+    {
+      "name": "detail-c5-r1",
+      "scenario": "detail",
+      "threads": 5,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793154029.607568,
+      "ended": 1793154393.7022083,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 976094,
+        "valid": true,
+        "success": 976094,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 307.982,
+        "successfulRps": 3169.322,
+        "attemptedRps": 3169.322,
+        "p50Ms": 1,
+        "p95Ms": 2,
+        "p99Ms": 3,
+        "maxMs": 40,
+        "meanMs": 1.246,
+        "responseCodes": {
+          "200": 976094
+        },
+        "startEpoch": 1793154063.468,
+        "endEpoch": 1793154371.45
+      },
+      "labels": {
+        "detail": {
+          "samples": 976094,
+          "valid": true,
+          "success": 976094,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 307.982,
+          "successfulRps": 3169.322,
+          "attemptedRps": 3169.322,
+          "p50Ms": 1,
+          "p95Ms": 2,
+          "p99Ms": 3,
+          "maxMs": 40,
+          "meanMs": 1.246,
+          "responseCodes": {
+            "200": 976094
+          },
+          "startEpoch": 1793154063.468,
+          "endEpoch": 1793154371.45
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 31,
+        "minimumAvailableMiB": 4676.43,
+        "minimumDiskFreeGiB": 76.68,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 7.684,
+            "maxRssMiB": 361.04
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.024,
+            "maxRssMiB": 33.75
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 6.833,
+            "maxRssMiB": 258.59
+          }
+        },
+        "meanHostCpuPercent": 35.875,
+        "maxHostCpuPercent": 65.68
+      },
+      "gcWindow": {
+        "pauses": 155,
+        "fullPauses": 0,
+        "p95PauseMs": 3.017,
+        "maxPauseMs": 3.783,
+        "sumPauseMs": 358.626
+      }
+    },
+    {
+      "name": "detail-c50-r1",
+      "scenario": "detail",
+      "threads": 50,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793155136.8805063,
+      "ended": 1793155511.2447326,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 1634622,
+        "valid": true,
+        "success": 1634622,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 307.626,
+        "successfulRps": 5313.667,
+        "attemptedRps": 5313.667,
+        "p50Ms": 9,
+        "p95Ms": 15,
+        "p99Ms": 17,
+        "maxMs": 39,
+        "meanMs": 8.174,
+        "responseCodes": {
+          "200": 1634622
+        },
+        "startEpoch": 1793155171.284,
+        "endEpoch": 1793155478.91
+      },
+      "labels": {
+        "detail": {
+          "samples": 1634622,
+          "valid": true,
+          "success": 1634622,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 307.626,
+          "successfulRps": 5313.667,
+          "attemptedRps": 5313.667,
+          "p50Ms": 9,
+          "p95Ms": 15,
+          "p99Ms": 17,
+          "maxMs": 39,
+          "meanMs": 8.174,
+          "responseCodes": {
+            "200": 1634622
+          },
+          "startEpoch": 1793155171.284,
+          "endEpoch": 1793155478.91
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 30,
+        "minimumAvailableMiB": 3316.38,
+        "minimumDiskFreeGiB": 76.06,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 12.643,
+            "maxRssMiB": 284.44
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.025,
+            "maxRssMiB": 35.2
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 12.537,
+            "maxRssMiB": 287.04
+          }
+        },
+        "meanHostCpuPercent": 47.251,
+        "maxHostCpuPercent": 83.85
+      },
+      "gcWindow": {
+        "pauses": 263,
+        "fullPauses": 0,
+        "p95PauseMs": 3.07,
+        "maxPauseMs": 3.562,
+        "sumPauseMs": 660.043
+      }
+    },
+    {
+      "name": "mixed-c100",
+      "scenario": "mixed",
+      "threads": 100,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 1000,
+      "started": 1793173440.4312348,
+      "ended": 1793173791.1391335,
+      "planSha256": "97545b2830bae40cc44eb2e636f8003c4515de8f4d465e0b83bd778eea028dad",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 30209,
+        "valid": true,
+        "success": 30209,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 306.743,
+        "successfulRps": 98.483,
+        "attemptedRps": 98.483,
+        "p50Ms": 8,
+        "p95Ms": 20,
+        "p99Ms": 32,
+        "maxMs": 71,
+        "meanMs": 8.156,
+        "responseCodes": {
+          "200": 30209
+        },
+        "startEpoch": 1793173475.904,
+        "endEpoch": 1793173782.647,
+        "activeStartEpoch": 1793173475.904,
+        "activeEndEpoch": 1793173782.647,
+        "activeWindowSeconds": 306.743
+      },
+      "labels": {
+        "detail": {
+          "samples": 10580,
+          "valid": true,
+          "success": 10580,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 306.743,
+          "successfulRps": 34.491,
+          "attemptedRps": 34.491,
+          "p50Ms": 2,
+          "p95Ms": 7,
+          "p99Ms": 13,
+          "maxMs": 37,
+          "meanMs": 2.712,
+          "responseCodes": {
+            "200": 10580
+          },
+          "startEpoch": 1793173475.904,
+          "endEpoch": 1793173782.647,
+          "activeStartEpoch": 1793173475.91,
+          "activeEndEpoch": 1793173782.623,
+          "activeWindowSeconds": 306.713
+        },
+        "keyword": {
+          "samples": 1503,
+          "valid": true,
+          "success": 1503,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 306.743,
+          "successfulRps": 4.9,
+          "attemptedRps": 4.9,
+          "p50Ms": 2,
+          "p95Ms": 6,
+          "p99Ms": 10,
+          "maxMs": 17,
+          "meanMs": 2.731,
+          "responseCodes": {
+            "200": 1503
+          },
+          "startEpoch": 1793173475.904,
+          "endEpoch": 1793173782.647,
+          "activeStartEpoch": 1793173475.91,
+          "activeEndEpoch": 1793173782.435,
+          "activeWindowSeconds": 306.525
+        },
+        "search": {
+          "samples": 15107,
+          "valid": true,
+          "success": 15107,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 306.743,
+          "successfulRps": 49.25,
+          "attemptedRps": 49.25,
+          "p50Ms": 12,
+          "p95Ms": 23,
+          "p99Ms": 37,
+          "maxMs": 71,
+          "meanMs": 13.264,
+          "responseCodes": {
+            "200": 15107
+          },
+          "startEpoch": 1793173475.904,
+          "endEpoch": 1793173782.647,
+          "activeStartEpoch": 1793173475.904,
+          "activeEndEpoch": 1793173782.647,
+          "activeWindowSeconds": 306.743
+        },
+        "rank": {
+          "samples": 3019,
+          "valid": true,
+          "success": 3019,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 306.743,
+          "successfulRps": 9.842,
+          "attemptedRps": 9.842,
+          "p50Ms": 4,
+          "p95Ms": 8,
+          "p99Ms": 14,
+          "maxMs": 42,
+          "meanMs": 4.378,
+          "responseCodes": {
+            "200": 3019
+          },
+          "startEpoch": 1793173475.904,
+          "endEpoch": 1793173782.647,
+          "activeStartEpoch": 1793173476.066,
+          "activeEndEpoch": 1793173782.629,
+          "activeWindowSeconds": 306.563
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 30,
+        "minimumAvailableMiB": 2821.71,
+        "minimumDiskFreeGiB": 73.5,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 0.812,
+            "maxRssMiB": 486.9
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.789,
+            "maxRssMiB": 134.61
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 0.579,
+            "maxRssMiB": 281.44
+          }
+        },
+        "meanHostCpuPercent": 16.325,
+        "maxHostCpuPercent": 22.7
+      },
+      "gcWindow": {
+        "pauses": 24,
+        "fullPauses": 0,
+        "p95PauseMs": 7.667,
+        "maxPauseMs": 8.22,
+        "sumPauseMs": 112.016
+      }
+    },
+    {
+      "name": "profile-adjusted-category-c50",
+      "scenario": "search",
+      "threads": 50,
+      "duration": 70,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "category",
+      "thinkMs": 50,
+      "started": 1793172465.8561525,
+      "ended": 1793172546.2278981,
+      "planSha256": "9c016f3604b8426946530228209d9981ec15705ba8e9338297fd48964d3d43f3",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 41423,
+        "valid": true,
+        "success": 41423,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 58.015,
+        "successfulRps": 714.005,
+        "attemptedRps": 714.005,
+        "p50Ms": 10,
+        "p95Ms": 28,
+        "p99Ms": 39,
+        "maxMs": 63,
+        "meanMs": 12.36,
+        "responseCodes": {
+          "200": 41423
+        },
+        "startEpoch": 1793172479.716,
+        "endEpoch": 1793172537.731,
+        "activeStartEpoch": 1793172479.716,
+        "activeEndEpoch": 1793172537.731,
+        "activeWindowSeconds": 58.015
+      },
+      "labels": {
+        "search": {
+          "samples": 41423,
+          "valid": true,
+          "success": 41423,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 58.015,
+          "successfulRps": 714.005,
+          "attemptedRps": 714.005,
+          "p50Ms": 10,
+          "p95Ms": 28,
+          "p99Ms": 39,
+          "maxMs": 63,
+          "meanMs": 12.36,
+          "responseCodes": {
+            "200": 41423
+          },
+          "startEpoch": 1793172479.716,
+          "endEpoch": 1793172537.731,
+          "activeStartEpoch": 1793172479.716,
+          "activeEndEpoch": 1793172537.731,
+          "activeWindowSeconds": 58.015
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 5,
+        "minimumAvailableMiB": 3993.49,
+        "minimumDiskFreeGiB": 74.09,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 4.136,
+            "maxRssMiB": 558.73
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 3.64,
+            "maxRssMiB": 122.86
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 2.282,
+            "maxRssMiB": 274.35
+          }
+        },
+        "meanHostCpuPercent": 25.854,
+        "maxHostCpuPercent": 29.02
+      },
+      "gcWindow": {
+        "pauses": 45,
+        "fullPauses": 0,
+        "p95PauseMs": 1.935,
+        "maxPauseMs": 2.018,
+        "sumPauseMs": 75.782
+      }
+    },
+    {
+      "name": "profile-adjusted-login-c20",
+      "scenario": "login",
+      "threads": 20,
+      "duration": 130,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "default",
+      "thinkMs": 50,
+      "started": 1793174868.734432,
+      "ended": 1793175009.0102692,
+      "planSha256": "97545b2830bae40cc44eb2e636f8003c4515de8f4d465e0b83bd778eea028dad",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 7977,
+        "valid": true,
+        "success": 7977,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 117.606,
+        "successfulRps": 67.828,
+        "attemptedRps": 67.828,
+        "p50Ms": 239,
+        "p95Ms": 280,
+        "p99Ms": 307,
+        "maxMs": 398,
+        "meanMs": 240.742,
+        "responseCodes": {
+          "200": 7977
+        },
+        "startEpoch": 1793174883.04,
+        "endEpoch": 1793175000.646,
+        "activeStartEpoch": 1793174883.04,
+        "activeEndEpoch": 1793175000.646,
+        "activeWindowSeconds": 117.606
+      },
+      "labels": {
+        "login": {
+          "samples": 7977,
+          "valid": true,
+          "success": 7977,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 117.606,
+          "successfulRps": 67.828,
+          "attemptedRps": 67.828,
+          "p50Ms": 239,
+          "p95Ms": 280,
+          "p99Ms": 307,
+          "maxMs": 398,
+          "meanMs": 240.742,
+          "responseCodes": {
+            "200": 7977
+          },
+          "startEpoch": 1793174883.04,
+          "endEpoch": 1793175000.646,
+          "activeStartEpoch": 1793174883.04,
+          "activeEndEpoch": 1793175000.646,
+          "activeWindowSeconds": 117.606
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 12,
+        "minimumAvailableMiB": 3461.32,
+        "minimumDiskFreeGiB": 73.25,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 27.521,
+            "maxRssMiB": 485.08
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.623,
+            "maxRssMiB": 143.73
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 0.799,
+            "maxRssMiB": 272.66
+          }
+        },
+        "meanHostCpuPercent": 39.065,
+        "maxHostCpuPercent": 39.87
+      },
+      "gcWindow": {
+        "pauses": 6,
+        "fullPauses": 0,
+        "p95PauseMs": 3.895,
+        "maxPauseMs": 3.895,
+        "sumPauseMs": 19.266
+      }
+    },
+    {
+      "name": "profile-adjusted-login-c50",
+      "scenario": "login",
+      "threads": 50,
+      "duration": 130,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "default",
+      "thinkMs": 50,
+      "started": 1793174728.3409262,
+      "ended": 1793174868.6279333,
+      "planSha256": "97545b2830bae40cc44eb2e636f8003c4515de8f4d465e0b83bd778eea028dad",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 8209,
+        "valid": true,
+        "success": 8209,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 117.651,
+        "successfulRps": 69.774,
+        "attemptedRps": 69.774,
+        "p50Ms": 688,
+        "p95Ms": 781,
+        "p99Ms": 890,
+        "maxMs": 1363,
+        "meanMs": 659.761,
+        "responseCodes": {
+          "200": 8209
+        },
+        "startEpoch": 1793174743.095,
+        "endEpoch": 1793174860.746,
+        "activeStartEpoch": 1793174743.095,
+        "activeEndEpoch": 1793174860.746,
+        "activeWindowSeconds": 117.651
+      },
+      "labels": {
+        "login": {
+          "samples": 8209,
+          "valid": true,
+          "success": 8209,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 117.651,
+          "successfulRps": 69.774,
+          "attemptedRps": 69.774,
+          "p50Ms": 688,
+          "p95Ms": 781,
+          "p99Ms": 890,
+          "maxMs": 1363,
+          "meanMs": 659.761,
+          "responseCodes": {
+            "200": 8209
+          },
+          "startEpoch": 1793174743.095,
+          "endEpoch": 1793174860.746,
+          "activeStartEpoch": 1793174743.095,
+          "activeEndEpoch": 1793174860.746,
+          "activeWindowSeconds": 117.651
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 11,
+        "minimumAvailableMiB": 3405.59,
+        "minimumDiskFreeGiB": 73.26,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 27.918,
+            "maxRssMiB": 488.05
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.818,
+            "maxRssMiB": 145.02
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 0.68,
+            "maxRssMiB": 180.82
+          }
+        },
+        "meanHostCpuPercent": 41.385,
+        "maxHostCpuPercent": 54.33
+      },
+      "gcWindow": {
+        "pauses": 6,
+        "fullPauses": 0,
+        "p95PauseMs": 3.508,
+        "maxPauseMs": 3.508,
+        "sumPauseMs": 17.345
+      }
+    },
+    {
+      "name": "profile-fixed-category-c100",
+      "scenario": "search",
+      "threads": 100,
+      "duration": 70,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "category",
+      "thinkMs": 0,
+      "started": 1793175009.1127872,
+      "ended": 1793175090.0104148,
+      "planSha256": "97545b2830bae40cc44eb2e636f8003c4515de8f4d465e0b83bd778eea028dad",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 49400,
+        "valid": true,
+        "success": 49400,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 56.663,
+        "successfulRps": 871.821,
+        "attemptedRps": 871.821,
+        "p50Ms": 113,
+        "p95Ms": 133,
+        "p99Ms": 153,
+        "maxMs": 195,
+        "meanMs": 113.67,
+        "responseCodes": {
+          "200": 49400
+        },
+        "startEpoch": 1793175024.301,
+        "endEpoch": 1793175080.964,
+        "activeStartEpoch": 1793175024.301,
+        "activeEndEpoch": 1793175080.964,
+        "activeWindowSeconds": 56.663
+      },
+      "labels": {
+        "search": {
+          "samples": 49400,
+          "valid": true,
+          "success": 49400,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 56.663,
+          "successfulRps": 871.821,
+          "attemptedRps": 871.821,
+          "p50Ms": 113,
+          "p95Ms": 133,
+          "p99Ms": 153,
+          "maxMs": 195,
+          "meanMs": 113.67,
+          "responseCodes": {
+            "200": 49400
+          },
+          "startEpoch": 1793175024.301,
+          "endEpoch": 1793175080.964,
+          "activeStartEpoch": 1793175024.301,
+          "activeEndEpoch": 1793175080.964,
+          "activeWindowSeconds": 56.663
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 6,
+        "minimumAvailableMiB": 3387.81,
+        "minimumDiskFreeGiB": 73.24,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 8.36,
+            "maxRssMiB": 485.41
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 6.65,
+            "maxRssMiB": 143.79
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 5.038,
+            "maxRssMiB": 345.72
+          }
+        },
+        "meanHostCpuPercent": 35.008,
+        "maxHostCpuPercent": 37.98
+      },
+      "gcWindow": {
+        "pauses": 55,
+        "fullPauses": 0,
+        "p95PauseMs": 5.008,
+        "maxPauseMs": 5.176,
+        "sumPauseMs": 216.533
+      }
+    },
+    {
+      "name": "profile100-search-category",
+      "scenario": "search",
+      "threads": 100,
+      "duration": 70,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "category",
+      "thinkMs": 0,
+      "started": 1793172208.2999136,
+      "ended": 1793172289.3662577,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 125202,
+        "valid": true,
+        "success": 80283,
+        "failures": 44919,
+        "failureRate": 0.3587722240858772,
+        "windowSeconds": 57.852,
+        "successfulRps": 1387.731,
+        "attemptedRps": 2164.178,
+        "p50Ms": 24,
+        "p95Ms": 160,
+        "p99Ms": 184,
+        "maxMs": 871,
+        "meanMs": 43.104,
+        "responseCodes": {
+          "Non HTTP response code: java.net.BindException": 43757,
+          "400": 1162,
+          "200": 80283
+        },
+        "startEpoch": 1793172222.388,
+        "endEpoch": 1793172280.24,
+        "activeStartEpoch": 1793172222.388,
+        "activeEndEpoch": 1793172280.24,
+        "activeWindowSeconds": 57.852
+      },
+      "labels": {
+        "search": {
+          "samples": 125202,
+          "valid": true,
+          "success": 80283,
+          "failures": 44919,
+          "failureRate": 0.3587722240858772,
+          "windowSeconds": 57.852,
+          "successfulRps": 1387.731,
+          "attemptedRps": 2164.178,
+          "p50Ms": 24,
+          "p95Ms": 160,
+          "p99Ms": 184,
+          "maxMs": 871,
+          "meanMs": 43.104,
+          "responseCodes": {
+            "Non HTTP response code: java.net.BindException": 43757,
+            "400": 1162,
+            "200": 80283
+          },
+          "startEpoch": 1793172222.388,
+          "endEpoch": 1793172280.24,
+          "activeStartEpoch": 1793172222.388,
+          "activeEndEpoch": 1793172280.24,
+          "activeWindowSeconds": 57.852
+        }
+      },
+      "classification": "INVALID_TOOL_RUN",
+      "resourceWindow": {
+        "samples": 6,
+        "minimumAvailableMiB": 3646.5,
+        "minimumDiskFreeGiB": 73.98,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 9.825,
+            "maxRssMiB": 567.95
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 8.062,
+            "maxRssMiB": 139.25
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 26.788,
+            "maxRssMiB": 359.38
+          }
+        },
+        "meanHostCpuPercent": 61.748,
+        "maxHostCpuPercent": 94.44
+      }
+    },
+    {
+      "name": "profile100-search-empty",
+      "scenario": "search",
+      "threads": 100,
+      "duration": 70,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "empty",
+      "thinkMs": 0,
+      "started": 1793172045.165722,
+      "ended": 1793172127.1113226,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 278463,
+        "valid": true,
+        "success": 278463,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 58.161,
+        "successfulRps": 4787.796,
+        "attemptedRps": 4787.796,
+        "p50Ms": 8,
+        "p95Ms": 25,
+        "p99Ms": 35,
+        "maxMs": 112,
+        "meanMs": 9.768,
+        "responseCodes": {
+          "200": 278463
+        },
+        "startEpoch": 1793172058.835,
+        "endEpoch": 1793172116.996,
+        "activeStartEpoch": 1793172058.835,
+        "activeEndEpoch": 1793172116.996,
+        "activeWindowSeconds": 58.161
+      },
+      "labels": {
+        "search": {
+          "samples": 278463,
+          "valid": true,
+          "success": 278463,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 58.161,
+          "successfulRps": 4787.796,
+          "attemptedRps": 4787.796,
+          "p50Ms": 8,
+          "p95Ms": 25,
+          "p99Ms": 35,
+          "maxMs": 112,
+          "meanMs": 9.768,
+          "responseCodes": {
+            "200": 278463
+          },
+          "startEpoch": 1793172058.835,
+          "endEpoch": 1793172116.996,
+          "activeStartEpoch": 1793172058.835,
+          "activeEndEpoch": 1793172116.996,
+          "activeWindowSeconds": 58.161
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 6,
+        "minimumAvailableMiB": 3689.41,
+        "minimumDiskFreeGiB": 74.04,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 19.22,
+            "maxRssMiB": 541.92
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 16.823,
+            "maxRssMiB": 138.72
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 39.577,
+            "maxRssMiB": 380.85
+          }
+        },
+        "meanHostCpuPercent": 91.31,
+        "maxHostCpuPercent": 99.27
+      },
+      "gcWindow": {
+        "pauses": 258,
+        "fullPauses": 0,
+        "p95PauseMs": 2.223,
+        "maxPauseMs": 11.024,
+        "sumPauseMs": 512.147
+      }
+    },
+    {
+      "name": "profile100-search-nomatch",
+      "scenario": "search",
+      "threads": 100,
+      "duration": 70,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "nomatch",
+      "thinkMs": 0,
+      "started": 1793172127.207707,
+      "ended": 1793172208.20554,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 134710,
+        "valid": true,
+        "success": 134710,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 58.203,
+        "successfulRps": 2314.486,
+        "attemptedRps": 2314.486,
+        "p50Ms": 43,
+        "p95Ms": 63,
+        "p99Ms": 78,
+        "maxMs": 181,
+        "meanMs": 42.709,
+        "responseCodes": {
+          "200": 134710
+        },
+        "startEpoch": 1793172140.916,
+        "endEpoch": 1793172199.119,
+        "activeStartEpoch": 1793172140.916,
+        "activeEndEpoch": 1793172199.119,
+        "activeWindowSeconds": 58.203
+      },
+      "labels": {
+        "search": {
+          "samples": 134710,
+          "valid": true,
+          "success": 134710,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 58.203,
+          "successfulRps": 2314.486,
+          "attemptedRps": 2314.486,
+          "p50Ms": 43,
+          "p95Ms": 63,
+          "p99Ms": 78,
+          "maxMs": 181,
+          "meanMs": 42.709,
+          "responseCodes": {
+            "200": 134710
+          },
+          "startEpoch": 1793172140.916,
+          "endEpoch": 1793172199.119,
+          "activeStartEpoch": 1793172140.916,
+          "activeEndEpoch": 1793172199.119,
+          "activeWindowSeconds": 58.203
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 6,
+        "minimumAvailableMiB": 3802.88,
+        "minimumDiskFreeGiB": 74.02,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 11.257,
+            "maxRssMiB": 536.82
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 39.577,
+            "maxRssMiB": 139.06
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 6.168,
+            "maxRssMiB": 283.24
+          }
+        },
+        "meanHostCpuPercent": 78.722,
+        "maxHostCpuPercent": 81.38
+      },
+      "gcWindow": {
+        "pauses": 56,
+        "fullPauses": 0,
+        "p95PauseMs": 2.218,
+        "maxPauseMs": 2.685,
+        "sumPauseMs": 110.138
+      }
+    },
+    {
+      "name": "profile100paced-auth",
+      "scenario": "auth",
+      "threads": 100,
+      "duration": 130,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "default",
+      "thinkMs": 50,
+      "started": 1793173016.7003062,
+      "ended": 1793173159.134026,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 194388,
+        "valid": true,
+        "success": 194388,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 116.661,
+        "successfulRps": 1666.264,
+        "attemptedRps": 1666.264,
+        "p50Ms": 5,
+        "p95Ms": 12,
+        "p99Ms": 17,
+        "maxMs": 45,
+        "meanMs": 5.895,
+        "responseCodes": {
+          "200": 194388
+        },
+        "startEpoch": 1793173032.02,
+        "endEpoch": 1793173148.681,
+        "activeStartEpoch": 1793173032.02,
+        "activeEndEpoch": 1793173148.681,
+        "activeWindowSeconds": 116.661
+      },
+      "labels": {
+        "auth": {
+          "samples": 194388,
+          "valid": true,
+          "success": 194388,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 116.661,
+          "successfulRps": 1666.264,
+          "attemptedRps": 1666.264,
+          "p50Ms": 5,
+          "p95Ms": 12,
+          "p99Ms": 17,
+          "maxMs": 45,
+          "meanMs": 5.895,
+          "responseCodes": {
+            "200": 194388
+          },
+          "startEpoch": 1793173032.02,
+          "endEpoch": 1793173148.681,
+          "activeStartEpoch": 1793173032.02,
+          "activeEndEpoch": 1793173148.681,
+          "activeWindowSeconds": 116.661
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 12,
+        "minimumAvailableMiB": 3515.03,
+        "minimumDiskFreeGiB": 73.84,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 7.898,
+            "maxRssMiB": 378.16
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 2.851,
+            "maxRssMiB": 32.56
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 6.142,
+            "maxRssMiB": 256.04
+          }
+        },
+        "meanHostCpuPercent": 30.573,
+        "maxHostCpuPercent": 38.38
+      },
+      "gcWindow": {
+        "pauses": 107,
+        "fullPauses": 0,
+        "p95PauseMs": 4.267,
+        "maxPauseMs": 5.512,
+        "sumPauseMs": 371.554
+      }
+    },
+    {
+      "name": "profile100paced-favorite",
+      "scenario": "favorite",
+      "threads": 100,
+      "duration": 130,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "default",
+      "thinkMs": 50,
+      "started": 1793173299.677719,
+      "ended": 1793173440.317898,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 65180,
+        "valid": true,
+        "success": 65180,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 117.334,
+        "successfulRps": 555.508,
+        "attemptedRps": 555.508,
+        "p50Ms": 118,
+        "p95Ms": 204,
+        "p99Ms": 269,
+        "maxMs": 492,
+        "meanMs": 125.51,
+        "responseCodes": {
+          "200": 65180
+        },
+        "startEpoch": 1793173314.218,
+        "endEpoch": 1793173431.552,
+        "activeStartEpoch": 1793173314.218,
+        "activeEndEpoch": 1793173431.552,
+        "activeWindowSeconds": 117.334
+      },
+      "labels": {
+        "favorite.remove": {
+          "samples": 32590,
+          "valid": true,
+          "success": 32590,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 117.334,
+          "successfulRps": 277.754,
+          "attemptedRps": 277.754,
+          "p50Ms": 116,
+          "p95Ms": 200,
+          "p99Ms": 258,
+          "maxMs": 417,
+          "meanMs": 123.092,
+          "responseCodes": {
+            "200": 32590
+          },
+          "startEpoch": 1793173314.218,
+          "endEpoch": 1793173431.552,
+          "activeStartEpoch": 1793173314.223,
+          "activeEndEpoch": 1793173431.552,
+          "activeWindowSeconds": 117.329
+        },
+        "favorite.add": {
+          "samples": 32590,
+          "valid": true,
+          "success": 32590,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 117.334,
+          "successfulRps": 277.754,
+          "attemptedRps": 277.754,
+          "p50Ms": 120,
+          "p95Ms": 207,
+          "p99Ms": 278,
+          "maxMs": 492,
+          "meanMs": 127.927,
+          "responseCodes": {
+            "200": 32590
+          },
+          "startEpoch": 1793173314.218,
+          "endEpoch": 1793173431.552,
+          "activeStartEpoch": 1793173314.218,
+          "activeEndEpoch": 1793173431.551,
+          "activeWindowSeconds": 117.333
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 12,
+        "minimumAvailableMiB": 3098.26,
+        "minimumDiskFreeGiB": 73.64,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 11.478,
+            "maxRssMiB": 419.43
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 7.192,
+            "maxRssMiB": 130.1
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 2.219,
+            "maxRssMiB": 299.56
+          }
+        },
+        "meanHostCpuPercent": 41.956,
+        "maxHostCpuPercent": 47.94
+      },
+      "gcWindow": {
+        "pauses": 88,
+        "fullPauses": 0,
+        "p95PauseMs": 4.272,
+        "maxPauseMs": 4.623,
+        "sumPauseMs": 303.339
+      }
+    },
+    {
+      "name": "profile100paced-keyword",
+      "scenario": "keyword",
+      "threads": 100,
+      "duration": 130,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "default",
+      "thinkMs": 50,
+      "started": 1793172874.153093,
+      "ended": 1793173016.5743911,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 189859,
+        "valid": true,
+        "success": 189859,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 117.632,
+        "successfulRps": 1614.008,
+        "attemptedRps": 1614.008,
+        "p50Ms": 5,
+        "p95Ms": 14,
+        "p99Ms": 18,
+        "maxMs": 54,
+        "meanMs": 6.223,
+        "responseCodes": {
+          "200": 189859
+        },
+        "startEpoch": 1793172888.35,
+        "endEpoch": 1793173005.982,
+        "activeStartEpoch": 1793172888.35,
+        "activeEndEpoch": 1793173005.982,
+        "activeWindowSeconds": 117.632
+      },
+      "labels": {
+        "keyword": {
+          "samples": 189859,
+          "valid": true,
+          "success": 189859,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 117.632,
+          "successfulRps": 1614.008,
+          "attemptedRps": 1614.008,
+          "p50Ms": 5,
+          "p95Ms": 14,
+          "p99Ms": 18,
+          "maxMs": 54,
+          "meanMs": 6.223,
+          "responseCodes": {
+            "200": 189859
+          },
+          "startEpoch": 1793172888.35,
+          "endEpoch": 1793173005.982,
+          "activeStartEpoch": 1793172888.35,
+          "activeEndEpoch": 1793173005.982,
+          "activeWindowSeconds": 117.632
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 12,
+        "minimumAvailableMiB": 2621.02,
+        "minimumDiskFreeGiB": 73.87,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 4.872,
+            "maxRssMiB": 308.25
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.036,
+            "maxRssMiB": 29.63
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 5.834,
+            "maxRssMiB": 296.27
+          }
+        },
+        "meanHostCpuPercent": 27.508,
+        "maxHostCpuPercent": 33.97
+      },
+      "gcWindow": {
+        "pauses": 39,
+        "fullPauses": 0,
+        "p95PauseMs": 5.943,
+        "maxPauseMs": 8.185,
+        "sumPauseMs": 149.304
+      }
+    },
+    {
+      "name": "profile100paced-login",
+      "scenario": "login",
+      "threads": 100,
+      "duration": 130,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "default",
+      "thinkMs": 50,
+      "started": 1793173159.24276,
+      "ended": 1793173299.5488994,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 7810,
+        "valid": true,
+        "success": 7810,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 118.928,
+        "successfulRps": 65.67,
+        "attemptedRps": 65.67,
+        "p50Ms": 1437,
+        "p95Ms": 1585,
+        "p99Ms": 1686,
+        "maxMs": 3065,
+        "meanMs": 1451.055,
+        "responseCodes": {
+          "200": 7810
+        },
+        "startEpoch": 1793173173.513,
+        "endEpoch": 1793173292.441,
+        "activeStartEpoch": 1793173173.513,
+        "activeEndEpoch": 1793173292.441,
+        "activeWindowSeconds": 118.928
+      },
+      "labels": {
+        "login": {
+          "samples": 7810,
+          "valid": true,
+          "success": 7810,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 118.928,
+          "successfulRps": 65.67,
+          "attemptedRps": 65.67,
+          "p50Ms": 1437,
+          "p95Ms": 1585,
+          "p99Ms": 1686,
+          "maxMs": 3065,
+          "meanMs": 1451.055,
+          "responseCodes": {
+            "200": 7810
+          },
+          "startEpoch": 1793173173.513,
+          "endEpoch": 1793173292.441,
+          "activeStartEpoch": 1793173173.513,
+          "activeEndEpoch": 1793173292.441,
+          "activeWindowSeconds": 118.928
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 11,
+        "minimumAvailableMiB": 3555.25,
+        "minimumDiskFreeGiB": 73.71,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 27.149,
+            "maxRssMiB": 379.16
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.865,
+            "maxRssMiB": 64.55
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 0.866,
+            "maxRssMiB": 248.36
+          }
+        },
+        "meanHostCpuPercent": 38.803,
+        "maxHostCpuPercent": 39.47
+      },
+      "gcWindow": {
+        "pauses": 5,
+        "fullPauses": 0,
+        "p95PauseMs": 4.116,
+        "maxPauseMs": 4.116,
+        "sumPauseMs": 19.061
+      }
+    },
+    {
+      "name": "profile100paced-search-deep",
+      "scenario": "search",
+      "threads": 100,
+      "duration": 70,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "deep",
+      "thinkMs": 50,
+      "started": 1793172551.2822537,
+      "ended": 1793172631.8261445,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 69405,
+        "valid": true,
+        "success": 69405,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 58.142,
+        "successfulRps": 1193.715,
+        "attemptedRps": 1193.715,
+        "p50Ms": 27,
+        "p95Ms": 40,
+        "p99Ms": 48,
+        "maxMs": 83,
+        "meanMs": 27.432,
+        "responseCodes": {
+          "200": 69405
+        },
+        "startEpoch": 1793172565.018,
+        "endEpoch": 1793172623.16,
+        "activeStartEpoch": 1793172565.018,
+        "activeEndEpoch": 1793172623.16,
+        "activeWindowSeconds": 58.142
+      },
+      "labels": {
+        "search": {
+          "samples": 69405,
+          "valid": true,
+          "success": 69405,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 58.142,
+          "successfulRps": 1193.715,
+          "attemptedRps": 1193.715,
+          "p50Ms": 27,
+          "p95Ms": 40,
+          "p99Ms": 48,
+          "maxMs": 83,
+          "meanMs": 27.432,
+          "responseCodes": {
+            "200": 69405
+          },
+          "startEpoch": 1793172565.018,
+          "endEpoch": 1793172623.16,
+          "activeStartEpoch": 1793172565.018,
+          "activeEndEpoch": 1793172623.16,
+          "activeWindowSeconds": 58.142
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 6,
+        "minimumAvailableMiB": 4106.79,
+        "minimumDiskFreeGiB": 74.08,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 8.158,
+            "maxRssMiB": 556.7
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 37.375,
+            "maxRssMiB": 113.64
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 3.842,
+            "maxRssMiB": 277.73
+          }
+        },
+        "meanHostCpuPercent": 68.288,
+        "maxHostCpuPercent": 72.4
+      },
+      "gcWindow": {
+        "pauses": 75,
+        "fullPauses": 0,
+        "p95PauseMs": 2.097,
+        "maxPauseMs": 3.007,
+        "sumPauseMs": 134.612
+      }
+    },
+    {
+      "name": "profile100paced-search-downloadCount",
+      "scenario": "search",
+      "threads": 100,
+      "duration": 70,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "downloadCount",
+      "thinkMs": 50,
+      "started": 1793172631.9344296,
+      "ended": 1793172712.4720862,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 67923,
+        "valid": true,
+        "success": 67923,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 58.226,
+        "successfulRps": 1166.541,
+        "attemptedRps": 1166.541,
+        "p50Ms": 29,
+        "p95Ms": 42,
+        "p99Ms": 50,
+        "maxMs": 86,
+        "meanMs": 29.381,
+        "responseCodes": {
+          "200": 67923
+        },
+        "startEpoch": 1793172645.557,
+        "endEpoch": 1793172703.783,
+        "activeStartEpoch": 1793172645.557,
+        "activeEndEpoch": 1793172703.783,
+        "activeWindowSeconds": 58.226
+      },
+      "labels": {
+        "search": {
+          "samples": 67923,
+          "valid": true,
+          "success": 67923,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 58.226,
+          "successfulRps": 1166.541,
+          "attemptedRps": 1166.541,
+          "p50Ms": 29,
+          "p95Ms": 42,
+          "p99Ms": 50,
+          "maxMs": 86,
+          "meanMs": 29.381,
+          "responseCodes": {
+            "200": 67923
+          },
+          "startEpoch": 1793172645.557,
+          "endEpoch": 1793172703.783,
+          "activeStartEpoch": 1793172645.557,
+          "activeEndEpoch": 1793172703.783,
+          "activeWindowSeconds": 58.226
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 6,
+        "minimumAvailableMiB": 4063.58,
+        "minimumDiskFreeGiB": 74.07,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 8.278,
+            "maxRssMiB": 557.43
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 37.725,
+            "maxRssMiB": 116.53
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 3.918,
+            "maxRssMiB": 278.49
+          }
+        },
+        "meanHostCpuPercent": 70.667,
+        "maxHostCpuPercent": 72.23
+      },
+      "gcWindow": {
+        "pauses": 74,
+        "fullPauses": 0,
+        "p95PauseMs": 2.043,
+        "maxPauseMs": 2.24,
+        "sumPauseMs": 133.005
+      }
+    },
+    {
+      "name": "profile100paced-search-favoriteCount",
+      "scenario": "search",
+      "threads": 100,
+      "duration": 70,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "favoriteCount",
+      "thinkMs": 50,
+      "started": 1793172712.5778785,
+      "ended": 1793172793.105376,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 68295,
+        "valid": true,
+        "success": 68295,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 58.265,
+        "successfulRps": 1172.145,
+        "attemptedRps": 1172.145,
+        "p50Ms": 29,
+        "p95Ms": 42,
+        "p99Ms": 52,
+        "maxMs": 100,
+        "meanMs": 28.988,
+        "responseCodes": {
+          "200": 68295
+        },
+        "startEpoch": 1793172726.463,
+        "endEpoch": 1793172784.728,
+        "activeStartEpoch": 1793172726.463,
+        "activeEndEpoch": 1793172784.728,
+        "activeWindowSeconds": 58.265
+      },
+      "labels": {
+        "search": {
+          "samples": 68295,
+          "valid": true,
+          "success": 68295,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 58.265,
+          "successfulRps": 1172.145,
+          "attemptedRps": 1172.145,
+          "p50Ms": 29,
+          "p95Ms": 42,
+          "p99Ms": 52,
+          "maxMs": 100,
+          "meanMs": 28.988,
+          "responseCodes": {
+            "200": 68295
+          },
+          "startEpoch": 1793172726.463,
+          "endEpoch": 1793172784.728,
+          "activeStartEpoch": 1793172726.463,
+          "activeEndEpoch": 1793172784.728,
+          "activeWindowSeconds": 58.265
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 6,
+        "minimumAvailableMiB": 4062.37,
+        "minimumDiskFreeGiB": 74.05,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 8.415,
+            "maxRssMiB": 558.07
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 37.538,
+            "maxRssMiB": 116.84
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 3.753,
+            "maxRssMiB": 276.44
+          }
+        },
+        "meanHostCpuPercent": 68.265,
+        "maxHostCpuPercent": 72.1
+      },
+      "gcWindow": {
+        "pauses": 74,
+        "fullPauses": 0,
+        "p95PauseMs": 2.147,
+        "maxPauseMs": 3.773,
+        "sumPauseMs": 136.116
+      }
+    },
+    {
+      "name": "profile100paced-search-hotScore",
+      "scenario": "search",
+      "threads": 100,
+      "duration": 70,
+      "ramp": 10,
+      "excludedSeconds": 10,
+      "variant": "hotScore",
+      "thinkMs": 50,
+      "started": 1793172793.1886873,
+      "ended": 1793172874.0328631,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 39215,
+        "valid": true,
+        "success": 39215,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 58.221,
+        "successfulRps": 673.554,
+        "attemptedRps": 673.554,
+        "p50Ms": 107,
+        "p95Ms": 168,
+        "p99Ms": 207,
+        "maxMs": 337,
+        "meanMs": 90.568,
+        "responseCodes": {
+          "200": 39215
+        },
+        "startEpoch": 1793172806.96,
+        "endEpoch": 1793172865.181,
+        "activeStartEpoch": 1793172806.96,
+        "activeEndEpoch": 1793172865.181,
+        "activeWindowSeconds": 58.221
+      },
+      "labels": {
+        "search": {
+          "samples": 39215,
+          "valid": true,
+          "success": 39215,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 58.221,
+          "successfulRps": 673.554,
+          "attemptedRps": 673.554,
+          "p50Ms": 107,
+          "p95Ms": 168,
+          "p99Ms": 207,
+          "maxMs": 337,
+          "meanMs": 90.568,
+          "responseCodes": {
+            "200": 39215
+          },
+          "startEpoch": 1793172806.96,
+          "endEpoch": 1793172865.181,
+          "activeStartEpoch": 1793172806.96,
+          "activeEndEpoch": 1793172865.181,
+          "activeWindowSeconds": 58.221
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 6,
+        "minimumAvailableMiB": 3510.14,
+        "minimumDiskFreeGiB": 73.91,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 6.505,
+            "maxRssMiB": 558.09
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 24.58,
+            "maxRssMiB": 117.1
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 3.212,
+            "maxRssMiB": 274.52
+          }
+        },
+        "meanHostCpuPercent": 50.662,
+        "maxHostCpuPercent": 68.57
+      },
+      "gcWindow": {
+        "pauses": 43,
+        "fullPauses": 0,
+        "p95PauseMs": 3.46,
+        "maxPauseMs": 5.997,
+        "sumPauseMs": 116.588
+      }
+    },
+    {
+      "name": "rank-c1-r1",
+      "scenario": "rank",
+      "threads": 1,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793155885.2311904,
+      "ended": 1793156237.014538,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 100191,
+        "valid": true,
+        "success": 100191,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.33,
+        "successfulRps": 324.947,
+        "attemptedRps": 324.947,
+        "p50Ms": 3,
+        "p95Ms": 3,
+        "p99Ms": 4,
+        "maxMs": 23,
+        "meanMs": 2.692,
+        "responseCodes": {
+          "200": 100191
+        },
+        "startEpoch": 1793155918.676,
+        "endEpoch": 1793156227.006
+      },
+      "labels": {
+        "rank": {
+          "samples": 100191,
+          "valid": true,
+          "success": 100191,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.33,
+          "successfulRps": 324.947,
+          "attemptedRps": 324.947,
+          "p50Ms": 3,
+          "p95Ms": 3,
+          "p99Ms": 4,
+          "maxMs": 23,
+          "meanMs": 2.692,
+          "responseCodes": {
+            "200": 100191
+          },
+          "startEpoch": 1793155918.676,
+          "endEpoch": 1793156227.006
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 30,
+        "minimumAvailableMiB": 4460.01,
+        "minimumDiskFreeGiB": 75.82,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 2.205,
+            "maxRssMiB": 353.32
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.86,
+            "maxRssMiB": 40.6
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 0.948,
+            "maxRssMiB": 267.96
+          }
+        },
+        "meanHostCpuPercent": 19.335,
+        "maxHostCpuPercent": 22.86
+      },
+      "gcWindow": {
+        "pauses": 160,
+        "fullPauses": 0,
+        "p95PauseMs": 4.223,
+        "maxPauseMs": 5.632,
+        "sumPauseMs": 503.612
+      }
+    },
+    {
+      "name": "rank-c1-r2",
+      "scenario": "rank",
+      "threads": 1,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793170771.2516708,
+      "ended": 1793171122.552875,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 172213,
+        "valid": true,
+        "success": 172213,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.426,
+        "successfulRps": 558.361,
+        "attemptedRps": 558.361,
+        "p50Ms": 2,
+        "p95Ms": 2,
+        "p99Ms": 3,
+        "maxMs": 94,
+        "meanMs": 1.57,
+        "responseCodes": {
+          "200": 172213
+        },
+        "startEpoch": 1793170804.726,
+        "endEpoch": 1793171113.152,
+        "activeStartEpoch": 1793170804.726,
+        "activeEndEpoch": 1793171113.152,
+        "activeWindowSeconds": 308.426
+      },
+      "labels": {
+        "rank": {
+          "samples": 172213,
+          "valid": true,
+          "success": 172213,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.426,
+          "successfulRps": 558.361,
+          "attemptedRps": 558.361,
+          "p50Ms": 2,
+          "p95Ms": 2,
+          "p99Ms": 3,
+          "maxMs": 94,
+          "meanMs": 1.57,
+          "responseCodes": {
+            "200": 172213
+          },
+          "startEpoch": 1793170804.726,
+          "endEpoch": 1793171113.152,
+          "activeStartEpoch": 1793170804.726,
+          "activeEndEpoch": 1793171113.152,
+          "activeWindowSeconds": 308.426
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 31,
+        "minimumAvailableMiB": 3125.14,
+        "minimumDiskFreeGiB": 74.43,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 1.99,
+            "maxRssMiB": 579.82
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.869,
+            "maxRssMiB": 220.09
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 0.868,
+            "maxRssMiB": 268.31
+          }
+        },
+        "meanHostCpuPercent": 16.659,
+        "maxHostCpuPercent": 28.48
+      },
+      "gcWindow": {
+        "pauses": 272,
+        "fullPauses": 0,
+        "p95PauseMs": 1.905,
+        "maxPauseMs": 2.415,
+        "sumPauseMs": 435.886
+      }
+    },
+    {
+      "name": "rank-c10-r1",
+      "scenario": "rank",
+      "threads": 10,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793169312.5727947,
+      "ended": 1793169671.2943182,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 1301519,
+        "valid": true,
+        "success": 1301519,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.452,
+        "successfulRps": 4219.519,
+        "attemptedRps": 4219.519,
+        "p50Ms": 2,
+        "p95Ms": 3,
+        "p99Ms": 4,
+        "maxMs": 44,
+        "meanMs": 1.993,
+        "responseCodes": {
+          "200": 1301519
+        },
+        "startEpoch": 1793169350.924,
+        "endEpoch": 1793169659.376,
+        "activeStartEpoch": 1793169350.924,
+        "activeEndEpoch": 1793169659.376,
+        "activeWindowSeconds": 308.452
+      },
+      "labels": {
+        "rank": {
+          "samples": 1301519,
+          "valid": true,
+          "success": 1301519,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.452,
+          "successfulRps": 4219.519,
+          "attemptedRps": 4219.519,
+          "p50Ms": 2,
+          "p95Ms": 3,
+          "p99Ms": 4,
+          "maxMs": 44,
+          "meanMs": 1.993,
+          "responseCodes": {
+            "200": 1301519
+          },
+          "startEpoch": 1793169350.924,
+          "endEpoch": 1793169659.376,
+          "activeStartEpoch": 1793169350.924,
+          "activeEndEpoch": 1793169659.376,
+          "activeWindowSeconds": 308.452
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 31,
+        "minimumAvailableMiB": 3263.67,
+        "minimumDiskFreeGiB": 75.61,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 15.954,
+            "maxRssMiB": 495.34
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 7.641,
+            "maxRssMiB": 216.87
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 8.141,
+            "maxRssMiB": 287.1
+          }
+        },
+        "meanHostCpuPercent": 47.608,
+        "maxHostCpuPercent": 53.37
+      },
+      "gcWindow": {
+        "pauses": 2016,
+        "fullPauses": 0,
+        "p95PauseMs": 1.587,
+        "maxPauseMs": 9.627,
+        "sumPauseMs": 2847.128
+      }
+    },
+    {
+      "name": "rank-c100-r1",
+      "scenario": "rank",
+      "threads": 100,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793170402.814581,
+      "ended": 1793170770.3219194,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 2425351,
+        "valid": true,
+        "success": 2425351,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.217,
+        "successfulRps": 7868.972,
+        "attemptedRps": 7868.972,
+        "p50Ms": 10,
+        "p95Ms": 16,
+        "p99Ms": 21,
+        "maxMs": 63,
+        "meanMs": 9.974,
+        "responseCodes": {
+          "200": 2425351
+        },
+        "startEpoch": 1793170441.479,
+        "endEpoch": 1793170749.696,
+        "activeStartEpoch": 1793170441.479,
+        "activeEndEpoch": 1793170749.696,
+        "activeWindowSeconds": 308.217
+      },
+      "labels": {
+        "rank": {
+          "samples": 2425351,
+          "valid": true,
+          "success": 2425351,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.217,
+          "successfulRps": 7868.972,
+          "attemptedRps": 7868.972,
+          "p50Ms": 10,
+          "p95Ms": 16,
+          "p99Ms": 21,
+          "maxMs": 63,
+          "meanMs": 9.974,
+          "responseCodes": {
+            "200": 2425351
+          },
+          "startEpoch": 1793170441.479,
+          "endEpoch": 1793170749.696,
+          "activeStartEpoch": 1793170441.479,
+          "activeEndEpoch": 1793170749.696,
+          "activeWindowSeconds": 308.217
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 30,
+        "minimumAvailableMiB": 2905.54,
+        "minimumDiskFreeGiB": 74.48,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 37.046,
+            "maxRssMiB": 579.69
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 16.797,
+            "maxRssMiB": 219.86
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 19.918,
+            "maxRssMiB": 354.45
+          }
+        },
+        "meanHostCpuPercent": 94.38,
+        "maxHostCpuPercent": 97.55
+      },
+      "gcWindow": {
+        "pauses": 3961,
+        "fullPauses": 0,
+        "p95PauseMs": 2.586,
+        "maxPauseMs": 19.694,
+        "sumPauseMs": 8445.938
+      }
+    },
+    {
+      "name": "rank-c20-r1",
+      "scenario": "rank",
+      "threads": 20,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793169671.7311625,
+      "ended": 1793170034.5562372,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 1873673,
+        "valid": true,
+        "success": 1873673,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.435,
+        "successfulRps": 6074.774,
+        "attemptedRps": 6074.774,
+        "p50Ms": 3,
+        "p95Ms": 4,
+        "p99Ms": 13,
+        "maxMs": 162,
+        "meanMs": 2.832,
+        "responseCodes": {
+          "200": 1873673
+        },
+        "startEpoch": 1793169710.144,
+        "endEpoch": 1793170018.579,
+        "activeStartEpoch": 1793169710.144,
+        "activeEndEpoch": 1793170018.579,
+        "activeWindowSeconds": 308.435
+      },
+      "labels": {
+        "rank": {
+          "samples": 1873673,
+          "valid": true,
+          "success": 1873673,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.435,
+          "successfulRps": 6074.774,
+          "attemptedRps": 6074.774,
+          "p50Ms": 3,
+          "p95Ms": 4,
+          "p99Ms": 13,
+          "maxMs": 162,
+          "meanMs": 2.832,
+          "responseCodes": {
+            "200": 1873673
+          },
+          "startEpoch": 1793169710.144,
+          "endEpoch": 1793170018.579,
+          "activeStartEpoch": 1793169710.144,
+          "activeEndEpoch": 1793170018.579,
+          "activeWindowSeconds": 308.435
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 31,
+        "minimumAvailableMiB": 3193.17,
+        "minimumDiskFreeGiB": 75.3,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 26.646,
+            "maxRssMiB": 517.86
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 12.406,
+            "maxRssMiB": 217.64
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 13.553,
+            "maxRssMiB": 272.5
+          }
+        },
+        "meanHostCpuPercent": 71.556,
+        "maxHostCpuPercent": 74.63
+      },
+      "gcWindow": {
+        "pauses": 2922,
+        "fullPauses": 0,
+        "p95PauseMs": 1.653,
+        "maxPauseMs": 154.881,
+        "sumPauseMs": 4522.116
+      }
+    },
+    {
+      "name": "rank-c5-r1",
+      "scenario": "rank",
+      "threads": 5,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793168956.5863225,
+      "ended": 1793169312.1421335,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 807446,
+        "valid": true,
+        "success": 807446,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.301,
+        "successfulRps": 2619.018,
+        "attemptedRps": 2619.018,
+        "p50Ms": 2,
+        "p95Ms": 2,
+        "p99Ms": 3,
+        "maxMs": 835,
+        "meanMs": 1.594,
+        "responseCodes": {
+          "200": 807446
+        },
+        "startEpoch": 1793168995.124,
+        "endEpoch": 1793169303.425,
+        "activeStartEpoch": 1793168995.124,
+        "activeEndEpoch": 1793169303.425,
+        "activeWindowSeconds": 308.301
+      },
+      "labels": {
+        "rank": {
+          "samples": 807446,
+          "valid": true,
+          "success": 807446,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.301,
+          "successfulRps": 2619.018,
+          "attemptedRps": 2619.018,
+          "p50Ms": 2,
+          "p95Ms": 2,
+          "p99Ms": 3,
+          "maxMs": 835,
+          "meanMs": 1.594,
+          "responseCodes": {
+            "200": 807446
+          },
+          "startEpoch": 1793168995.124,
+          "endEpoch": 1793169303.425,
+          "activeStartEpoch": 1793168995.124,
+          "activeEndEpoch": 1793169303.425,
+          "activeWindowSeconds": 308.301
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 31,
+        "minimumAvailableMiB": 2011.38,
+        "minimumDiskFreeGiB": 75.87,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 8.799,
+            "maxRssMiB": 559.38
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 4.392,
+            "maxRssMiB": 412.18
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 4.458,
+            "maxRssMiB": 273.76
+          }
+        },
+        "meanHostCpuPercent": 35.613,
+        "maxHostCpuPercent": 51.69
+      },
+      "gcWindow": {
+        "pauses": 1249,
+        "fullPauses": 0,
+        "p95PauseMs": 1.538,
+        "maxPauseMs": 200.275,
+        "sumPauseMs": 1926.902
+      }
+    },
+    {
+      "name": "rank-c50-r1",
+      "scenario": "rank",
+      "threads": 50,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793170035.013909,
+      "ended": 1793170402.3820853,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 2483487,
+        "valid": true,
+        "success": 2483487,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.442,
+        "successfulRps": 8051.715,
+        "attemptedRps": 8051.715,
+        "p50Ms": 5,
+        "p95Ms": 8,
+        "p99Ms": 10,
+        "maxMs": 45,
+        "meanMs": 5.136,
+        "responseCodes": {
+          "200": 2483487
+        },
+        "startEpoch": 1793170073.4,
+        "endEpoch": 1793170381.842,
+        "activeStartEpoch": 1793170073.4,
+        "activeEndEpoch": 1793170381.842,
+        "activeWindowSeconds": 308.442
+      },
+      "labels": {
+        "rank": {
+          "samples": 2483487,
+          "valid": true,
+          "success": 2483487,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.442,
+          "successfulRps": 8051.715,
+          "attemptedRps": 8051.715,
+          "p50Ms": 5,
+          "p95Ms": 8,
+          "p99Ms": 10,
+          "maxMs": 45,
+          "meanMs": 5.136,
+          "responseCodes": {
+            "200": 2483487
+          },
+          "startEpoch": 1793170073.4,
+          "endEpoch": 1793170381.842,
+          "activeStartEpoch": 1793170073.4,
+          "activeEndEpoch": 1793170381.842,
+          "activeWindowSeconds": 308.442
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 31,
+        "minimumAvailableMiB": 3111.25,
+        "minimumDiskFreeGiB": 74.89,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 36.667,
+            "maxRssMiB": 523.88
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 17.279,
+            "maxRssMiB": 219.1
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 19.351,
+            "maxRssMiB": 318.42
+          }
+        },
+        "meanHostCpuPercent": 93.728,
+        "maxHostCpuPercent": 95.29
+      },
+      "gcWindow": {
+        "pauses": 3923,
+        "fullPauses": 0,
+        "p95PauseMs": 2.135,
+        "maxPauseMs": 10.854,
+        "sumPauseMs": 7072.092
+      }
+    },
+    {
+      "name": "search-c1-r1",
+      "scenario": "search",
+      "threads": 1,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793151553.6870246,
+      "ended": 1793151904.5109951,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 31836,
+        "valid": true,
+        "success": 31836,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.034,
+        "successfulRps": 103.352,
+        "attemptedRps": 103.352,
+        "p50Ms": 9,
+        "p95Ms": 11,
+        "p99Ms": 13,
+        "maxMs": 537,
+        "meanMs": 9.081,
+        "responseCodes": {
+          "200": 31836
+        },
+        "startEpoch": 1793151587.513,
+        "endEpoch": 1793151895.547
+      },
+      "labels": {
+        "search": {
+          "samples": 31836,
+          "valid": true,
+          "success": 31836,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.034,
+          "successfulRps": 103.352,
+          "attemptedRps": 103.352,
+          "p50Ms": 9,
+          "p95Ms": 11,
+          "p99Ms": 13,
+          "maxMs": 537,
+          "meanMs": 9.081,
+          "responseCodes": {
+            "200": 31836
+          },
+          "startEpoch": 1793151587.513,
+          "endEpoch": 1793151895.547
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 30,
+        "minimumAvailableMiB": 1987.49,
+        "minimumDiskFreeGiB": 77.34,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 1.458,
+            "maxRssMiB": 471.16
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 1.514,
+            "maxRssMiB": 43.3
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 0.584,
+            "maxRssMiB": 217.29
+          }
+        },
+        "meanHostCpuPercent": 24.946,
+        "maxHostCpuPercent": 36.86
+      },
+      "gcWindow": {
+        "pauses": 33,
+        "fullPauses": 0,
+        "p95PauseMs": 2.974,
+        "maxPauseMs": 2.985,
+        "sumPauseMs": 79.204
+      }
+    },
+    {
+      "name": "search-c10-r1",
+      "scenario": "search",
+      "threads": 10,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793152257.0124967,
+      "ended": 1793152611.6015599,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 242327,
+        "valid": true,
+        "success": 242327,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.106,
+        "successfulRps": 786.505,
+        "attemptedRps": 786.505,
+        "p50Ms": 11,
+        "p95Ms": 22,
+        "p99Ms": 31,
+        "maxMs": 170,
+        "meanMs": 12.207,
+        "responseCodes": {
+          "200": 242327
+        },
+        "startEpoch": 1793152290.761,
+        "endEpoch": 1793152598.867
+      },
+      "labels": {
+        "search": {
+          "samples": 242327,
+          "valid": true,
+          "success": 242327,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.106,
+          "successfulRps": 786.505,
+          "attemptedRps": 786.505,
+          "p50Ms": 11,
+          "p95Ms": 22,
+          "p99Ms": 31,
+          "maxMs": 170,
+          "meanMs": 12.207,
+          "responseCodes": {
+            "200": 242327
+          },
+          "startEpoch": 1793152290.761,
+          "endEpoch": 1793152598.867
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 30,
+        "minimumAvailableMiB": 2264.16,
+        "minimumDiskFreeGiB": 77.24,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 7.613,
+            "maxRssMiB": 439.94
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 12.883,
+            "maxRssMiB": 50.68
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 2.533,
+            "maxRssMiB": 256.72
+          }
+        },
+        "meanHostCpuPercent": 43.861,
+        "maxHostCpuPercent": 55.81
+      },
+      "gcWindow": {
+        "pauses": 254,
+        "fullPauses": 0,
+        "p95PauseMs": 2.644,
+        "maxPauseMs": 3.048,
+        "sumPauseMs": 588.063
+      }
+    },
+    {
+      "name": "search-c100-r1",
+      "scenario": "search",
+      "threads": 100,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793153321.1511288,
+      "ended": 1793153676.3641608,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 259636,
+        "valid": true,
+        "success": 259636,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.092,
+        "successfulRps": 842.722,
+        "attemptedRps": 842.722,
+        "p50Ms": 123,
+        "p95Ms": 151,
+        "p99Ms": 174,
+        "maxMs": 223,
+        "meanMs": 118.029,
+        "responseCodes": {
+          "200": 259636
+        },
+        "startEpoch": 1793153355.22,
+        "endEpoch": 1793153663.312
+      },
+      "labels": {
+        "search": {
+          "samples": 259636,
+          "valid": true,
+          "success": 259636,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.092,
+          "successfulRps": 842.722,
+          "attemptedRps": 842.722,
+          "p50Ms": 123,
+          "p95Ms": 151,
+          "p99Ms": 174,
+          "maxMs": 223,
+          "meanMs": 118.029,
+          "responseCodes": {
+            "200": 259636
+          },
+          "startEpoch": 1793153355.22,
+          "endEpoch": 1793153663.312
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 30,
+        "minimumAvailableMiB": 5578.29,
+        "minimumDiskFreeGiB": 76.84,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 7.329,
+            "maxRssMiB": 311.62
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 15.508,
+            "maxRssMiB": 26.14
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 2.991,
+            "maxRssMiB": 253.81
+          }
+        },
+        "meanHostCpuPercent": 44.297,
+        "maxHostCpuPercent": 73.39
+      },
+      "gcWindow": {
+        "pauses": 284,
+        "fullPauses": 0,
+        "p95PauseMs": 3.716,
+        "maxPauseMs": 4.784,
+        "sumPauseMs": 905.077
+      }
+    },
+    {
+      "name": "search-c100-r2",
+      "scenario": "search",
+      "threads": 100,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793171686.1706784,
+      "ended": 1793172040.817319,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 685802,
+        "valid": true,
+        "success": 685802,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.253,
+        "successfulRps": 2224.802,
+        "attemptedRps": 2224.802,
+        "p50Ms": 44,
+        "p95Ms": 62,
+        "p99Ms": 75,
+        "maxMs": 132,
+        "meanMs": 44.503,
+        "responseCodes": {
+          "200": 685802
+        },
+        "startEpoch": 1793171719.775,
+        "endEpoch": 1793172028.028,
+        "activeStartEpoch": 1793171719.775,
+        "activeEndEpoch": 1793172028.028,
+        "activeWindowSeconds": 308.253
+      },
+      "labels": {
+        "search": {
+          "samples": 685802,
+          "valid": true,
+          "success": 685802,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.253,
+          "successfulRps": 2224.802,
+          "attemptedRps": 2224.802,
+          "p50Ms": 44,
+          "p95Ms": 62,
+          "p99Ms": 75,
+          "maxMs": 132,
+          "meanMs": 44.503,
+          "responseCodes": {
+            "200": 685802
+          },
+          "startEpoch": 1793171719.775,
+          "endEpoch": 1793172028.028,
+          "activeStartEpoch": 1793171719.775,
+          "activeEndEpoch": 1793172028.028,
+          "activeWindowSeconds": 308.253
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 31,
+        "minimumAvailableMiB": 3383.1,
+        "minimumDiskFreeGiB": 74.12,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 15.291,
+            "maxRssMiB": 543.86
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 36.74,
+            "maxRssMiB": 203.66
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 6.12,
+            "maxRssMiB": 288.55
+          }
+        },
+        "meanHostCpuPercent": 81.248,
+        "maxHostCpuPercent": 94.22
+      },
+      "gcWindow": {
+        "pauses": 749,
+        "fullPauses": 0,
+        "p95PauseMs": 2.17,
+        "maxPauseMs": 10.828,
+        "sumPauseMs": 1448.423
+      }
+    },
+    {
+      "name": "search-c20-r1",
+      "scenario": "search",
+      "threads": 20,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793152611.6630516,
+      "ended": 1793152967.7607248,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 281773,
+        "valid": true,
+        "success": 281773,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 307.475,
+        "successfulRps": 916.409,
+        "attemptedRps": 916.409,
+        "p50Ms": 19,
+        "p95Ms": 39,
+        "p99Ms": 50,
+        "maxMs": 487,
+        "meanMs": 21.221,
+        "responseCodes": {
+          "200": 281773
+        },
+        "startEpoch": 1793152646.198,
+        "endEpoch": 1793152953.673
+      },
+      "labels": {
+        "search": {
+          "samples": 281773,
+          "valid": true,
+          "success": 281773,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 307.475,
+          "successfulRps": 916.409,
+          "attemptedRps": 916.409,
+          "p50Ms": 19,
+          "p95Ms": 39,
+          "p99Ms": 50,
+          "maxMs": 487,
+          "meanMs": 21.221,
+          "responseCodes": {
+            "200": 281773
+          },
+          "startEpoch": 1793152646.198,
+          "endEpoch": 1793152953.673
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 29,
+        "minimumAvailableMiB": 992.23,
+        "minimumDiskFreeGiB": 77.19,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 8.694,
+            "maxRssMiB": 465.61
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 15.315,
+            "maxRssMiB": 59.32
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 2.848,
+            "maxRssMiB": 167.5
+          }
+        },
+        "meanHostCpuPercent": 48.548,
+        "maxHostCpuPercent": 69.23
+      },
+      "gcWindow": {
+        "pauses": 299,
+        "fullPauses": 0,
+        "p95PauseMs": 2.831,
+        "maxPauseMs": 10.598,
+        "sumPauseMs": 729.909
+      }
+    },
+    {
+      "name": "search-c20-r2",
+      "scenario": "search",
+      "threads": 20,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793171123.011043,
+      "ended": 1793171476.656791,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 468683,
+        "valid": true,
+        "success": 468683,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 308.433,
+        "successfulRps": 1519.562,
+        "attemptedRps": 1519.562,
+        "p50Ms": 10,
+        "p95Ms": 27,
+        "p99Ms": 37,
+        "maxMs": 67,
+        "meanMs": 12.686,
+        "responseCodes": {
+          "200": 468683
+        },
+        "startEpoch": 1793171156.499,
+        "endEpoch": 1793171464.932,
+        "activeStartEpoch": 1793171156.499,
+        "activeEndEpoch": 1793171464.932,
+        "activeWindowSeconds": 308.433
+      },
+      "labels": {
+        "search": {
+          "samples": 468683,
+          "valid": true,
+          "success": 468683,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 308.433,
+          "successfulRps": 1519.562,
+          "attemptedRps": 1519.562,
+          "p50Ms": 10,
+          "p95Ms": 27,
+          "p99Ms": 37,
+          "maxMs": 67,
+          "meanMs": 12.686,
+          "responseCodes": {
+            "200": 468683
+          },
+          "startEpoch": 1793171156.499,
+          "endEpoch": 1793171464.932,
+          "activeStartEpoch": 1793171156.499,
+          "activeEndEpoch": 1793171464.932,
+          "activeWindowSeconds": 308.433
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 31,
+        "minimumAvailableMiB": 3101.28,
+        "minimumDiskFreeGiB": 73.43,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 10.115,
+            "maxRssMiB": 549.02
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 22.834,
+            "maxRssMiB": 220.41
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 3.747,
+            "maxRssMiB": 267.79
+          }
+        },
+        "meanHostCpuPercent": 56.181,
+        "maxHostCpuPercent": 67.1
+      },
+      "gcWindow": {
+        "pauses": 503,
+        "fullPauses": 0,
+        "p95PauseMs": 1.811,
+        "maxPauseMs": 2.706,
+        "sumPauseMs": 790.488
+      }
+    },
+    {
+      "name": "search-c5-r1",
+      "scenario": "search",
+      "threads": 5,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793151904.5404203,
+      "ended": 1793152256.9834857,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 139679,
+        "valid": true,
+        "success": 139679,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 307.869,
+        "successfulRps": 453.696,
+        "attemptedRps": 453.696,
+        "p50Ms": 9,
+        "p95Ms": 21,
+        "p99Ms": 27,
+        "maxMs": 52,
+        "meanMs": 10.491,
+        "responseCodes": {
+          "200": 139679
+        },
+        "startEpoch": 1793151938.668,
+        "endEpoch": 1793152246.537
+      },
+      "labels": {
+        "search": {
+          "samples": 139679,
+          "valid": true,
+          "success": 139679,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 307.869,
+          "successfulRps": 453.696,
+          "attemptedRps": 453.696,
+          "p50Ms": 9,
+          "p95Ms": 21,
+          "p99Ms": 27,
+          "maxMs": 52,
+          "meanMs": 10.491,
+          "responseCodes": {
+            "200": 139679
+          },
+          "startEpoch": 1793151938.668,
+          "endEpoch": 1793152246.537
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 30,
+        "minimumAvailableMiB": 2066.44,
+        "minimumDiskFreeGiB": 77.29,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 4.857,
+            "maxRssMiB": 472.55
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 7.474,
+            "maxRssMiB": 44.89
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 1.545,
+            "maxRssMiB": 162.39
+          }
+        },
+        "meanHostCpuPercent": 34.373,
+        "maxHostCpuPercent": 42.93
+      },
+      "gcWindow": {
+        "pauses": 146,
+        "fullPauses": 0,
+        "p95PauseMs": 2.738,
+        "maxPauseMs": 4.37,
+        "sumPauseMs": 353.286
+      }
+    },
+    {
+      "name": "search-c50-r1",
+      "scenario": "search",
+      "threads": 50,
+      "duration": 340,
+      "ramp": 30,
+      "excludedSeconds": 30,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793152967.7947114,
+      "ended": 1793153321.1328797,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 284445,
+        "valid": true,
+        "success": 284445,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 307.633,
+        "successfulRps": 924.624,
+        "attemptedRps": 924.624,
+        "p50Ms": 58,
+        "p95Ms": 74,
+        "p99Ms": 87,
+        "maxMs": 167,
+        "meanMs": 53.468,
+        "responseCodes": {
+          "200": 284445
+        },
+        "startEpoch": 1793153002.108,
+        "endEpoch": 1793153309.741
+      },
+      "labels": {
+        "search": {
+          "samples": 284445,
+          "valid": true,
+          "success": 284445,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 307.633,
+          "successfulRps": 924.624,
+          "attemptedRps": 924.624,
+          "p50Ms": 58,
+          "p95Ms": 74,
+          "p99Ms": 87,
+          "maxMs": 167,
+          "meanMs": 53.468,
+          "responseCodes": {
+            "200": 284445
+          },
+          "startEpoch": 1793153002.108,
+          "endEpoch": 1793153309.741
+        }
+      },
+      "classification": "MEASURED",
+      "resourceWindow": {
+        "samples": 31,
+        "minimumAvailableMiB": 6057.55,
+        "minimumDiskFreeGiB": 77.12,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 7.894,
+            "maxRssMiB": 287.82
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 16.897,
+            "maxRssMiB": 24.48
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 3.087,
+            "maxRssMiB": 245.75
+          }
+        },
+        "meanHostCpuPercent": 46.537,
+        "maxHostCpuPercent": 92.79
+      },
+      "gcWindow": {
+        "pauses": 305,
+        "fullPauses": 0,
+        "p95PauseMs": 3.064,
+        "maxPauseMs": 3.517,
+        "sumPauseMs": 804.671
+      }
+    },
+    {
+      "name": "smoke-auth",
+      "scenario": "auth",
+      "threads": 1,
+      "duration": 12,
+      "ramp": 0,
+      "excludedSeconds": 0,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793151342.2081518,
+      "ended": 1793151362.3165555,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 2362,
+        "valid": true,
+        "success": 2362,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 10.049,
+        "successfulRps": 235.048,
+        "attemptedRps": 235.048,
+        "p50Ms": 3,
+        "p95Ms": 5,
+        "p99Ms": 7,
+        "maxMs": 909,
+        "meanMs": 3.274,
+        "responseCodes": {
+          "200": 2362
+        },
+        "startEpoch": 1793151345.945,
+        "endEpoch": 1793151355.994
+      },
+      "labels": {
+        "auth": {
+          "samples": 2362,
+          "valid": true,
+          "success": 2362,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 10.049,
+          "successfulRps": 235.048,
+          "attemptedRps": 235.048,
+          "p50Ms": 3,
+          "p95Ms": 5,
+          "p99Ms": 7,
+          "maxMs": 909,
+          "meanMs": 3.274,
+          "responseCodes": {
+            "200": 2362
+          },
+          "startEpoch": 1793151345.945,
+          "endEpoch": 1793151355.994
+        }
+      },
+      "classification": "PREPARATION",
+      "resourceWindow": {
+        "samples": 1,
+        "minimumAvailableMiB": 3040.88,
+        "minimumDiskFreeGiB": 77.35,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 3.33,
+            "maxRssMiB": 440.84
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.29,
+            "maxRssMiB": 12.19
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 6.61,
+            "maxRssMiB": 264.45
+          }
+        },
+        "meanHostCpuPercent": 28.29,
+        "maxHostCpuPercent": 28.29
+      }
+    },
+    {
+      "name": "smoke-detail",
+      "scenario": "detail",
+      "threads": 1,
+      "duration": 12,
+      "ramp": 0,
+      "excludedSeconds": 0,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793151281.8031638,
+      "ended": 1793151301.8786466,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 829,
+        "valid": true,
+        "success": 829,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 9.383,
+        "successfulRps": 88.351,
+        "attemptedRps": 88.351,
+        "p50Ms": 9,
+        "p95Ms": 12,
+        "p99Ms": 18,
+        "maxMs": 288,
+        "meanMs": 9.613,
+        "responseCodes": {
+          "200": 829
+        },
+        "startEpoch": 1793151286.624,
+        "endEpoch": 1793151296.007
+      },
+      "labels": {
+        "detail": {
+          "samples": 829,
+          "valid": true,
+          "success": 829,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 9.383,
+          "successfulRps": 88.351,
+          "attemptedRps": 88.351,
+          "p50Ms": 9,
+          "p95Ms": 12,
+          "p99Ms": 18,
+          "maxMs": 288,
+          "meanMs": 9.613,
+          "responseCodes": {
+            "200": 829
+          },
+          "startEpoch": 1793151286.624,
+          "endEpoch": 1793151296.007
+        }
+      },
+      "classification": "PREPARATION",
+      "resourceWindow": {
+        "samples": 1,
+        "minimumAvailableMiB": 3151.52,
+        "minimumDiskFreeGiB": 77.35,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 4.31,
+            "maxRssMiB": 305.3
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.21,
+            "maxRssMiB": 10.33
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 6.14,
+            "maxRssMiB": 202.96
+          }
+        },
+        "meanHostCpuPercent": 29.16,
+        "maxHostCpuPercent": 29.16
+      }
+    },
+    {
+      "name": "smoke-favorite",
+      "scenario": "favorite",
+      "threads": 1,
+      "duration": 12,
+      "ramp": 0,
+      "excludedSeconds": 0,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793151382.4688423,
+      "ended": 1793151402.5590506,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 372,
+        "valid": true,
+        "success": 372,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 9.906,
+        "successfulRps": 37.553,
+        "attemptedRps": 37.553,
+        "p50Ms": 24,
+        "p95Ms": 28,
+        "p99Ms": 32,
+        "maxMs": 149,
+        "meanMs": 24.124,
+        "responseCodes": {
+          "200": 372
+        },
+        "startEpoch": 1793151386.39,
+        "endEpoch": 1793151396.296
+      },
+      "labels": {
+        "favorite.add": {
+          "samples": 186,
+          "valid": true,
+          "success": 186,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 9.882,
+          "successfulRps": 18.822,
+          "attemptedRps": 18.822,
+          "p50Ms": 24,
+          "p95Ms": 29,
+          "p99Ms": 34,
+          "maxMs": 149,
+          "meanMs": 25.22,
+          "responseCodes": {
+            "200": 186
+          },
+          "startEpoch": 1793151386.39,
+          "endEpoch": 1793151396.272
+        },
+        "favorite.remove": {
+          "samples": 186,
+          "valid": true,
+          "success": 186,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 9.538,
+          "successfulRps": 19.501,
+          "attemptedRps": 19.501,
+          "p50Ms": 23,
+          "p95Ms": 27,
+          "p99Ms": 32,
+          "maxMs": 35,
+          "meanMs": 23.027,
+          "responseCodes": {
+            "200": 186
+          },
+          "startEpoch": 1793151386.758,
+          "endEpoch": 1793151396.296
+        }
+      },
+      "classification": "PREPARATION",
+      "resourceWindow": {
+        "samples": 1,
+        "minimumAvailableMiB": 2954.93,
+        "minimumDiskFreeGiB": 77.35,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 2.2,
+            "maxRssMiB": 450.86
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.65,
+            "maxRssMiB": 33.29
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 4.28,
+            "maxRssMiB": 196.32
+          }
+        },
+        "meanHostCpuPercent": 29.67,
+        "maxHostCpuPercent": 29.67
+      }
+    },
+    {
+      "name": "smoke-final-search",
+      "scenario": "search",
+      "threads": 1,
+      "duration": 20,
+      "ramp": 0,
+      "excludedSeconds": 0,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793151146.2869823,
+      "ended": 1793151176.3645196,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 2254,
+        "valid": true,
+        "success": 2254,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 18.348,
+        "successfulRps": 122.847,
+        "attemptedRps": 122.847,
+        "p50Ms": 7,
+        "p95Ms": 11,
+        "p99Ms": 13,
+        "maxMs": 64,
+        "meanMs": 7.224,
+        "responseCodes": {
+          "200": 2254
+        },
+        "startEpoch": 1793151149.785,
+        "endEpoch": 1793151168.133
+      },
+      "labels": {
+        "search": {
+          "samples": 2254,
+          "valid": true,
+          "success": 2254,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 18.348,
+          "successfulRps": 122.847,
+          "attemptedRps": 122.847,
+          "p50Ms": 7,
+          "p95Ms": 11,
+          "p99Ms": 13,
+          "maxMs": 64,
+          "meanMs": 7.224,
+          "responseCodes": {
+            "200": 2254
+          },
+          "startEpoch": 1793151149.785,
+          "endEpoch": 1793151168.133
+        }
+      },
+      "classification": "PREPARATION",
+      "resourceWindow": {
+        "samples": 1,
+        "minimumAvailableMiB": 4024.18,
+        "minimumDiskFreeGiB": 77.37,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 2.3,
+            "maxRssMiB": 540.66
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.39,
+            "maxRssMiB": 237.71
+          }
+        },
+        "meanHostCpuPercent": 32.55,
+        "maxHostCpuPercent": 32.55
+      }
+    },
+    {
+      "name": "smoke-keyword",
+      "scenario": "keyword",
+      "threads": 1,
+      "duration": 12,
+      "ramp": 0,
+      "excludedSeconds": 0,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793151322.0500512,
+      "ended": 1793151342.1789927,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 3639,
+        "valid": true,
+        "success": 3639,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 10.098,
+        "successfulRps": 360.368,
+        "attemptedRps": 360.368,
+        "p50Ms": 2,
+        "p95Ms": 3,
+        "p99Ms": 4,
+        "maxMs": 98,
+        "meanMs": 1.86,
+        "responseCodes": {
+          "200": 3639
+        },
+        "startEpoch": 1793151325.735,
+        "endEpoch": 1793151335.833
+      },
+      "labels": {
+        "keyword": {
+          "samples": 3639,
+          "valid": true,
+          "success": 3639,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 10.098,
+          "successfulRps": 360.368,
+          "attemptedRps": 360.368,
+          "p50Ms": 2,
+          "p95Ms": 3,
+          "p99Ms": 4,
+          "maxMs": 98,
+          "meanMs": 1.86,
+          "responseCodes": {
+            "200": 3639
+          },
+          "startEpoch": 1793151325.735,
+          "endEpoch": 1793151335.833
+        }
+      },
+      "classification": "PREPARATION",
+      "resourceWindow": {
+        "samples": 1,
+        "minimumAvailableMiB": 3043.39,
+        "minimumDiskFreeGiB": 77.35,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 4.72,
+            "maxRssMiB": 397.93
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.02,
+            "maxRssMiB": 11.82
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 7.33,
+            "maxRssMiB": 260.25
+          }
+        },
+        "meanHostCpuPercent": 29.5,
+        "maxHostCpuPercent": 29.5
+      }
+    },
+    {
+      "name": "smoke-login",
+      "scenario": "login",
+      "threads": 1,
+      "duration": 12,
+      "ramp": 0,
+      "excludedSeconds": 0,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793151362.3525386,
+      "ended": 1793151382.4399137,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 86,
+        "valid": true,
+        "success": 86,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 10.173,
+        "successfulRps": 8.454,
+        "attemptedRps": 8.454,
+        "p50Ms": 109,
+        "p95Ms": 128,
+        "p99Ms": 293,
+        "maxMs": 293,
+        "meanMs": 113.186,
+        "responseCodes": {
+          "200": 86
+        },
+        "startEpoch": 1793151366.047,
+        "endEpoch": 1793151376.22
+      },
+      "labels": {
+        "login": {
+          "samples": 86,
+          "valid": true,
+          "success": 86,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 10.173,
+          "successfulRps": 8.454,
+          "attemptedRps": 8.454,
+          "p50Ms": 109,
+          "p95Ms": 128,
+          "p99Ms": 293,
+          "maxMs": 293,
+          "meanMs": 113.186,
+          "responseCodes": {
+            "200": 86
+          },
+          "startEpoch": 1793151366.047,
+          "endEpoch": 1793151376.22
+        }
+      },
+      "classification": "PREPARATION",
+      "resourceWindow": {
+        "samples": 1,
+        "minimumAvailableMiB": 3121.33,
+        "minimumDiskFreeGiB": 77.34,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 3.56,
+            "maxRssMiB": 446.42
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.12,
+            "maxRssMiB": 14.61
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 3.02,
+            "maxRssMiB": 231.42
+          }
+        },
+        "meanHostCpuPercent": 21.97,
+        "maxHostCpuPercent": 21.97
+      }
+    },
+    {
+      "name": "smoke-mixed",
+      "scenario": "mixed",
+      "threads": 1,
+      "duration": 12,
+      "ramp": 0,
+      "excludedSeconds": 0,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793151402.5889251,
+      "ended": 1793151422.6771963,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 1242,
+        "valid": true,
+        "success": 1242,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 9.809,
+        "successfulRps": 126.618,
+        "attemptedRps": 126.618,
+        "p50Ms": 8,
+        "p95Ms": 12,
+        "p99Ms": 14,
+        "maxMs": 80,
+        "meanMs": 6.403,
+        "responseCodes": {
+          "200": 1242
+        },
+        "startEpoch": 1793151406.64,
+        "endEpoch": 1793151416.449
+      },
+      "labels": {
+        "search": {
+          "samples": 642,
+          "valid": true,
+          "success": 642,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 9.809,
+          "successfulRps": 65.45,
+          "attemptedRps": 65.45,
+          "p50Ms": 10,
+          "p95Ms": 13,
+          "p99Ms": 16,
+          "maxMs": 80,
+          "meanMs": 10.24,
+          "responseCodes": {
+            "200": 642
+          },
+          "startEpoch": 1793151406.64,
+          "endEpoch": 1793151416.449
+        },
+        "detail": {
+          "samples": 420,
+          "valid": true,
+          "success": 420,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 8.264,
+          "successfulRps": 50.823,
+          "attemptedRps": 50.823,
+          "p50Ms": 2,
+          "p95Ms": 3,
+          "p99Ms": 4,
+          "maxMs": 7,
+          "meanMs": 1.995,
+          "responseCodes": {
+            "200": 420
+          },
+          "startEpoch": 1793151407.694,
+          "endEpoch": 1793151415.958
+        },
+        "rank": {
+          "samples": 120,
+          "valid": true,
+          "success": 120,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 8.117,
+          "successfulRps": 14.784,
+          "attemptedRps": 14.784,
+          "p50Ms": 3,
+          "p95Ms": 5,
+          "p99Ms": 6,
+          "maxMs": 7,
+          "meanMs": 3.475,
+          "responseCodes": {
+            "200": 120
+          },
+          "startEpoch": 1793151407.88,
+          "endEpoch": 1793151415.997
+        },
+        "keyword": {
+          "samples": 60,
+          "valid": true,
+          "success": 60,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 8.057,
+          "successfulRps": 7.447,
+          "attemptedRps": 7.447,
+          "p50Ms": 2,
+          "p95Ms": 3,
+          "p99Ms": 4,
+          "maxMs": 4,
+          "meanMs": 2.067,
+          "responseCodes": {
+            "200": 60
+          },
+          "startEpoch": 1793151407.952,
+          "endEpoch": 1793151416.009
+        }
+      },
+      "classification": "PREPARATION",
+      "resourceWindow": {
+        "samples": 1,
+        "minimumAvailableMiB": 3050.01,
+        "minimumDiskFreeGiB": 77.34,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 1.4,
+            "maxRssMiB": 452.82
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.86,
+            "maxRssMiB": 37.75
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 5.79,
+            "maxRssMiB": 259.21
+          }
+        },
+        "meanHostCpuPercent": 25.29,
+        "maxHostCpuPercent": 25.29
+      }
+    },
+    {
+      "name": "smoke-rank",
+      "scenario": "rank",
+      "threads": 1,
+      "duration": 12,
+      "ramp": 0,
+      "excludedSeconds": 0,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793151301.910081,
+      "ended": 1793151322.0182912,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 1832,
+        "valid": true,
+        "success": 1832,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 10.072,
+        "successfulRps": 181.89,
+        "attemptedRps": 181.89,
+        "p50Ms": 4,
+        "p95Ms": 6,
+        "p99Ms": 9,
+        "maxMs": 118,
+        "meanMs": 4.174,
+        "responseCodes": {
+          "200": 1832
+        },
+        "startEpoch": 1793151305.629,
+        "endEpoch": 1793151315.701
+      },
+      "labels": {
+        "rank": {
+          "samples": 1832,
+          "valid": true,
+          "success": 1832,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 10.072,
+          "successfulRps": 181.89,
+          "attemptedRps": 181.89,
+          "p50Ms": 4,
+          "p95Ms": 6,
+          "p99Ms": 9,
+          "maxMs": 118,
+          "meanMs": 4.174,
+          "responseCodes": {
+            "200": 1832
+          },
+          "startEpoch": 1793151305.629,
+          "endEpoch": 1793151315.701
+        }
+      },
+      "classification": "PREPARATION",
+      "resourceWindow": {
+        "samples": 1,
+        "minimumAvailableMiB": 3290.02,
+        "minimumDiskFreeGiB": 77.35,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 4.06,
+            "maxRssMiB": 392.47
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 0.48,
+            "maxRssMiB": 11.8
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 6.3,
+            "maxRssMiB": 262.94
+          }
+        },
+        "meanHostCpuPercent": 27.33,
+        "maxHostCpuPercent": 27.33
+      }
+    },
+    {
+      "name": "smoke-search-jdk21",
+      "scenario": "search",
+      "threads": 1,
+      "duration": 20,
+      "ramp": 0,
+      "excludedSeconds": 0,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793151061.040393,
+      "ended": 1793151101.1797795,
+      "planSha256": null,
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 1973,
+        "success": 709,
+        "failures": 1264,
+        "failureRate": 0.6406487582361885,
+        "windowSeconds": 17.963,
+        "successfulRps": 39.47,
+        "attemptedRps": 109.837,
+        "p50Ms": 7,
+        "p95Ms": 19,
+        "p99Ms": 24,
+        "maxMs": 2134,
+        "meanMs": 8.058,
+        "responseCodes": {
+          "200": 709,
+          "Non HTTP response code: java.net.SocketException": 1,
+          "Non HTTP response code: org.apache.http.conn.HttpHostConnectException": 1263
+        },
+        "startEpoch": 1793151078.351,
+        "endEpoch": 1793151096.314
+      },
+      "labels": {
+        "search": {
+          "samples": 1973,
+          "success": 709,
+          "failures": 1264,
+          "failureRate": 0.6406487582361885,
+          "windowSeconds": 17.963,
+          "successfulRps": 39.47,
+          "attemptedRps": 109.837,
+          "p50Ms": 7,
+          "p95Ms": 19,
+          "p99Ms": 24,
+          "maxMs": 2134,
+          "meanMs": 8.058,
+          "responseCodes": {
+            "200": 709,
+            "Non HTTP response code: java.net.SocketException": 1,
+            "Non HTTP response code: org.apache.http.conn.HttpHostConnectException": 1263
+          },
+          "startEpoch": 1793151078.351,
+          "endEpoch": 1793151096.314
+        }
+      },
+      "classification": "PREPARATION"
+    },
+    {
+      "name": "smoke-search",
+      "scenario": "search",
+      "threads": 1,
+      "duration": 20,
+      "ramp": 0,
+      "excludedSeconds": 0,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793150879.4464152,
+      "ended": 1793150889.4897418,
+      "planSha256": null,
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 0,
+        "valid": false
+      },
+      "labels": {},
+      "classification": "PREPARATION"
+    },
+    {
+      "name": "warmup-resume",
+      "scenario": "search",
+      "threads": 5,
+      "duration": 120,
+      "ramp": 0,
+      "excludedSeconds": 0,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793168805.445954,
+      "ended": 1793168956.1325161,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 81867,
+        "valid": true,
+        "success": 81867,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 118.296,
+        "successfulRps": 692.052,
+        "attemptedRps": 692.052,
+        "p50Ms": 6,
+        "p95Ms": 16,
+        "p99Ms": 27,
+        "maxMs": 192,
+        "meanMs": 6.856,
+        "responseCodes": {
+          "200": 81867
+        },
+        "startEpoch": 1793168826.638,
+        "endEpoch": 1793168944.934,
+        "activeStartEpoch": 1793168826.638,
+        "activeEndEpoch": 1793168944.934,
+        "activeWindowSeconds": 118.296
+      },
+      "labels": {
+        "search": {
+          "samples": 81867,
+          "valid": true,
+          "success": 81867,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 118.296,
+          "successfulRps": 692.052,
+          "attemptedRps": 692.052,
+          "p50Ms": 6,
+          "p95Ms": 16,
+          "p99Ms": 27,
+          "maxMs": 192,
+          "meanMs": 6.856,
+          "responseCodes": {
+            "200": 81867
+          },
+          "startEpoch": 1793168826.638,
+          "endEpoch": 1793168944.934,
+          "activeStartEpoch": 1793168826.638,
+          "activeEndEpoch": 1793168944.934,
+          "activeWindowSeconds": 118.296
+        }
+      },
+      "classification": "PREPARATION",
+      "resourceWindow": {
+        "samples": 12,
+        "minimumAvailableMiB": 2158.43,
+        "minimumDiskFreeGiB": 76.04,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 5.09,
+            "maxRssMiB": 567.21
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 6.279,
+            "maxRssMiB": 411.82
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 2.231,
+            "maxRssMiB": 298.47
+          }
+        },
+        "meanHostCpuPercent": 33.522,
+        "maxHostCpuPercent": 42.9
+      }
+    },
+    {
+      "name": "warmup-search",
+      "scenario": "search",
+      "threads": 5,
+      "duration": 120,
+      "ramp": 0,
+      "excludedSeconds": 0,
+      "variant": "default",
+      "thinkMs": 0,
+      "started": 1793151422.7039247,
+      "ended": 1793151553.6570988,
+      "planSha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5",
+      "exitCode": 0,
+      "guardStop": null,
+      "overall": {
+        "samples": 49630,
+        "valid": true,
+        "success": 49630,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 117.883,
+        "successfulRps": 421.011,
+        "attemptedRps": 421.011,
+        "p50Ms": 10,
+        "p95Ms": 22,
+        "p99Ms": 30,
+        "maxMs": 109,
+        "meanMs": 11.228,
+        "responseCodes": {
+          "200": 49630
+        },
+        "startEpoch": 1793151426.64,
+        "endEpoch": 1793151544.523
+      },
+      "labels": {
+        "search": {
+          "samples": 49630,
+          "valid": true,
+          "success": 49630,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 117.883,
+          "successfulRps": 421.011,
+          "attemptedRps": 421.011,
+          "p50Ms": 10,
+          "p95Ms": 22,
+          "p99Ms": 30,
+          "maxMs": 109,
+          "meanMs": 11.228,
+          "responseCodes": {
+            "200": 49630
+          },
+          "startEpoch": 1793151426.64,
+          "endEpoch": 1793151544.523
+        }
+      },
+      "classification": "PREPARATION",
+      "resourceWindow": {
+        "samples": 11,
+        "minimumAvailableMiB": 2641.39,
+        "minimumDiskFreeGiB": 77.34,
+        "roles": {
+          "backend": {
+            "meanCpuPercentOfMachine": 4.74,
+            "maxRssMiB": 470.38
+          },
+          "mysql": {
+            "meanCpuPercentOfMachine": 6.874,
+            "maxRssMiB": 39.61
+          },
+          "jmeter": {
+            "meanCpuPercentOfMachine": 2.698,
+            "maxRssMiB": 273.47
+          }
+        },
+        "meanHostCpuPercent": 37.098,
+        "maxHostCpuPercent": 42.53
+      }
+    }
+  ],
+  "specials": [
+    {
+      "mode": "correctness-favorite",
+      "case": "favorite",
+      "requestedStartThreads": 100,
+      "status": "FAILED",
+      "started": 1793175090.5607142,
+      "batches": [],
+      "favoriteTarget": {
+        "userId": 2,
+        "resourceId": 1
+      },
+      "configuration": {
+        "threads": [
+          100
+        ],
+        "repetitions": 3
+      },
+      "lastAttempt": {
+        "operation": "favorite.add",
+        "threads": 100,
+        "repetition": 1,
+        "httpStatusCounts": {
+          "200": 91,
+          "400": 9
+        },
+        "businessCodeCounts": {
+          "0": 91,
+          "40901": 9
+        },
+        "duplicateIgnoredCounts": {
+          "true": 90,
+          "missing": 9,
+          "false": 1
+        },
+        "rateReasonCounts": {},
+        "uncertainResults": 0
+      },
+      "failureDatabaseState": {
+        "activeForResource": 1,
+        "activeForUserResource": 1,
+        "resourceFavoriteCount": 1,
+        "favoriteAggregateMismatches": 0
+      },
+      "ended": 1793175091.0312932,
+      "errorType": "RuntimeError",
+      "failureReason": "并发收藏应全部幂等成功",
+      "uncertainWrites": "HTTP超时/连接错误时需人工核对；不自动重试"
+    },
+    {
+      "mode": "correctness-resource",
+      "case": "resource",
+      "requestedStartThreads": 100,
+      "status": "PASSED",
+      "started": 1793175091.5726728,
+      "batches": [
+        {
+          "threads": 100,
+          "repetition": 1,
+          "createSuccess": 1,
+          "auditSuccess": 1,
+          "auditRows": 1,
+          "resourceId": 1001
+        },
+        {
+          "threads": 100,
+          "repetition": 2,
+          "createSuccess": 1,
+          "auditSuccess": 1,
+          "auditRows": 1,
+          "resourceId": 1011
+        },
+        {
+          "threads": 100,
+          "repetition": 3,
+          "createSuccess": 1,
+          "auditSuccess": 1,
+          "auditRows": 1,
+          "resourceId": 1021
+        }
+      ],
+      "favoriteTarget": {
+        "userId": 2,
+        "resourceId": 1
+      },
+      "configuration": {
+        "threads": [
+          100
+        ],
+        "repetitions": 3
+      },
+      "lastAttempt": {
+        "operation": "audit.approve",
+        "threads": 100,
+        "repetition": 3,
+        "httpStatusCounts": {
+          "400": 99,
+          "200": 1
+        },
+        "businessCodeCounts": {
+          "40901": 99,
+          "0": 1
+        },
+        "duplicateIgnoredCounts": {
+          "missing": 100
+        },
+        "rateReasonCounts": {},
+        "uncertainResults": 0,
+        "auditRows": 1
+      },
+      "ended": 1793175094.9955404
+    },
+    {
+      "mode": "download",
+      "case": "all",
+      "requestedStartThreads": 100,
+      "status": "PASSED",
+      "started": 1793175110.5723271,
+      "batches": [
+        {
+          "kind": "low-rate-complete",
+          "posts": 12,
+          "completeGets": 12,
+          "countedTrue": 3,
+          "intervalSeconds": 5,
+          "samples": [
+            {
+              "resourceId": 1,
+              "bytes": 102400,
+              "postMs": 75.972,
+              "getCompleteMs": 31.964,
+              "counted": true
+            },
+            {
+              "resourceId": 2,
+              "bytes": 1048576,
+              "postMs": 29.311,
+              "getCompleteMs": 30.862,
+              "counted": true
+            },
+            {
+              "resourceId": 3,
+              "bytes": 10485760,
+              "postMs": 39.107,
+              "getCompleteMs": 207.402,
+              "counted": true
+            },
+            {
+              "resourceId": 1,
+              "bytes": 102400,
+              "postMs": 24.306,
+              "getCompleteMs": 13.618,
+              "counted": false
+            },
+            {
+              "resourceId": 2,
+              "bytes": 1048576,
+              "postMs": 22.603,
+              "getCompleteMs": 25.938,
+              "counted": false
+            },
+            {
+              "resourceId": 3,
+              "bytes": 10485760,
+              "postMs": 39.679,
+              "getCompleteMs": 142.809,
+              "counted": false
+            },
+            {
+              "resourceId": 1,
+              "bytes": 102400,
+              "postMs": 22.899,
+              "getCompleteMs": 12.774,
+              "counted": false
+            },
+            {
+              "resourceId": 2,
+              "bytes": 1048576,
+              "postMs": 41.216,
+              "getCompleteMs": 28.739,
+              "counted": false
+            },
+            {
+              "resourceId": 3,
+              "bytes": 10485760,
+              "postMs": 21.093,
+              "getCompleteMs": 167.867,
+              "counted": false
+            },
+            {
+              "resourceId": 1,
+              "bytes": 102400,
+              "postMs": 35.584,
+              "getCompleteMs": 27.515,
+              "counted": false
+            },
+            {
+              "resourceId": 2,
+              "bytes": 1048576,
+              "postMs": 36.159,
+              "getCompleteMs": 21.044,
+              "counted": false
+            },
+            {
+              "resourceId": 3,
+              "bytes": 10485760,
+              "postMs": 42.217,
+              "getCompleteMs": 132.61,
+              "counted": false
+            }
+          ],
+          "latencyNote": "GET耗时为读取完整内容，未单独测量首字节"
+        },
+        {
+          "kind": "ticket-replay",
+          "requests": 100,
+          "success": 1,
+          "rejected": 99
+        },
+        {
+          "kind": "ticket-expiry-and-owner",
+          "expiredRejected": true,
+          "wrongAccountRejected": true,
+          "ownerStillSucceeded": true
+        },
+        {
+          "kind": "user-limit",
+          "allowed": 10,
+          "thresholdRejected": 1
+        },
+        {
+          "kind": "ip-limit",
+          "allowed": 30,
+          "thresholdRejected": 1
+        },
+        {
+          "kind": "presigned-file-burst",
+          "threads": 100,
+          "requestedThreads": 100,
+          "allowed": 30,
+          "rejected": 70,
+          "effectiveGetThreads": 30,
+          "adjustmentReason": "单IP每60秒30次签票，100线程不能取得100张有效票据",
+          "completeGets": 30,
+          "durationSeconds": 0.0521,
+          "bytes": 3072000,
+          "MiBPerSecond": 56.256,
+          "p95Ms": 48.675,
+          "lowSamplePercentiles": true,
+          "p99Ms": 49.991,
+          "note": "短时预签票GET，不代表持续完整下载业务容量"
+        }
+      ],
+      "initialDrainSnapshots": [
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 0.006
+        },
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 10.014
+        },
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 20.022
+        },
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 30.031
+        },
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 40.04
+        },
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 50.279
+        },
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 60.287
+        }
+      ],
+      "lastAttempt": {
+        "operation": "presigned-file-burst",
+        "threads": 30,
+        "repetition": null,
+        "httpStatusCounts": {
+          "200": 30
+        },
+        "businessCodeCounts": {
+          "binary-or-unknown": 30
+        },
+        "duplicateIgnoredCounts": {
+          "missing": 30
+        },
+        "rateReasonCounts": {},
+        "uncertainResults": 0
+      },
+      "knownPostSuccess": 85,
+      "knownCountedTrue": 40,
+      "drainSnapshots": [
+        {
+          "deltaFields": 1,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": false,
+          "elapsedSeconds": 0.004
+        },
+        {
+          "deltaFields": 1,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": false,
+          "elapsedSeconds": 10.01
+        },
+        {
+          "deltaFields": 1,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": false,
+          "elapsedSeconds": 20.014
+        },
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 30.02
+        },
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 40.026
+        },
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 50.032
+        },
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 60.037
+        },
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 70.042
+        },
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 80.047
+        },
+        {
+          "deltaFields": 0,
+          "hasCurrent": false,
+          "batchFields": {},
+          "empty": true,
+          "elapsedSeconds": 90.051
+        }
+      ],
+      "downloadReconciliation": [
+        {
+          "resourceId": 1,
+          "before": 0,
+          "after": 38,
+          "countedTrue": 38,
+          "delta": 38
+        },
+        {
+          "resourceId": 2,
+          "before": 0,
+          "after": 1,
+          "countedTrue": 1,
+          "delta": 1
+        },
+        {
+          "resourceId": 3,
+          "before": 0,
+          "after": 1,
+          "countedTrue": 1,
+          "delta": 1
+        }
+      ],
+      "postSuccess": 85,
+      "completeGets": 44,
+      "countedTrue": 40,
+      "uncertainWrites": 0,
+      "ended": 1793175628.431539
+    },
+    {
+      "mode": "upload",
+      "case": "all",
+      "requestedStartThreads": 100,
+      "status": "PASSED",
+      "started": 1793175095.5737398,
+      "batches": [
+        {
+          "kind": "file-check",
+          "ownerHit": true,
+          "unauthorizedHidden": true,
+          "firstMiss": true,
+          "negativeCacheVerified": true,
+          "negativeTtlSeconds": 300,
+          "uploadOverwritesNegative": true
+        },
+        {
+          "kind": "same-content",
+          "threads": 100,
+          "samples": 100,
+          "success": 100,
+          "failures": 0,
+          "durationSeconds": 2.4049,
+          "successfulRps": 41.582,
+          "p95Ms": 2361.222,
+          "p99Ms": 2393.375,
+          "lowSamplePercentiles": true,
+          "bytes": 10240000,
+          "MiBPerSecond": 4.061,
+          "uniqueFileRows": 1,
+          "authorizedUsers": 100
+        },
+        {
+          "kind": "unique-content",
+          "threads": 100,
+          "fileSize": 102400,
+          "samples": 100,
+          "success": 100,
+          "failures": 0,
+          "durationSeconds": 0.9787,
+          "successfulRps": 102.173,
+          "p95Ms": 932.857,
+          "p99Ms": 966.586,
+          "lowSamplePercentiles": true,
+          "bytes": 10240000,
+          "MiBPerSecond": 9.978
+        },
+        {
+          "kind": "unique-content",
+          "threads": 100,
+          "fileSize": 1048576,
+          "samples": 100,
+          "success": 100,
+          "failures": 0,
+          "durationSeconds": 1.0501,
+          "successfulRps": 95.232,
+          "p95Ms": 1011.716,
+          "p99Ms": 1036.278,
+          "lowSamplePercentiles": true,
+          "bytes": 104857600,
+          "MiBPerSecond": 95.232
+        },
+        {
+          "kind": "unique-content",
+          "threads": 10,
+          "fileSize": 10485760,
+          "samples": 20,
+          "success": 20,
+          "failures": 0,
+          "durationSeconds": 0.7971,
+          "successfulRps": 25.091,
+          "p95Ms": 485.248,
+          "p99Ms": 512.346,
+          "lowSamplePercentiles": true,
+          "bytes": 209715200,
+          "MiBPerSecond": 250.911
+        }
+      ],
+      "transport": "Python urllib短批，无连接池/无keepalive；不是JMeter五分钟稳态容量",
+      "lastAttempt": {
+        "operation": "upload.unique-content",
+        "threads": 10,
+        "repetition": null,
+        "httpStatusCounts": {
+          "200": 20
+        },
+        "businessCodeCounts": {
+          "0": 20
+        },
+        "duplicateIgnoredCounts": {
+          "missing": 20
+        },
+        "rateReasonCounts": {},
+        "uncertainResults": 0
+      },
+      "configuration": {
+        "requestedStartThreads": 100,
+        "plannedSourceAndStoredBytes": 650448896,
+        "uniqueContent": [
+          {
+            "size": 102400,
+            "threads": 100,
+            "requests": 100
+          },
+          {
+            "size": 1048576,
+            "threads": 100,
+            "requests": 100
+          },
+          {
+            "size": 10485760,
+            "threads": 10,
+            "requests": 20
+          }
+        ],
+        "adjustmentReason": "10MiB上传使用urllib整包缓冲，同机100并发会产生多份百MiB/ GiB级缓冲，降为10线程20请求"
+      },
+      "ended": 1793175109.918236
+    },
+    {
+      "mode": "verify",
+      "case": "all",
+      "requestedStartThreads": 100,
+      "status": "PASSED",
+      "started": 1793175629.1060607,
+      "batches": [],
+      "checks": {
+        "favoriteCountMismatches": 0,
+        "favoriteDuplicateRelations": 0,
+        "activeResourceDuplicates": 0,
+        "fileDigestSizeDuplicates": 0,
+        "normalFiles": 1225,
+        "physicalFiles": 1225,
+        "authorizationRows": 1324,
+        "resourceRows": 1003,
+        "auditRows": 953,
+        "partFiles": 0,
+        "orphanPhysicalFiles": 0,
+        "manifestAuthorizationsVerified": true,
+        "manifestFileIdentityVerified": true,
+        "resourceFileAndUploaderVerified": true,
+        "auditStateChainsVerified": true
+      },
+      "lastAttempt": {
+        "operation": "cache.cold-detail",
+        "threads": 100,
+        "repetition": null,
+        "httpStatusCounts": {
+          "200": 100
+        },
+        "businessCodeCounts": {
+          "0": 100
+        },
+        "duplicateIgnoredCounts": {
+          "missing": 100
+        },
+        "rateReasonCounts": {},
+        "uncertainResults": 0
+      },
+      "visibility": {
+        "approvedVisible": true,
+        "pendingRejected": true,
+        "rejectedHidden": true,
+        "offlineHidden": true,
+        "missing404": true,
+        "noToken401": true
+      },
+      "coldCache": {
+        "threads": 100,
+        "success": 100,
+        "deletedTargetKeys": 1,
+        "ttlSeconds": 1984,
+        "samples": 100,
+        "failures": 0,
+        "durationSeconds": 0.1003,
+        "successfulRps": 996.678,
+        "p95Ms": 79.815,
+        "p99Ms": 85.677,
+        "lowSamplePercentiles": true,
+        "bytes": 0,
+        "MiBPerSecond": 0.0,
+        "sqlQueriesMeasured": false,
+        "note": "只验证返回与回填TTL，不声称SQL只执行一次"
+      },
+      "ended": 1793175657.3167937
+    }
+  ],
+  "rawEvidence": [
+    {
+      "file": "detail-c1-r1.summary.json",
+      "sha256": "c0cb61d05f4ae99fd9e9c39f7c891f6bce69cb7d128b557bd82ed19209dbc6a1",
+      "bytes": 1366
+    },
+    {
+      "file": "detail-c1-r1.jtl",
+      "sha256": "a1bdaaf24325bc1b356d476a6d9861d781cfb90c541fdfbbb1723350d32e1edc",
+      "bytes": 27797876
+    },
+    {
+      "file": "detail-c10-r1.summary.json",
+      "sha256": "7c4ed4e7b83aa416f893bd5b07673322442fcf748e9dcb29042ea52d4b14e9ee",
+      "bytes": 1375
+    },
+    {
+      "file": "detail-c10-r1.jtl",
+      "sha256": "9bea0c7554defa5ea32c92bcdd7de690cb38d2bab699d76ac51afaaaeb2b8c09",
+      "bytes": 197566558
+    },
+    {
+      "file": "detail-c100-r1.summary.json",
+      "sha256": "ccc0b299b64166f7bde131e5f974c3dc23fe3d4a9ff6f4b936c994853af68d3f",
+      "bytes": 1383
+    },
+    {
+      "file": "detail-c100-r1.jtl",
+      "sha256": "8e238add99ed420a2c54a4b6ce95dd9ae8e1e964863c15af8e09ed89f94b3674",
+      "bytes": 230078035
+    },
+    {
+      "file": "detail-c20-r1.summary.json",
+      "sha256": "56cf93d8f54676152fd93dbf832a47251fa12290f88c2aa6aae89eb673ed0cab",
+      "bytes": 1374
+    },
+    {
+      "file": "detail-c20-r1.jtl",
+      "sha256": "3919c823d00e1b4fb80378e557cda055475d1d0830f2c4ebec35873bbab050e1",
+      "bytes": 221961543
+    },
+    {
+      "file": "detail-c5-r1.summary.json",
+      "sha256": "1a048eda43100e2121ff68d0dcc6c9616ef1a951dc821f1841a22595764c0af8",
+      "bytes": 1367
+    },
+    {
+      "file": "detail-c5-r1.jtl",
+      "sha256": "85e8c2ef7b072d8d0c2872cfedd8a9b83045c5880bea81e5c4e9fdb3c626c103",
+      "bytes": 134709960
+    },
+    {
+      "file": "detail-c50-r1.summary.json",
+      "sha256": "ef760ec5febe62c79f456187be444d78ab4b2ac5bd9b98676f177fe3751a3d79",
+      "bytes": 1380
+    },
+    {
+      "file": "detail-c50-r1.jtl",
+      "sha256": "cf3aaecd52c6d2f9c1690874cc28f245ac55c3a1b156028f801dbe5cebafa127",
+      "bytes": 236060957
+    },
+    {
+      "file": "mixed-c100.summary.json",
+      "sha256": "8a6a1955c71b29ecc41c1aff129448223e42863a08be8314a5957cb634c8bcf4",
+      "bytes": 3373
+    },
+    {
+      "file": "mixed-c100.jtl",
+      "sha256": "4cc70b8da56f382592d5714753f26717f3f4633d3d397a502b4c70f107d5ae30",
+      "bytes": 5806361
+    },
+    {
+      "file": "profile-adjusted-category-c50.summary.json",
+      "sha256": "7c3667ff05b4d5e9292880066d068da927c2a0939581b9e09d09654caf963d44",
+      "bytes": 1622
+    },
+    {
+      "file": "profile-adjusted-category-c50.jtl",
+      "sha256": "869fdf643fd5a24ec9f8b1b6ed9a84e918c0292df45c02b0e9406231ec5c60da",
+      "bytes": 10628446
+    },
+    {
+      "file": "profile-adjusted-login-c20.summary.json",
+      "sha256": "8ba530e188e63f5b9e88c931826d7fdff5caf4d8f4a77f7f57ca85a4cd795ea1",
+      "bytes": 1618
+    },
+    {
+      "file": "profile-adjusted-login-c20.jtl",
+      "sha256": "9bd6a635099fa6deaf778cede9ebcaf337062220ada446a769807d54724ddcd4",
+      "bytes": 1143936
+    },
+    {
+      "file": "profile-adjusted-login-c50.summary.json",
+      "sha256": "1096e712d9108b1f344b779913eccc3f283ebfb8b090bcdd8366d31599efaf30",
+      "bytes": 1625
+    },
+    {
+      "file": "profile-adjusted-login-c50.jtl",
+      "sha256": "825f8193fcc5b435a1f479aeecb8338b48d42fbd4f9ebf8d73f81221910d7da1",
+      "bytes": 1185440
+    },
+    {
+      "file": "profile-fixed-category-c100.summary.json",
+      "sha256": "94fe00467c04097089697e74a0c6263239a8b0ea65fa9c7b029f2fe717d2f716",
+      "bytes": 1629
+    },
+    {
+      "file": "profile-fixed-category-c100.jtl",
+      "sha256": "ca57ae637d6f9b6389a8aa0fbe7a99f6ebf4ac92dca47a8da476f36885a3e6bb",
+      "bytes": 12954927
+    },
+    {
+      "file": "profile100-search-category.summary.json",
+      "sha256": "554ac48a0ad130d0b4d3ccc8fd56717b1f116fe3e5cc74b2be164134df9f7dda",
+      "bytes": 1839
+    },
+    {
+      "file": "profile100-search-category.jtl",
+      "sha256": "09d86ee20a832e3cb229cb4546028281695c8aa08c3f47c7d0f516d22a1e8fbe",
+      "bytes": 44172542
+    },
+    {
+      "file": "profile100-search-empty.summary.json",
+      "sha256": "a20508f41d4c4138f8e2b08b570fad538e0cda41113fcc42d49b99f7bc2ee77e",
+      "bytes": 1622
+    },
+    {
+      "file": "profile100-search-empty.jtl",
+      "sha256": "031657123f1d9ea1b248a0a3c46058566c330022fbdd5a0ddc78c30caa37bf98",
+      "bytes": 62620980
+    },
+    {
+      "file": "profile100-search-nomatch.summary.json",
+      "sha256": "74ff1bbccf6c5239e56d3d38698ea126c17663b488919c825cc330ce7823d26a",
+      "bytes": 1628
+    },
+    {
+      "file": "profile100-search-nomatch.jtl",
+      "sha256": "029e372516c881a20feb4b21ba9180db4cd3332d2f4339d2002ddd603933f90c",
+      "bytes": 36202922
+    },
+    {
+      "file": "profile100paced-auth.summary.json",
+      "sha256": "08f5ae711c369874571e30fc693ce94631b4c106d83f496c309761b0d9f7a0d0",
+      "bytes": 1616
+    },
+    {
+      "file": "profile100paced-auth.jtl",
+      "sha256": "d1ba65604160f6768853719970e97d84f86199e5e9ca75f3cc6dd739dbdec183",
+      "bytes": 26542190
+    },
+    {
+      "file": "profile100paced-favorite.summary.json",
+      "sha256": "f0a46318e93fb8c7c2837e556884df852d3e879d3b2befe4cb56b929e7065578",
+      "bytes": 2253
+    },
+    {
+      "file": "profile100paced-favorite.jtl",
+      "sha256": "180120a37e017dc2cd1ef1980b79062c13885ad4439fc1a5016fc13b563b15e1",
+      "bytes": 10692428
+    },
+    {
+      "file": "profile100paced-keyword.summary.json",
+      "sha256": "994d26925c53bec8996af3ba9309bb4c3701cf6ed0b5be6be1bc1f079b51aa32",
+      "bytes": 1626
+    },
+    {
+      "file": "profile100paced-keyword.jtl",
+      "sha256": "ea80e6dfe53f8a9410e4706c254794e52d7968e6575fad9cb47c0009fbb34a3b",
+      "bytes": 34906727
+    },
+    {
+      "file": "profile100paced-login.summary.json",
+      "sha256": "d548164af75670bcc04c868eb15a04df220562d3d2e9a9319d829aaa49dde000",
+      "bytes": 1623
+    },
+    {
+      "file": "profile100paced-login.jtl",
+      "sha256": "b9785a004f6113e32aa8e24615c1f8cd3c2462f6f3a177acee7ac818daa84109",
+      "bytes": 1167996
+    },
+    {
+      "file": "profile100paced-search-deep.summary.json",
+      "sha256": "b709a586515a1f14650429a3d62ff58b19e010c38f9ca6a3a922c81a1eee499b",
+      "bytes": 1618
+    },
+    {
+      "file": "profile100paced-search-deep.jtl",
+      "sha256": "a3beba0a43a584c2e3cff53811a260a0cb9fd8ebca3ff08fd93286244c6c3a3a",
+      "bytes": 17134102
+    },
+    {
+      "file": "profile100paced-search-downloadCount.summary.json",
+      "sha256": "073be6faac623a4391af2179889f80edd670552b82d2ab6385c8a94bd9e5a195",
+      "bytes": 1640
+    },
+    {
+      "file": "profile100paced-search-downloadCount.jtl",
+      "sha256": "4e1b3464159f3f4e843ffaa1bf4e16a780a29cf1a7c2e641affe58d7b1d7ba32",
+      "bytes": 17022870
+    },
+    {
+      "file": "profile100paced-search-favoriteCount.summary.json",
+      "sha256": "19aa039b62490da52b647f8cee98e065d201350cb7a2d777de2e89d24a1c4ba1",
+      "bytes": 1641
+    },
+    {
+      "file": "profile100paced-search-favoriteCount.jtl",
+      "sha256": "7cda45a67eb2aa862a1bbed1c14e210153991cda0ed34d9e4a46b294cec08653",
+      "bytes": 17039079
+    },
+    {
+      "file": "profile100paced-search-hotScore.summary.json",
+      "sha256": "e9c153c5faaa5aadf3664c7d2d9524e4afacfc14695b1b6e8e41bdcbb0a36d5b",
+      "bytes": 1630
+    },
+    {
+      "file": "profile100paced-search-hotScore.jtl",
+      "sha256": "c0dc4b425f7fb5b7dfcd572827dc68ce912a5491f6a167423371d9eedbb3aaf9",
+      "bytes": 10476990
+    },
+    {
+      "file": "rank-c1-r1.summary.json",
+      "sha256": "19204c43a4aeab9bf494fcfd8a8d888c256efdc4273498286767380f9e49e135",
+      "bytes": 1357
+    },
+    {
+      "file": "rank-c1-r1.jtl",
+      "sha256": "b35ee3a265aa65037bbbc2d8f01fb66c217f238b7721c83dab19478e8ccb7e3f",
+      "bytes": 17548561
+    },
+    {
+      "file": "rank-c1-r2.summary.json",
+      "sha256": "fa0071053273620a6972948a7d627d973548d8deb2e377867445a0ce48ceb785",
+      "bytes": 1597
+    },
+    {
+      "file": "rank-c1-r2.jtl",
+      "sha256": "06d63436a7bab754d06d0faa4f75db5f881828108024c02b2acfd656dfacfc8e",
+      "bytes": 30270762
+    },
+    {
+      "file": "rank-c10-r1.summary.json",
+      "sha256": "861d4064423788c6b31787477db26e90ead3ab9abb0b0216368f8e645c5f9494",
+      "bytes": 1613
+    },
+    {
+      "file": "rank-c10-r1.jtl",
+      "sha256": "2b145e933547866a064980ec851784bb5d9575a7f2880142e5f92ae316c3ae83",
+      "bytes": 226940810
+    },
+    {
+      "file": "rank-c100-r1.summary.json",
+      "sha256": "39258b84e59a1ffa92217aecee5b97a108f0b162dd90ea96f1e96cf62ad98efe",
+      "bytes": 1619
+    },
+    {
+      "file": "rank-c100-r1.jtl",
+      "sha256": "95076449182bb3ea9a0a092e843a983e1536b4279d77a2bac1214acf77f836fb",
+      "bytes": 440041592
+    },
+    {
+      "file": "rank-c20-r1.summary.json",
+      "sha256": "4853e6d56c7a56454cae0b2912fc388ec5b75dc4d944265367397bd96b01e084",
+      "bytes": 1617
+    },
+    {
+      "file": "rank-c20-r1.jtl",
+      "sha256": "ad6edbd0574a30700b1eedc6f774ddb056f074a023884f319303db143040414a",
+      "bytes": 328506860
+    },
+    {
+      "file": "rank-c5-r1.summary.json",
+      "sha256": "9be1e285d85b4e7ace14e86bfd97904115429f9715be535025193aa74fc36478",
+      "bytes": 1606
+    },
+    {
+      "file": "rank-c5-r1.jtl",
+      "sha256": "f82d02e3077263a9855efd0e48c06a47957342bdd47a15e1de2f9e68a88ae6b0",
+      "bytes": 139081578
+    },
+    {
+      "file": "rank-c50-r1.summary.json",
+      "sha256": "fe6c1bc52f6c5bbe076325d1a188a779f70e7fcdeb569fb30894ef21f0cab61a",
+      "bytes": 1606
+    },
+    {
+      "file": "rank-c50-r1.jtl",
+      "sha256": "91d67c70c74067e08ae8e5a0d86cb10312e05614d68a2afe2c4a3b09f4a3897f",
+      "bytes": 440071029
+    },
+    {
+      "file": "search-c1-r1.summary.json",
+      "sha256": "cc39ccb9f568e58356f6574592009af4abe5dda268b6287d799d9ce3e6d85d67",
+      "bytes": 1366
+    },
+    {
+      "file": "search-c1-r1.jtl",
+      "sha256": "45ddb9cd92716280f7baa1c840dfdb3cf1a8b85aac96317669974bea6857a7a7",
+      "bytes": 7299219
+    },
+    {
+      "file": "search-c10-r1.summary.json",
+      "sha256": "4dc7c622a783ef3738512bc2bebd3a844c6ae1cbbee228510319b83aa60c8ddb",
+      "bytes": 1378
+    },
+    {
+      "file": "search-c10-r1.jtl",
+      "sha256": "89b67f00eeba6c77a72160edb1541a5ff4169c309c29d5ba3801b1ac7dfb7584",
+      "bytes": 55010066
+    },
+    {
+      "file": "search-c100-r1.summary.json",
+      "sha256": "9f4d8fd824825f58284a320003b0b9e2e27e747e21ad9c06f67faa1d9f3aff62",
+      "bytes": 1386
+    },
+    {
+      "file": "search-c100-r1.jtl",
+      "sha256": "fefafd782e2d2f29a1b2df0ddd5f0bd23ccc3e7324bf8c9fe7d94e2406a6fc33",
+      "bytes": 69365647
+    },
+    {
+      "file": "search-c100-r2.summary.json",
+      "sha256": "657275a7ed490b08904de74aeda1f28d216822778b33d518ead372f7ed6b2680",
+      "bytes": 1624
+    },
+    {
+      "file": "search-c100-r2.jtl",
+      "sha256": "fb98da9a9b88f6f7c5a34dd33443b1123ccfd17ff9929e7783c5f71b5d35ee4e",
+      "bytes": 162233518
+    },
+    {
+      "file": "search-c20-r1.summary.json",
+      "sha256": "219c409af7c6df696458fdcc73ff24d799c559ce3680ef76765cd275af1ec5d2",
+      "bytes": 1378
+    },
+    {
+      "file": "search-c20-r1.jtl",
+      "sha256": "45d6b5834daf3db8ddba21d6f5997fc83305fbf3530afe6d21d6392494fbdf43",
+      "bytes": 65171535
+    },
+    {
+      "file": "search-c20-r2.summary.json",
+      "sha256": "245839e36229e0967e5e720638b99b4c9bbbe3fb9e9285dc09c86dd11cbc8dc1",
+      "bytes": 1619
+    },
+    {
+      "file": "search-c20-r2.jtl",
+      "sha256": "8f4b76868372034bcbd6531f440a4e232356812f09c6461a05704023711fbf90",
+      "bytes": 107265036
+    },
+    {
+      "file": "search-c5-r1.summary.json",
+      "sha256": "b08a9d1009f252622fc104789f327ba981591eb780af21f9dd8a94031f4bfd86",
+      "bytes": 1372
+    },
+    {
+      "file": "search-c5-r1.jtl",
+      "sha256": "19be849ed1a3de14bc974af971639ee04e60b2cd8055a36b16620fce2db73063",
+      "bytes": 31366044
+    },
+    {
+      "file": "search-c50-r1.summary.json",
+      "sha256": "4b0899d5a1cf728a575e89189e9862ed7a24898fb4fe53dc8edaf045fa7d7fda",
+      "bytes": 1378
+    },
+    {
+      "file": "search-c50-r1.jtl",
+      "sha256": "e7f716fdbfc1598812ec8fe786a49303471cefb1c730572b25c6bcc8f0cd3c37",
+      "bytes": 71777283
+    },
+    {
+      "file": "smoke-auth.summary.json",
+      "sha256": "23e48f4d4bfe759aece1531dcc29ae27226d70658828cd3d1b58bf577915a265",
+      "bytes": 1345
+    },
+    {
+      "file": "smoke-detail.summary.json",
+      "sha256": "063b91d53c90cbae7cf5ede137beffa06077b2d645d634f6e41130890dc7d1df",
+      "bytes": 1343
+    },
+    {
+      "file": "smoke-favorite.summary.json",
+      "sha256": "00186be2d6f9c55c2b430e49171b9c6105a6a2d7b6855f9c7e0d17be4a2e06d8",
+      "bytes": 1831
+    },
+    {
+      "file": "smoke-final-search.summary.json",
+      "sha256": "4ef3f8a697f9c24ca5de8e5b19f5c851d6dc9e33bff19a459e2b1ebdf1e74fdc",
+      "bytes": 1359
+    },
+    {
+      "file": "smoke-keyword.summary.json",
+      "sha256": "0b598699e147de7d47e1df20c8945c8d7060f7af0f2b7cc0ed051dd0e52ce52f",
+      "bytes": 1350
+    },
+    {
+      "file": "smoke-login.summary.json",
+      "sha256": "c90d01f32e244ad875dc0ff9f5173ae5ed9324323c6bfc348213c1ff4b9d8f93",
+      "bytes": 1342
+    },
+    {
+      "file": "smoke-mixed.summary.json",
+      "sha256": "2ed9cadae3ef66df3f72c722c6fa4c2ff53294931d08515b78eaf9b351fce49f",
+      "bytes": 2723
+    },
+    {
+      "file": "smoke-rank.summary.json",
+      "sha256": "1e4742fbea785da6386b770ef1937bd40783e6fcb086af2337105e847c4f5bf9",
+      "bytes": 1340
+    },
+    {
+      "file": "smoke-search-jdk21.summary.json",
+      "sha256": "f31d1d2af4eb4667e3a5e51a1146203e573592ee444e268ca0145c7e7b8c572a",
+      "bytes": 1515
+    },
+    {
+      "file": "smoke-search.summary.json",
+      "sha256": "0eee254a5ed1154c3bf70cf20793e5014882d62f1fa5a534405bbc1d249ab053",
+      "bytes": 373
+    },
+    {
+      "file": "warmup-resume.summary.json",
+      "sha256": "e3646158942e5753bd80642f5960f3f34d4db9ac6fa569b31921fb4b6e5c964e",
+      "bytes": 1604
+    },
+    {
+      "file": "warmup-search.summary.json",
+      "sha256": "894c209147be231e82e13043e85bbea3a22f6afb9a4085c7f66a836c6da3412a",
+      "bytes": 1367
+    },
+    {
+      "file": "correctness-favorite.special.json",
+      "sha256": "b608800f6c0dd88db01675682a11aac38202e694220517d2296fbb845a46bb8c",
+      "bytes": 1096
+    },
+    {
+      "file": "correctness-resource.special.json",
+      "sha256": "4bfa2fce9fe684daa3fce92c17e33ce1c6ad0f04c68261df8c10a0fb6e4aeef1",
+      "bytes": 1235
+    },
+    {
+      "file": "download.special.json",
+      "sha256": "7070d586fdb0016e3c372253d3976316daffa118834f47fb7438aeda725cefda",
+      "bytes": 7031
+    },
+    {
+      "file": "upload.special.json",
+      "sha256": "542d6ad06d5cc72f0ac737f4ecdd5f9d4c20c714ab2c40c00c99f9dd04282edf",
+      "bytes": 2966
+    },
+    {
+      "file": "verify.special.json",
+      "sha256": "d15d62041d12237d00be42a237c625bb810c8862b1311b63332244a4396b134a",
+      "bytes": 1688
+    },
+    {
+      "file": "search-c20-r3.user-stop.json",
+      "sha256": "16594c767ac52381b8f9467f5036fb8c8d4be03bcb386ba1e22ce94bdc4b68bd",
+      "bytes": 144,
+      "completed": false
+    },
+    {
+      "file": "search-c20-r3.jtl",
+      "sha256": "751bee8b9289e3b0086bfa4cba0ffcee6363e4242fc0d9c464a25f72ca22650f",
+      "bytes": 63867913,
+      "completed": false
+    },
+    {
+      "file": "soak-mixed-c100.user-stop.json",
+      "sha256": "b2eb6e8d3beb4d92ea9c6daeae68d7309eca3cbffd3b68174fa3044ae5aa74ce",
+      "bytes": 3503,
+      "completed": false
+    },
+    {
+      "file": "soak-mixed-c100.jtl",
+      "sha256": "42774c02d0e0a14afb0e74723de3c65626d0299d10ddaa1d9326cf48c4d7fd45",
+      "bytes": 16432963,
+      "completed": false
+    },
+    {
+      "file": "resources.ndjson",
+      "sha256": "09b9db441fd6aee1d03b77dfd7ebeeb288a53120700aa3b083b31696a9d2ae92",
+      "bytes": 1208795
+    },
+    {
+      "file": "db-resources.ndjson",
+      "sha256": "7ef36abe9a75783031aee304c19cd0bf4e4757004bc558a2fd1ebbe84d6f51ac",
+      "bytes": 738014
+    },
+    {
+      "file": "fixed-category-url-audit.json",
+      "sha256": "28cf155ae87c9aec1384bb825efe6a1f8824d77389b740b410ed61c55122d1c8",
+      "bytes": 71
+    }
+  ],
+  "favorite-probe.json": {
+    "name": "favorite-restore-probe",
+    "threads": 20,
+    "started": 1793152612.7479906,
+    "ended": 1793152612.8073986,
+    "windowSeconds": 0.051157500012777746,
+    "httpStatus": {
+      "400": 9,
+      "200": 11
+    },
+    "businessCode": {
+      "40901": 9,
+      "0": 11
+    },
+    "successful": 11,
+    "favoriteDiscrepancies": 0,
+    "dataRows": "1",
+    "stage": "search-c20-r1",
+    "withinExcludedRamp": true,
+    "afterCleanupDiscrepancies": 0
+  },
+  "favorite-throughput-reconciliation.json": {
+    "checkedAt": 1793173789.460528,
+    "afterRun": "profile100paced-favorite",
+    "favoriteCountMismatches": 0,
+    "activeFavoriteRows": 53,
+    "resourceRows": 1000
+  },
+  "plan-version-history.json": {
+    "rotatedAt": 1793173397.14515,
+    "activeUnaffected": "profile100paced-favorite",
+    "versions": [
+      {
+        "file": "generic-v1-preserved.jmx",
+        "sha256": "b1950e8f1b3d64baa389012245042ec3facf24e19eaa1a0a6cb5710e839128c5"
+      },
+      {
+        "file": "generic-v2.jmx",
+        "sha256": "97545b2830bae40cc44eb2e636f8003c4515de8f4d465e0b83bd778eea028dad"
+      }
+    ],
+    "currentEntry": "generic.jmx"
+  },
+  "search-c20-r3.user-stop.json": {
+    "status": "INTERRUPTED_BY_USER",
+    "reason": "直接跳到100线程",
+    "at": 1793171685.0934458,
+    "excludedFromCompletedRuns": true
+  },
+  "soak-mixed-c100.user-stop.json": {
+    "status": "INTERRUPTED_BY_USER",
+    "reason": "不需要测试连续稳定性，继续后续测试",
+    "at": 1793174726.8546731,
+    "excludedFromCompletedStabilityRuns": true,
+    "lastProgress": {
+      "name": "soak-mixed-c100",
+      "elapsedSeconds": 931,
+      "plannedSeconds": 1845
+    },
+    "partialObservedStats": {
+      "overall": {
+        "samples": 88643,
+        "valid": true,
+        "success": 88643,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 899.064,
+        "successfulRps": 98.595,
+        "attemptedRps": 98.595,
+        "p50Ms": 6,
+        "p95Ms": 18,
+        "p99Ms": 29,
+        "maxMs": 65,
+        "meanMs": 7.438,
+        "responseCodes": {
+          "200": 88643
+        },
+        "startEpoch": 1793173827.07,
+        "endEpoch": 1793174726.134,
+        "activeStartEpoch": 1793173827.07,
+        "activeEndEpoch": 1793174726.134,
+        "activeWindowSeconds": 899.064
+      },
+      "labels": {
+        "search": {
+          "samples": 44315,
+          "valid": true,
+          "success": 44315,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 899.064,
+          "successfulRps": 49.29,
+          "attemptedRps": 49.29,
+          "p50Ms": 11,
+          "p95Ms": 22,
+          "p99Ms": 34,
+          "maxMs": 65,
+          "meanMs": 12.275,
+          "responseCodes": {
+            "200": 44315
+          },
+          "startEpoch": 1793173827.07,
+          "endEpoch": 1793174726.134,
+          "activeStartEpoch": 1793173827.07,
+          "activeEndEpoch": 1793174726.083,
+          "activeWindowSeconds": 899.013
+        },
+        "detail": {
+          "samples": 31025,
+          "valid": true,
+          "success": 31025,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 899.064,
+          "successfulRps": 34.508,
+          "attemptedRps": 34.508,
+          "p50Ms": 2,
+          "p95Ms": 4,
+          "p99Ms": 8,
+          "maxMs": 32,
+          "meanMs": 2.244,
+          "responseCodes": {
+            "200": 31025
+          },
+          "startEpoch": 1793173827.07,
+          "endEpoch": 1793174726.134,
+          "activeStartEpoch": 1793173827.106,
+          "activeEndEpoch": 1793174726.132,
+          "activeWindowSeconds": 899.026
+        },
+        "rank": {
+          "samples": 8881,
+          "valid": true,
+          "success": 8881,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 899.064,
+          "successfulRps": 9.878,
+          "attemptedRps": 9.878,
+          "p50Ms": 4,
+          "p95Ms": 6,
+          "p99Ms": 13,
+          "maxMs": 33,
+          "meanMs": 3.996,
+          "responseCodes": {
+            "200": 8881
+          },
+          "startEpoch": 1793173827.07,
+          "endEpoch": 1793174726.134,
+          "activeStartEpoch": 1793173827.203,
+          "activeEndEpoch": 1793174726.134,
+          "activeWindowSeconds": 898.931
+        },
+        "keyword": {
+          "samples": 4422,
+          "valid": true,
+          "success": 4422,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 899.064,
+          "successfulRps": 4.918,
+          "attemptedRps": 4.918,
+          "p50Ms": 2,
+          "p95Ms": 4,
+          "p99Ms": 8,
+          "maxMs": 24,
+          "meanMs": 2.321,
+          "responseCodes": {
+            "200": 4422
+          },
+          "startEpoch": 1793173827.07,
+          "endEpoch": 1793174726.134,
+          "activeStartEpoch": 1793173827.545,
+          "activeEndEpoch": 1793174725.031,
+          "activeWindowSeconds": 897.486
+        }
+      }
+    }
+  },
+  "fixed-category-url-audit.json": {
+    "nullCategory": 0,
+    "missingCategory": 0,
+    "samples": 55717
+  },
+  "final-runtime-reconciliation.json": {
+    "at": 1793175690.9647813,
+    "readiness": {
+      "application": "campus-resource-platform",
+      "status": "UP",
+      "components": {
+        "mysql": "UP",
+        "redis": "UP",
+        "storage": "UP"
+      },
+      "checkedAt": "2026-10-28T16:21:31.0434419"
+    },
+    "counts": {
+      "resource": 1003,
+      "file_info": 1225,
+      "user_file_authorization": 1324,
+      "favorite": 100,
+      "audit_record": 953,
+      "download_record": 85,
+      "download_delta_sync_item": 8
+    },
+    "categoryFilters": [
+      {
+        "categoryId": 1,
+        "publicSqlRows": 163,
+        "apiTotal": 163,
+        "returnedIdsMatch": true
+      },
+      {
+        "categoryId": 2,
+        "publicSqlRows": 160,
+        "apiTotal": 160,
+        "returnedIdsMatch": true
+      },
+      {
+        "categoryId": 3,
+        "publicSqlRows": 160,
+        "apiTotal": 160,
+        "returnedIdsMatch": true
+      },
+      {
+        "categoryId": 4,
+        "publicSqlRows": 160,
+        "apiTotal": 160,
+        "returnedIdsMatch": true
+      },
+      {
+        "categoryId": 5,
+        "publicSqlRows": 160,
+        "apiTotal": 160,
+        "returnedIdsMatch": true
+      }
+    ],
+    "downloadSyncSnapshot": {
+      "deltaFields": 0,
+      "hasCurrent": false,
+      "batchFields": {},
+      "empty": true
+    },
+    "redisMaxmemory": [
+      "maxmemory",
+      "0"
+    ],
+    "redisDirectory": [
+      "dir",
+      "/tmp/crp-local-20261028-ceb4f3de"
+    ],
+    "dependencyWarningCounts": {
+      "下载增量同步失败": 0,
+      "检测到升级前遗留下载同步批次": 0,
+      "丢弃无法同步的下载增量": 0,
+      "获取下载增量同步锁失败": 0,
+      "下载去重或增量统计失败": 0,
+      "记录下载热度失败": 0,
+      "执行下载限流失败": 0,
+      "排行榜定时任务执行失败": 0
+    },
+    "resourceStatuses": "0\t100\n1\t803\n2\t50\n3\t50",
+    "statisticsMeaning": "Counted at successful signing stage; not equal to complete GET count"
+  },
+  "shutdown-status.json": {
+    "stoppedAt": 1793175773.043102,
+    "ownedPortsClosed": {
+      "18080": true,
+      "13306": true,
+      "16379": true
+    },
+    "stoppedOnlyOwnedInstances": true,
+    "runtimeDataAndRawEvidenceRetained": true,
+    "partAndReadinessFilesAfterStop": 0,
+    "noRecursiveDeletion": true
+  },
+  "toolConcurrencyRegression": {
+    "threads": 100,
+    "oldLazyNulls": 7,
+    "oldLazyExceptions": 99,
+    "classicNulls": 0,
+    "classicExceptions": 0,
+    "generatedInvalidUrls": 0,
+    "generatedSamples": 100
+  },
+  "gcSummary": {
+    "matchedEvents": 19211,
+    "fullPauses": 0,
+    "maxPauseMs": 200.275,
+    "scope": "Only completed measured JMeter windows; not a memory-leak proof"
+  },
+  "finalToolValidation": {
+    "tests": 42,
+    "passed": 42,
+    "skipped": 0,
+    "groovyEnabled": true,
+    "command": "python -X utf8 -m unittest discover -s tests/performance -p test_*.py -q",
+    "regression": {
+      "threads": 100,
+      "oldLazyNulls": 17,
+      "oldLazyExceptions": 99,
+      "classicNulls": 0,
+      "classicExceptions": 0,
+      "generatedInvalidUrls": 0,
+      "generatedSamples": 100
+    }
+  }
+}
