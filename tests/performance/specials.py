@@ -502,13 +502,9 @@ def download(context, manifest, evidence, report):
     resources = [row for row in manifest["resources"] if row["status"] == 1][:3]
     expect(len(resources) == 3, "下载至少需要三个已通过资料")
     ids = ",".join(str(int(row["resourceId"])) for row in resources)
-    reader = RedisReader(context)
-    try:
-        initially_empty = reader.snapshot()["empty"]
-    finally:
-        reader.close()
-    if not initially_empty:
-        wait_drained(context)
+    # 初始delta可能已被RENAME隔离，单次跨命令读到空不能证明无历史批次。
+    # 和最终对账使用同一跨周期稳定空门禁，然后再记录MySQL before，避免混入历史增量。
+    report["initialDrainSnapshots"] = wait_drained(context)
     before = {int(row["id"]): int(row["count"]) for row in json_rows(
         context, f"SELECT JSON_OBJECT('id',id,'count',download_count) FROM resource WHERE id IN ({ids});")}
     tracker = Downloads(context, lambda row: record_attempt(evidence, "download", report, "download.sign", [row], 1))
@@ -618,6 +614,27 @@ def download(context, manifest, evidence, report):
     report["uncertainWrites"] = 0
 
 
+def verify_manifest_links(manifest, files, resources, relations):
+    """同时校验文件内容身份、上传授权与资料归属，避免只核授权而漏掉fileId错绑。"""
+    files_by_id = {int(row["fileId"]): row for row in files}
+    relation_set = {(int(row["userId"]), int(row["fileId"])) for row in relations}
+    # resources和独立上传都带fileId/md5/size/userId；source path与服务端path本就不同，不作路径等值比较。
+    for uploaded in manifest["resources"] + manifest.get("uploadedFiles", []):
+        file_id = int(uploaded["fileId"])
+        expect(file_id in files_by_id, "清单文件不存在或不处于正常状态")
+        actual_file = files_by_id[file_id]
+        expect(actual_file["md5"] == uploaded["md5"] and int(actual_file["size"]) == int(uploaded["size"]),
+               "清单与file_info的摘要/大小不一致")
+        expect((int(uploaded["userId"]), file_id) in relation_set, "清单上传用户缺授权")
+    actual_resources = {int(row["id"]): (int(row["status"]), int(row["fileId"]), int(row["userId"]))
+                        for row in resources}
+    expected_resources = {int(row["resourceId"]): (int(row["status"]), int(row["fileId"]), int(row["userId"]))
+                          for row in manifest["resources"]}
+    expect(len(expected_resources) == len(manifest["resources"]), "清单包含重复资料ID")
+    expect(actual_resources == expected_resources, "数据库资料状态/数量/file_id/uploader_id与清单不符")
+    return {resource_id: values[0] for resource_id, values in actual_resources.items()}
+
+
 def verify(context, manifest, evidence, report):
     checks = {}
     checks["favoriteCountMismatches"] = favorite_discrepancies(context)
@@ -651,13 +668,8 @@ def verify(context, manifest, evidence, report):
             actual_paths.add(path.resolve())
     expect(actual_paths == expected_paths, "上传目录有多余或缺失物理文件")
     relations = json_rows(context, "SELECT JSON_OBJECT('userId',user_id,'fileId',file_id) FROM user_file_authorization;")
-    relation_set = {(int(row["userId"]), int(row["fileId"])) for row in relations}
-    uploaded = manifest["resources"] + manifest.get("uploadedFiles", [])
-    expect(all((int(row["userId"]), int(row["fileId"])) in relation_set for row in uploaded), "清单上传用户缺授权")
-    resources = json_rows(context, "SELECT JSON_OBJECT('id',id,'status',status) FROM resource;")
-    resource_map = {int(row["id"]): int(row["status"]) for row in resources}
-    expect(resource_map == {int(row["resourceId"]): int(row["status"]) for row in manifest["resources"]},
-           "数据库资料状态或数量与清单不符")
+    resources = json_rows(context, "SELECT JSON_OBJECT('id',id,'status',status,'fileId',file_id,'userId',uploader_id) FROM resource;")
+    resource_map = verify_manifest_links(manifest, files, resources, relations)
     audits = json_rows(context, "SELECT JSON_OBJECT('resourceId',resource_id,'before',before_status,'after',after_status) "
                        "FROM audit_record ORDER BY id;")
     states = {resource_id: 0 for resource_id in resource_map}
@@ -669,7 +681,8 @@ def verify(context, manifest, evidence, report):
     report["checks"] = {**checks, "normalFiles": len(files), "physicalFiles": len(actual_paths),
                         "authorizationRows": len(relations), "resourceRows": len(resources),
                         "auditRows": len(audits), "partFiles": 0, "orphanPhysicalFiles": 0,
-                        "manifestAuthorizationsVerified": True, "auditStateChainsVerified": True}
+                        "manifestAuthorizationsVerified": True, "manifestFileIdentityVerified": True,
+                        "resourceFileAndUploaderVerified": True, "auditStateChainsVerified": True}
     public_visibility_and_cache(context, manifest, evidence, report)
 
 

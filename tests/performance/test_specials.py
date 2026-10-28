@@ -1,6 +1,7 @@
 """专项工具的纯本地断言测试；不发HTTP、不访问SQL/Redis实例。"""
 
 import io
+import copy
 import json
 from pathlib import Path
 import tempfile
@@ -11,6 +12,69 @@ import specials
 
 
 class SpecialsTests(unittest.TestCase):
+    def link_fixture(self):
+        manifest = {"resources": [{"resourceId": 1, "status": 1, "fileId": 10, "userId": 3,
+                                   "md5": "a" * 32, "size": 123}],
+                    "uploadedFiles": [{"fileId": 20, "userId": 4, "md5": "b" * 32, "size": 456}]}
+        files = [{"fileId": 10, "md5": "a" * 32, "size": 123},
+                 {"fileId": 20, "md5": "b" * 32, "size": 456}]
+        resources = [{"id": 1, "status": 1, "fileId": 10, "userId": 3}]
+        relations = [{"userId": 3, "fileId": 10}, {"userId": 4, "fileId": 20}]
+        return manifest, files, resources, relations
+
+    def test_manifest_links_verify_content_identity_and_resource_ownership(self):
+        self.assertEqual({1: 1}, specials.verify_manifest_links(*self.link_fixture()))
+
+    def test_manifest_file_must_exist_even_if_authorization_exists(self):
+        manifest, files, resources, relations = self.link_fixture()
+        for missing_id in (10, 20):
+            with self.subTest(fileId=missing_id), self.assertRaises(RuntimeError):
+                specials.verify_manifest_links(manifest, [row for row in files if row["fileId"] != missing_id],
+                                               resources, relations)
+
+    def test_manifest_resource_and_standalone_upload_digests_and_sizes_must_match(self):
+        original = self.link_fixture()
+        for index in (0, 1):
+            for field, wrong_value in (("md5", "c" * 32), ("size", 999)):
+                manifest, files, resources, relations = copy.deepcopy(original)
+                files[index][field] = wrong_value
+                with self.subTest(fileId=files[index]["fileId"], field=field), self.assertRaises(RuntimeError):
+                    specials.verify_manifest_links(manifest, files, resources, relations)
+
+    def test_resource_cannot_switch_file_or_uploader_while_status_stays_same(self):
+        original = self.link_fixture()
+        for field, wrong_value in (("fileId", 20), ("userId", 4)):
+            manifest, files, resources, relations = copy.deepcopy(original)
+            resources[0][field] = wrong_value
+            with self.subTest(field=field), self.assertRaises(RuntimeError):
+                specials.verify_manifest_links(manifest, files, resources, relations)
+
+    def test_manifest_authorization_requirement_is_preserved(self):
+        manifest, files, resources, _ = self.link_fixture()
+        with self.assertRaises(RuntimeError):
+            specials.verify_manifest_links(manifest, files, resources, [])
+
+    def test_download_before_requires_cross_cycle_drain_instead_of_single_snapshot(self):
+        manifest = {"accounts": [{"userId": index} for index in range(60)],
+                    "resources": [{"status": 1, "resourceId": index + 1} for index in range(3)]}
+        events = []
+        def drained(_context):
+            events.append("drain")
+            return [{"empty": True, "elapsedSeconds": 0}, {"empty": True, "elapsedSeconds": 60}]
+        def before(_context, _sql):
+            events.append("before")
+            return [{"id": 1, "count": 0}]
+        # 停在任何HTTP或真实等待之前，只验证稳定空门禁先于MySQL初始计数。
+        with patch.object(specials, "wait_drained", side_effect=drained) as drain, \
+                patch.object(specials, "json_rows", side_effect=before), \
+                patch.object(specials, "Downloads", side_effect=RuntimeError("STOP_BEFORE_HTTP")), \
+                patch.object(specials, "RedisReader") as reader, \
+                self.assertRaisesRegex(RuntimeError, "STOP_BEFORE_HTTP"):
+            specials.download({}, manifest, Path("unused"), {"batches": []})
+        self.assertEqual(["drain", "before"], events)
+        drain.assert_called_once()
+        reader.assert_not_called()
+
     def test_correctness_case_names_are_isolated(self):
         self.assertEqual("correctness", specials.report_mode("correctness", "all"))
         self.assertEqual("correctness-favorite", specials.report_mode("correctness", "favorite"))

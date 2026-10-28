@@ -9,6 +9,8 @@
 - 后续运行器加固提交说明：`fix(perf): bind runtime targets and share throughput windows`。新增发压入口清单身份/实时 SQL/API 绑定门禁，并统一混合标签吞吐分母；14/14 隔离/统计测试通过。当前在跑的单接口轮次目标由本轮启动器确认，单标签的吞吐不受分母修正影响。
 - 专项工具提交说明：`test(perf): add concurrent and download validation scenarios`。31/31工具回归通过；`correctness --case favorite|resource`分别保留严格的失败或成功证据。已确认收藏恢复并发40901但SQL计数一致，业务代码未改；执行报告当前标为IN_PROGRESS，继续完成独立场景与最终对账。
 
+- 专项对账加固：清单文件身份、资料文件/归属逐项核对；下载初始计数前也执行跨周期排空门禁。37/37工具单测通过，提交说明：`fix(perf): close manifest and download reconciliation gaps`。
+
 ## 2026-10-27 本地压测设计
 
 - 当前分支 `dev`；本次仅新增 `docs/12-local-load-test-plan.md` 并同步索引、状态和交接，不修改业务代码、SQL、Redis Key、前端或部署资产。
