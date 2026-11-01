@@ -851,3 +851,16 @@
 | 错误处理 | 展示后端 `message`，开发演示时可附带 `traceId` |
 | 权限 | 前端只控制入口显示，后端仍是最终鉴权边界 |
 | 文档缺失 | 不通过猜测补齐；联调发现真实结构后先更新 `docs/api/api-reference.md` 和本文 |
+
+
+## 认证自动刷新接入（2026-11-01）
+
+| API | 前端映射 | 行为 |
+| --- | --- | --- |
+| `POST /api/v1/auth/login` | `api/auth.login` + `LoginView` | 保存 Access/Refresh/user 的原子主记录 |
+| `POST /api/v1/auth/refresh` | `utils/request` 内部低层请求 | 仅业务请求 40103 触发，单飞+Web Lock，轮换双凭据后最多重放一次 |
+| `POST /api/v1/auth/logout` | `api/auth.logout` | 锁内携带最新 Refresh；旧会话兼容 Bearer；终态认证错误完成本地退出，500/网络保留 |
+| `GET /api/v1/users/me` | `ProfileView` | 锁内只更新同 generation 的 user，保留当前双凭据 |
+| `GET /api/v1/download-records/{id}/file` | `api/downloads.downloadFile` | Blob JSON 的 JWT 40103 可自动刷新并保留原票据重试一次，票据40901不刷新 |
+
+主存储为 `crp.auth-session` 单 JSON（含 generation），旧键只镜像兼容。Web Locks 不可用时只有单页互斥，多标签页竞争可能需要重新登录。Refresh 沿用 localStorage，由同源 JavaScript 可读，不能隔离 XSS；不在日志、URL或文档保存实际凭据。

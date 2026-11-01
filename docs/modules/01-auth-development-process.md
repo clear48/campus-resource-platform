@@ -486,4 +486,16 @@ feat(auth): implement user authentication module
 
 每会话最多 2048 次轮换（正常七天约 672 次），超限删除会话并要求重新登录，防止已用摘要无限膨胀。同一会话由 Redis 单 Key Lua 串行化；刷新成功保留旧凭据摘要用于重放检测，退出删除会话并使所有同 sid Access 失效，不影响其他设备。无新增数据库表、依赖或其他业务模块修改。Refresh 不记录日志，Redis 只存摘要；客户端须妥善保管明文。
 
-本阶段前端自动刷新由后继小功能接入。新增本地 mock/unit 测试覆盖 JWT、业务编排、控制器切片、会话存储返回值及拦截器。按用户要求不启动 Docker、MySQL 或 Redis；Lua 真正原子性和外部服务集成尚未验证。
+前端已接入自动刷新（见下一节）。新增本地 mock/unit 测试覆盖 JWT、业务编排、控制器切片、会话存储返回值及拦截器。按用户要求不执行 Docker/真实 MySQL/Redis 集成测试；Lua 真正原子性和外部服务集成尚未验证。
+
+
+## 2026-11-01 前端自动刷新
+
+- 登录一次性保存 `crp.auth-session` JSON 主记录（generation、Access、Refresh、user），旧 `crp.access-token`/`crp.current-user` 只作兼容镜像。主记录优先；旧会话无 Refresh，只能重新登录获取刷新能力。
+- `request.ts` 仅对受保护请求的 40103 自动刷新，每次原请求最多重放一次；黑名单、伪造、会话撤销、票据无效均不能触发刷新。并发到期请求共用一次刷新 Promise，晚到旧响应复用最新凭据。
+- `navigator.locks` 的 `crp.auth-session` 锁覆盖刷新 HTTP+写入、退出 HTTP+清理、登录提交、资料更新和错误清理；锁内重新读取主记录。没有 Web Locks 的浏览器退化为单页串行及快照保护，多标签页竞争可能触发服务端重放防护并要求重新登录，不宣称完整跨页保证。
+- generation 防止旧请求以新账号重放、旧响应覆盖新登录、旧错误清除新凭据；storage 事件同步其他标签页状态。资料更新持锁只改 user，不清掉刚轮换的 Refresh。
+- 退出立即阻止本页新刷新/重放，等待在途刷新提交后以最新 Refresh 撤销；失效凭据视为已退出并清理本地，网络/500 保留以便重试。旧无 Refresh 的过期会话也能本地退出。
+- 下载二进制请求使用同一认证编排；仅 JWT 拦截器的 40103 可在刷新后保留原 `X-Download-Ticket` 重放一次，此时下载业务和消费票据尚未执行。其他取流/票据错误不重放。
+- 存储边界：本轮沿用项目浏览器存储模式，Refresh 为 bearer secret、由同源 JavaScript 可读；页面 XSS 可窃取凭据。没有引入 HttpOnly Cookie/BFF，不能将当前模式描述为防 XSS 凭据隔离；任何凭据不得进入日志和 URL。
+- 验证仅本地 Vitest 和前端类型检查/生产构建；未执行 Docker/真实 MySQL/Redis 集成测试或真实多浏览器端到端验收，也未操作生产服务。

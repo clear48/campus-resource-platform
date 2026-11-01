@@ -5,8 +5,10 @@
 - 开发分支：`codex/auth-auto-refresh`，基线 `origin/main@8bde7775`，位于独立工作树；不得把原 `dev` 分支的未提交修改混入。
 - 本轮范围包括后端认证、前端会话/请求层、对应单测和文档。前端历史任务队列不重新启动。
 - 后端采用含 `sid` 的短期 Access JWT 与 opaque Refresh Token；Redis 仅保存刷新摘要，轮换保留固定会话 TTL，退出删除会话，旧无 `sid` Token 在原有效期内兼容但不可刷新。
-- 后端小功能已完成，命令：`./campus-resource-platform/mvnw.cmd -f campus-resource-platform/pom.xml -Dtest=JwtUtilsTest,AuthServiceRefreshTest,AuthSessionServiceTest,AuthRefreshControllerTest,JwtAuthenticationInterceptorTest test`，26/26 通过。
-- 下一步接入前端单飞刷新、跨标签页锁、会话快照保护和一次请求重放。
+- 后端小功能已提交并推送 `abf8a40`。专项五类 26/26 通过；进一步回归命令（仓库根目录）：`./campus-resource-platform/mvnw.cmd -f campus-resource-platform/pom.xml '-Dtest=JwtUtilsTest,AuthServiceRefreshTest,AuthSessionServiceTest,*ControllerTest,JwtAuthenticationInterceptorTest' test -q`，11 类、58/58 通过，均为本地 mock/unit。
+- 前端小功能已完成：双 Token 单 JSON 保存、单飞刷新、跨标签页锁、会话快照保护、一次请求重放，下载流复用且保留票据。认证失败清理与资料更新持锁重检，旧无 Refresh 会话过期后仍可退出；网络或 500 失败保留凭据供重试。
+- 前端命令（仓库根目录）：`npm --prefix frontend run test:unit -- --reporter=dot`，33 文件、101/101 通过；`npm --prefix frontend run build` 通过。`git diff --check` 通过，只读复核无阻塞问题。
+- 实现与测试已完成，功能保留在开发分支供审阅，未合并或部署到 `main`。旧会话需重新登录取得双 Token；无 Web Locks 时仅单页串行。没有待执行的前端队列任务。
 - 用户明确只要求本地简单单元测试，不执行 Docker 或真实数据库/Redis 集成测试。不得将 mock 单测结果描述为真实 Redis Lua 原子性验证。
 
 ## 2026-10-17 四分支合入 main

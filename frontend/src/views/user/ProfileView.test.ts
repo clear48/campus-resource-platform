@@ -18,7 +18,7 @@ describe('ProfileView', () => {
       email: 'zhangsan@example.com',
       role: 1,
       status: 1,
-    })
+    }, 'profile-refresh')
     mock = new MockAdapter(httpClient)
   })
 
@@ -62,5 +62,6 @@ describe('ProfileView', () => {
     expect(wrapper.text()).toContain('20260001')
     expect(wrapper.text()).toContain('张三')
     expect(wrapper.text()).toContain('学生')
+    expect(session.refreshToken.value).toBe('profile-refresh')
   })
 })
