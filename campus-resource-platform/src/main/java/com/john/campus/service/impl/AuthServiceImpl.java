@@ -9,6 +9,8 @@ import com.john.campus.entity.User;
 import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.UserMapper;
 import com.john.campus.service.AuthService;
+import com.john.campus.service.AuthSessionService;
+import com.john.campus.common.JwtClaims;
 import com.john.campus.service.PasswordService;
 import com.john.campus.vo.AuthLoginVO;
 import com.john.campus.vo.UserVO;
@@ -51,16 +53,18 @@ public class AuthServiceImpl implements AuthService {
      * Redis 用于写入 Token 黑名单。
      */
     private final StringRedisTemplate stringRedisTemplate;
+    private final AuthSessionService sessions;
 
     public AuthServiceImpl(
             UserMapper userMapper,
             PasswordService passwordService,
             JwtUtils jwtUtils,
-            StringRedisTemplate stringRedisTemplate) {
+            StringRedisTemplate stringRedisTemplate, AuthSessionService sessions) {
         this.userMapper = userMapper;
         this.passwordService = passwordService;
         this.jwtUtils = jwtUtils;
         this.stringRedisTemplate = stringRedisTemplate;
+        this.sessions = sessions;
     }
 
     /**
@@ -113,8 +117,11 @@ public class AuthServiceImpl implements AuthService {
         userMapper.updateLastLoginAt(user.getId(), now);
         user.setLastLoginAt(now);
 
-        String token = jwtUtils.generateToken(user.getId(), user.getRole());
-        return new AuthLoginVO(token, BEARER_TOKEN_TYPE, jwtUtils.getExpirationSeconds(), toUserVO(user));
+        AuthSessionService.Credential credential = sessions.newCredential(null);
+        String token = jwtUtils.generateToken(user.getId(), user.getRole(), credential.sid(), AuthSessionService.SESSION_SECONDS);
+        sessions.create(credential, user.getId());
+        return tokenPair(user, token, credential.token(), AuthSessionService.SESSION_SECONDS,
+                Math.min(jwtUtils.getExpirationSeconds(), AuthSessionService.SESSION_SECONDS));
     }
 
     /**
@@ -123,7 +130,10 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void logout(String token) {
         String rawToken = removeBearerPrefix(token);
-        String jti = jwtUtils.getJti(rawToken);
+        JwtClaims claims = jwtUtils.parseToken(rawToken);
+        // 可信 Access 可退出同一会话，防止刷新后新 Token 残留。
+        if (claims.sid() != null) { sessions.revokeTrustedSession(claims.sid()); }
+        String jti = claims.jti();
         long remainingSeconds = jwtUtils.getRemainingSeconds(rawToken);
         if (remainingSeconds <= 0) {
             // 已过期 Token 不再写入 Redis，避免浪费存储空间。
@@ -135,6 +145,38 @@ public class AuthServiceImpl implements AuthService {
                 TOKEN_BLACKLIST_VALUE,
                 Duration.ofSeconds(remainingSeconds)
         );
+    }
+
+    /** 刷新前读取当前用户状态和角色，数据库失败不会消耗一次性凭据。 */
+    @Override
+    public AuthLoginVO refresh(String refreshToken) {
+        long refreshStarted = System.nanoTime();
+        AuthSessionService.Credential old = sessions.parse(refreshToken);
+        AuthSessionService.Session session = sessions.inspect(old);
+        User user = userMapper.selectById(session.userId());
+        if (user == null || !user.isNormal()) {
+            sessions.revoke(old);
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID);
+        }
+        AuthSessionService.Credential next = sessions.newCredential(old.sid());
+        // 将查库耗时从剩余期限扣除并向上取整，防止临近七天期限时签发越界。
+        long elapsedSeconds = (System.nanoTime() - refreshStarted + 999_999_999L) / 1_000_000_000L;
+        long accessSeconds = session.remainingSeconds() - elapsedSeconds;
+        if (accessSeconds <= 0) { throw new BusinessException(ErrorCode.REFRESH_TOKEN_INVALID); }
+        String access = jwtUtils.generateToken(user.getId(), user.getRole(), old.sid(), accessSeconds);
+        long remaining = sessions.rotate(old, next);
+        return tokenPair(user, access, next.token(), remaining,
+                Math.min(jwtUtils.getExpirationSeconds(), accessSeconds));
+    }
+
+    @Override
+    public void logoutSession(String refreshToken) {
+        sessions.revoke(sessions.parse(refreshToken));
+    }
+
+    private AuthLoginVO tokenPair(User user, String access, String refresh, long refreshSeconds, long accessSeconds) {
+        return new AuthLoginVO(access, BEARER_TOKEN_TYPE,
+                accessSeconds, toUserVO(user), refresh, refreshSeconds);
     }
 
     /**
@@ -175,7 +217,8 @@ public class AuthServiceImpl implements AuthService {
      * 兼容 Controller 传入完整 Bearer 头或纯 Token 两种形式。
      */
     private String removeBearerPrefix(String token) {
-        String rawToken = normalizeRequired(token);
+        if (!StringUtils.hasText(token)) { throw new BusinessException(ErrorCode.UNAUTHORIZED); }
+        String rawToken = token.trim();
         if (rawToken.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
             return rawToken.substring("Bearer ".length()).trim();
         }

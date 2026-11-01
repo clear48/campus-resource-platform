@@ -120,7 +120,7 @@ public class GlobalExceptionHandler {
      * 将业务错误码映射到 HTTP 状态，便于调用方同时利用 HTTP 语义和业务 code。
      */
     private HttpStatus resolveHttpStatus(int code) {
-        if (code == ErrorCode.UNAUTHORIZED.getCode() || code == ErrorCode.TOKEN_BLACKLISTED.getCode()) {
+        if (code >= 40101 && code <= 40105) {
             return HttpStatus.UNAUTHORIZED;
         }
         if (code == ErrorCode.FORBIDDEN.getCode()) {

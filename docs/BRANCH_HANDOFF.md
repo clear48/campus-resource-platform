@@ -1,5 +1,14 @@
 # 分支交接记录
 
+## 登录自动刷新开发交接（2026-11-01）
+
+- 开发分支：`codex/auth-auto-refresh`，基线 `origin/main@8bde7775`，位于独立工作树；不得把原 `dev` 分支的未提交修改混入。
+- 本轮范围包括后端认证、前端会话/请求层、对应单测和文档。前端历史任务队列不重新启动。
+- 后端采用含 `sid` 的短期 Access JWT 与 opaque Refresh Token；Redis 仅保存刷新摘要，轮换保留固定会话 TTL，退出删除会话，旧无 `sid` Token 在原有效期内兼容但不可刷新。
+- 后端小功能已完成，命令：`./campus-resource-platform/mvnw.cmd -f campus-resource-platform/pom.xml -Dtest=JwtUtilsTest,AuthServiceRefreshTest,AuthSessionServiceTest,AuthRefreshControllerTest,JwtAuthenticationInterceptorTest test`，26/26 通过。
+- 下一步接入前端单飞刷新、跨标签页锁、会话快照保护和一次请求重放。
+- 用户明确只要求本地简单单元测试，不执行 Docker 或真实数据库/Redis 集成测试。不得将 mock 单测结果描述为真实 Redis Lua 原子性验证。
+
 ## 2026-10-17 四分支合入 main
 
 - 分支关系：远程 `main@af1de973` → `dev@9e1e6d29` → `codex/deploy-02@e9730f74` → `deploy@a224aee0`；后者包含全部既有远程分支历史，因此使用 `git merge --ff-only origin/deploy` 汇入 `main`，无内容冲突或强推。

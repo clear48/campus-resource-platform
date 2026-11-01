@@ -4,7 +4,7 @@
 
 本文档记录当前已经落地的“用户认证模块”，对应代码包路径为 `com.john.campus`。
 
-当前模块覆盖注册、登录、退出登录、当前用户查询、JWT 鉴权拦截、密码加密、Redis Token 黑名单。登录限流、验证码、刷新 Token、管理员用户管理、注解式权限控制等能力属于后续优化方向，本模块暂未涉及。
+当前模块覆盖注册、登录、退出登录、当前用户查询、JWT 鉴权拦截、密码加密、Redis Token 黑名单。登录限流、验证码、管理员用户管理、注解式权限控制等能力属于后续优化方向，本模块暂未涉及。
 
 ## 1. 模块目标
 
@@ -27,7 +27,7 @@
 - 登录失败次数统计。
 - 登录限流。
 - 图形验证码或邮箱验证码。
-- Refresh Token。
+- 全设备统一撤销与管理员用户管理。
 - 管理员禁用用户接口。
 - 用户资料修改接口。
 - 注解式角色权限控制。
@@ -125,7 +125,7 @@
 | --- | --- | --- |
 | `AuthController` | `register(AuthRegisterDTO)` | 注册接口入口 |
 | `AuthController` | `login(AuthLoginDTO)` | 登录接口入口 |
-| `AuthController` | `logout(HttpServletRequest)` | 退出登录接口入口 |
+| `AuthController` | `logout(HttpServletRequest, AuthRefreshDTO)` | 退出登录接口入口 |
 | `UserController` | `me()` | 当前用户接口入口 |
 | `AuthService` | `register(AuthRegisterDTO)` | 注册业务接口 |
 | `AuthService` | `login(AuthLoginDTO)` | 登录业务接口 |
@@ -173,7 +173,7 @@
 4. 调用 `user.isNormal()` 校验账号状态。
 5. 调用 `UserMapper.updateLastLoginAt` 更新最近登录时间。
 6. 调用 `JwtUtils.generateToken` 生成 JWT。
-7. 返回 `AuthLoginVO`，包含 `accessToken`、`tokenType`、`expiresIn` 和 `UserVO`。
+7. 创建固定七天的刷新会话，返回 `accessToken`、`refreshToken`、各自剩余秒数和 `UserVO`。
 
 ### 7.3 受保护接口鉴权流程
 
@@ -184,19 +184,16 @@
 5. 调用 `JwtUtils.parseToken` 解析 JWT。
 6. 使用 `RedisKeyConstants.tokenBlacklist(jti)` 查询 Redis 黑名单。
 7. 黑名单命中则抛出 `TOKEN_BLACKLISTED`。
-8. 构造 `LoginUser`，写入 `UserContextHolder`。
+8. 新 Token 还需校验 sid 会话存在且归属当前用户，再构造 `LoginUser` 写入 `UserContextHolder`。
 9. Controller 和 Service 可通过 `UserContextHolder` 获取当前用户。
 10. 请求结束后 `afterCompletion` 调用 `UserContextHolder.clear()`。
 
 ### 7.4 退出登录流程
 
-1. `JwtAuthenticationInterceptor` 先解析 Token 并将原始 token 写入 request attribute。
-2. `AuthController.logout` 从 request attribute 获取 token。
-3. `AuthServiceImpl.logout` 调用 `JwtUtils.getJti` 获取 `jti`。
-4. 调用 `JwtUtils.getRemainingSeconds` 获取 Token 剩余有效期。
-5. 写入 Redis：`crp:auth:token:blacklist:{jti} = logout`。
-6. Redis TTL 设置为 Token 剩余秒数。
-7. 后续使用该 Token 访问受保护接口时，拦截器返回 `TOKEN_BLACKLISTED`。
+1. `WebMvcConfig` 排除退出路由，Controller 将 body 中的 Refresh 交给 Service 自行校验；旧客户端无 body 时交 Bearer 给 Service 验签。
+2. Refresh 退出使用 Lua 验证当前或已用合法摘要，再删除整个 session；会话已不存在幂等成功。
+3. 旧 Bearer 退出校验有效 JWT，有 sid 则删除该会话，再将当前 jti 写黑名单，TTL 为 Access 剩余秒数。
+4. 后续新 Token 因 sid 会话不存在返回 40105，旧 Token 命中黑名单返回 40102。
 
 ### 7.5 当前用户查询流程
 
@@ -375,7 +372,8 @@ flowchart LR
 | 登录账号或密码错误 | `AuthServiceImpl.login` | `40101 UNAUTHORIZED` |
 | 用户被禁用 | `AuthServiceImpl.login`、`UserServiceImpl.getCurrentUser` | `40301 FORBIDDEN` |
 | Token 缺失或格式错误 | `JwtAuthenticationInterceptor.preHandle` | `40101 UNAUTHORIZED` |
-| Token 无效或过期 | `JwtUtils.parseToken` | `40101 UNAUTHORIZED` |
+| Token 签名无效 | `JwtUtils.parseToken` | `40101 UNAUTHORIZED` |
+| Token 已过期 | `JwtUtils.parseToken` | `40103 TOKEN_EXPIRED` |
 | Token 已退出登录 | `JwtAuthenticationInterceptor.preHandle` | `40102 TOKEN_BLACKLISTED` |
 | 当前用户不存在 | `UserServiceImpl.getCurrentUser` | `40401 RESOURCE_NOT_FOUND` |
 | DTO 参数校验失败 | `GlobalExceptionHandler` | `40001 PARAM_ERROR` |
@@ -396,7 +394,7 @@ HTTP 状态码由 `GlobalExceptionHandler.resolveHttpStatus` 统一转换：
 
 - `/api/v1/auth/register`：不需要登录。
 - `/api/v1/auth/login`：不需要登录。
-- `/api/v1/auth/logout`：需要登录，由 `JwtAuthenticationInterceptor` 校验 Token。
+- `/api/v1/auth/refresh` 与 `/api/v1/auth/logout`：排除 Access 拦截，由 Service 校验 Refresh 或旧 Bearer 凭据。
 - `/api/v1/users/me`：需要登录，由 `JwtAuthenticationInterceptor` 校验 Token。
 - 本模块暂未实现管理员专属接口。
 - 本模块暂未实现注解式权限控制。
@@ -443,7 +441,7 @@ Postman 测试集合：
 - `docs/api/postman/campus-resource-platform.postman_collection.json`
 - `docs/api/postman/campus-local.postman_environment.json`
 
-当前已补充 `JwtUtilsTest` 和完整 Spring 上下文启动测试，覆盖 JWT 密钥 fail-fast 与基本签发解析；登录、退出、Redis 黑名单和完整 HTTP 认证链路仍建议继续补齐。
+已补充 JWT、刷新 Service、会话存储、Controller Web 切片和拦截器单元测试；真实 Redis Lua 并发、完整 MySQL/HTTP 认证集成仍待验证。
 
 ## 16. 面试可讲点
 
@@ -462,7 +460,7 @@ Postman 测试集合：
 - 增加 `UserMapper.selectByEmail`、`selectByPhone`，注册前给出更精确的重复提示。
 - 增加登录限流，使用 Redis 防止暴力破解。
 - 增加验证码或邮箱验证。
-- 增加刷新 Token 机制。
+- 持续完善刷新会话审计和异常监控。
 - 增加管理员禁用用户后 Token 批量失效机制，例如 `crp:auth:user:token-version:{userId}`。
 - 增加注解式权限控制，例如 `@RequireRole(User.ROLE_ADMIN)`。
 - 增加认证模块单元测试和集成测试。
@@ -478,3 +476,14 @@ feat(auth): implement user authentication module
 - add user mapper operations for auth flow
 - document auth module implementation and sync API/Redis notes
 ```
+
+
+## 2026-11-01 双 Token 刷新后端
+
+已实现 Access + opaque Refresh；登录默认 Access 15 分钟、Refresh 会话固定七天。`JwtUtils` 增加 sid 与剩余期限签发；`AuthSessionService` 封装安全随机数、摘要、Lua 创建/CAS 轮换/撤销；`AuthServiceImpl.refresh` 重新查询当前用户状态和角色；`AuthController.refresh` 提供 `/api/v1/auth/refresh`。退出接受 Refresh，因此 Access 到期仍可退出。
+
+每请求验证顺序为签名/到期、jti 黑名单、新 Token 的 sid 会话归属、写 ThreadLocal；请求结束清理。旧无 sid Token 兼容但无法刷新。专属错误码：40103 到期、40104 Refresh 无效、40105 会话撤销。40101/40102 不触发自动刷新。
+
+每会话最多 2048 次轮换（正常七天约 672 次），超限删除会话并要求重新登录，防止已用摘要无限膨胀。同一会话由 Redis 单 Key Lua 串行化；刷新成功保留旧凭据摘要用于重放检测，退出删除会话并使所有同 sid Access 失效，不影响其他设备。无新增数据库表、依赖或其他业务模块修改。Refresh 不记录日志，Redis 只存摘要；客户端须妥善保管明文。
+
+本阶段前端自动刷新由后继小功能接入。新增本地 mock/unit 测试覆盖 JWT、业务编排、控制器切片、会话存储返回值及拦截器。按用户要求不启动 Docker、MySQL 或 Redis；Lua 真正原子性和外部服务集成尚未验证。

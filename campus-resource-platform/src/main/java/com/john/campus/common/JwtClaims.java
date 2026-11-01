@@ -11,5 +11,9 @@ import java.time.LocalDateTime;
  * @param issuedAt Token 签发时间
  * @param expiresAt Token 过期时间
  */
-public record JwtClaims(Long userId, Integer role, String jti, LocalDateTime issuedAt, LocalDateTime expiresAt) {
+public record JwtClaims(Long userId, Integer role, String jti, LocalDateTime issuedAt, LocalDateTime expiresAt, String sid) {
+    /** 兼容升级前不携带会话标识的 Token 和既有调用方。 */
+    public JwtClaims(Long userId, Integer role, String jti, LocalDateTime issuedAt, LocalDateTime expiresAt) {
+        this(userId, role, jti, issuedAt, expiresAt, null);
+    }
 }

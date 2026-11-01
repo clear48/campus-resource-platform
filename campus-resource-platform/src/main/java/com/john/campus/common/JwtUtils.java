@@ -3,6 +3,7 @@ package com.john.campus.common;
 import com.john.campus.exception.BusinessException;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
@@ -72,16 +73,27 @@ public class JwtUtils {
      * 签发登录 Token，jti 用于后续退出登录时让单个 Token 立即失效。
      */
     public String generateToken(Long userId, Integer role) {
+        return generateToken(userId, role, null);
+    }
+
+    /** 新登录的 Access Token 绑定可撤销会话，旧调用方仍可签发过渡 Token。 */
+    public String generateToken(Long userId, Integer role, String sid) {
         // 去掉横线让 Redis 黑名单 Key 更短、更易读。
+        return generateToken(userId, role, sid, expirationSeconds);
+    }
+
+    /** 不能签发超过登录会话绝对期限的 Access Token。 */
+    public String generateToken(Long userId, Integer role, String sid, long remainingSeconds) {
         String jti = UUID.randomUUID().toString().replace("-", "");
         Instant now = Instant.now();
-        Instant expiresAt = now.plusSeconds(expirationSeconds);
+        Instant expiresAt = now.plusSeconds(Math.min(expirationSeconds, remainingSeconds));
 
         return Jwts.builder()
                 .id(jti)
                 .subject(String.valueOf(userId))
                 .claim(USER_ID_CLAIM, userId)
                 .claim(ROLE_CLAIM, role)
+                .claim("sid", sid)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
                 .signWith(secretKey, Jwts.SIG.HS256)
@@ -111,8 +123,12 @@ public class JwtUtils {
                     role,
                     claims.getId(),
                     toLocalDateTime(claims.getIssuedAt()),
-                    toLocalDateTime(claims.getExpiration())
+                    toLocalDateTime(claims.getExpiration()),
+                    claims.get("sid", String.class)
             );
+        } catch (ExpiredJwtException ex) {
+            // 只有已验签且过期的凭据允许前端尝试刷新，签名错误不能触发续期。
+            throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
         } catch (JwtException | IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Token 无效或已过期");
         }

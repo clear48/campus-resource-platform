@@ -985,3 +985,17 @@ public final class RedisKeyConstants {
 - 下载量使用 Hash 临时统计，可以减少 MySQL 高频 `UPDATE` 压力。
 - 收藏状态可以用 Set 加速判断，但最终仍由 MySQL 唯一索引保证不重复收藏。
 - 缓存一致性采用 Cache Aside；统计一致性采用 Redis 增量 + 定时落库；状态敏感操作以 MySQL 为准并删除缓存。
+
+
+## 认证刷新会话（2026-11-01，已实现）
+
+- Key：`crp:auth:session:{sid}`，统一由 `RedisKeyConstants.authSession` 构造。
+- 数据结构：Hash；`userId` 保存归属，`currentHash` 保存当前 Refresh 的 SHA-256 摘要，`used:{hash}` 保存已经轮换掉的摘要标记。明文 Refresh 不入 Redis。
+- Refresh 格式：安全随机的 32 位十六进制 sid + `.` + 32 字节安全随机 secret 的 Base64URL 编码。每次登录独立会话。
+- TTL：登录起固定 604800 秒；创建 Hash/设置 TTL 为单个 Lua 原子操作；轮换只 HSET，不更新 TTL，不能无限续期。
+- 刷新：先 inspect 校验凭据，再查 MySQL 用户状态/角色并准备 Token，最后 Lua CAS 摘要。只有旧摘要仍是 currentHash 时才轮换成功；会话已删除则失败，绝不重建。
+- 重放：匹配已知 used 摘要时删除会话并拒绝；未知随机摘要只拒绝，不删除，避免猜测 sid 导致合法会话被踢。
+- 退出：Lua 接受当前或已用的合法摘要并 DEL 会话，已不存在幂等成功。新 Access 的 sid 在每次鉴权时检查 userId 归属，因此退出无论先于还是后于刷新 CAS，都不能留下有效的新 Access。
+- 一致性：无数据库表结构变化；刷新查库失败不消耗 Refresh；Redis 错误失败关闭并返回 50001，不降级放行或误报凭据无效。登录 Redis 创建成功但 MySQL 事务最终提交失败时，最多留下不可见于客户端且七天后回收的孤立会话，不会返回有效登录响应。
+- 旧 Token：无 sid 的历史 Access 继续使用 `crp:auth:token:blacklist:{jti}`。新客户端 Refresh 退出直接删除 session，旧 Bearer 退出同时删除 sid（如有）并写原 jti 黑名单。
+- 已用摘要随七天会话一同清理；Lua 限制每会话最多 2048 次轮换（正常 15 分钟刷新七天约 672 次），超限原子删除会话并返回 40104，避免单 Hash 无限增长。本轮仅本地单元测试，未声明真实 Redis 并发/Lua 集成验证通过。

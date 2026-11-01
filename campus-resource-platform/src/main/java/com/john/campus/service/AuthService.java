@@ -24,4 +24,10 @@ public interface AuthService {
      * 退出登录，将当前 Token 写入 Redis 黑名单。
      */
     void logout(String token);
+
+    /** 校验并轮换刷新凭据，返回最新角色签发的双 Token。 */
+    AuthLoginVO refresh(String refreshToken);
+
+    /** 使用刷新凭据撤销整个会话，不依赖 Access Token 的有效期。 */
+    void logoutSession(String refreshToken);
 }

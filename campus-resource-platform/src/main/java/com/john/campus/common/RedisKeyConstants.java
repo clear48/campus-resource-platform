@@ -5,6 +5,13 @@ package com.john.campus.common;
  */
 public final class RedisKeyConstants {
 
+    /** 单次登录会话，Hash 仅保存刷新凭据摘要，TTL 固定七天。 */
+    public static final String AUTH_SESSION = "crp:auth:session:%s";
+
+    public static String authSession(String sid) {
+        return AUTH_SESSION.formatted(sid);
+    }
+
     /**
      * Token 黑名单 Key，jti 来自 JWT，用于退出登录后让单个 Token 立即失效。
      */

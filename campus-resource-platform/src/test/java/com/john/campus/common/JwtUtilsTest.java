@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
+import com.john.campus.exception.BusinessException;
 
 /**
  * JWT 密钥启动校验与基本签发解析测试，防止生产配置重新引入可用的公开默认密钥。
@@ -25,6 +26,23 @@ class JwtUtilsTest {
         assertThrows(IllegalArgumentException.class, () -> new JwtUtils(
                 "campus-resource-platform-dev-secret-change-me",
                 EXPIRATION_SECONDS));
+    }
+
+    @Test
+    void expiredTokenShouldHaveDedicatedCodeButInvalidSignatureShouldNot() {
+        JwtUtils expired = new JwtUtils(SAFE_TEST_SECRET, -5);
+        String token = expired.generateToken(1L, 1);
+        assertEquals(40103, assertThrows(BusinessException.class, () -> expired.parseToken(token)).getCode());
+        JwtUtils otherKey = new JwtUtils(SAFE_TEST_SECRET + "-other", 3600);
+        assertEquals(40101, assertThrows(BusinessException.class, () -> otherKey.parseToken(token)).getCode());
+    }
+
+    @Test
+    void sessionTokenShouldCarrySidAndRespectRemainingSessionLifetime() {
+        JwtUtils jwt = new JwtUtils(SAFE_TEST_SECRET, 900);
+        JwtClaims claims = jwt.parseToken(jwt.generateToken(1L, 2, "test-session", 30));
+        assertEquals("test-session", claims.sid());
+        assertEquals(30, java.time.Duration.between(claims.issuedAt(), claims.expiresAt()).getSeconds());
     }
 
     @Test
