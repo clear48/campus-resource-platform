@@ -2,7 +2,7 @@
 
 ## 1. 文档目标
 
-本文档逐项读取 `docs/api/api-reference.md` 中第 3 至第 10 节的全部 27 个接口，为前端设计 API 文件、方法名、使用页面、Authorization Token 要求、请求参数和响应字段。
+本文档逐项读取 `docs/api/api-reference.md` 中原第 3 至第 10 节的 27 个基础接口，并增补已实现的刷新接口（不是当前全部后端接口的穷尽清单），为前端设计 API 文件、方法名、使用页面、Authorization Token 要求、请求参数和响应字段。
 
 本文档只做前端调用映射，不修改后端接口。接口文档未明确、存在歧义或仍处于规划状态的内容统一标记为“文档缺失/待确认”，不通过前端设计补造字段或规则。
 
@@ -10,7 +10,7 @@
 
 | 文件 | 职责 | 包含方法 |
 | --- | --- | --- |
-| `src/api/auth.ts` | 注册、登录、退出 | `register`、`login`、`logout` |
+| `src/api/auth.ts` | 注册、登录、退出（刷新由 request 内部编排） | `register`、`login`、`logout` |
 | `src/api/users.ts` | 当前用户及个人中心列表 | `getCurrentUser`、`getMyResources`、`getMyFavorites`、`getMyDownloadRecords` |
 | `src/api/resources.ts` | 资料创建和公开详情 | `getResourceDetail`、`createResource` |
 | `src/api/categories.ts` | 分类查询 | `getCategories` |
@@ -69,7 +69,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | `POST /api/v1/auth/register` | `src/api/auth.ts` | `register` | `/register` | 否 | 已实现 |
 | 2 | `POST /api/v1/auth/login` | `src/api/auth.ts` | `login` | `/login` | 否 | 已实现 |
-| 3 | `POST /api/v1/auth/logout` | `src/api/auth.ts` | `logout` | `/me/profile` | 是 | 已实现 |
+| 3 | `POST /api/v1/auth/logout` | `src/api/auth.ts` | `logout` | `/me/profile` | Refresh 自行认证或旧有效 Bearer | 已实现 |
 | 4 | `GET /api/v1/users/me` | `src/api/users.ts` | `getCurrentUser` | 应用初始化、`/login`、`/me/profile` | 是 | 已实现 |
 | 5 | `GET /api/v1/resources/{resourceId}` | `src/api/resources.ts` | `getResourceDetail` | `/resources/:id`、`/admin/resources` | 否 | 已实现 |
 | 6 | `GET /api/v1/users/me/resources` | `src/api/users.ts` | `getMyResources` | `/me/uploads` | 是 | 已实现 |
@@ -94,6 +94,7 @@
 | 25 | `POST /api/v1/admin/rankings/resources/hot/rebuild` | `src/api/admin/rankings.ts` | `rebuildHotResourceRanking` | `/admin/rankings` | 管理员 | 已实现 |
 | 26 | `GET /api/v1/search/resources` | `src/api/search.ts` | `searchResources` | `/search`、`/admin/resources` | 否 | 已实现 |
 | 27 | `GET /api/v1/search/suggestions` | `src/api/search.ts` | `getSearchSuggestions` | 首版页面不调用；未来可用于 `/search` | 否 | **未实现，仅预留** |
+| 28（新增） | `POST /api/v1/auth/refresh` | `src/utils/request.ts` | 内部 `refreshSession` | 业务40103时按需触发 | Refresh自行认证 | 已实现 |
 
 > `docs/api/api-reference.md` 第 3 至第 10 节共包含 27 个带请求方法和 URL 的接口，其中 26 个已实现，搜索建议接口尚未实现。
 
@@ -147,7 +148,9 @@
 | --- | --- | --- |
 | `accessToken` | string | JWT |
 | `tokenType` | string | 示例为 `Bearer` |
-| `expiresIn` | number | Token 有效秒数 |
+| `expiresIn` | number | Access 有效秒数，默认 900 |
+| `refreshToken` | string | 独立 opaque 凭据，必须与 Access 一起保存和轮换 |
+| `refreshExpiresIn` | number | 固定七天会话的剩余秒数 |
 | `user.userId` | number | 用户 ID |
 | `user.username` | string | 用户名 |
 | `user.nickname` | string | 昵称 |
@@ -163,19 +166,23 @@
 | --- | --- |
 | API 文件 | `src/api/auth.ts` |
 | 建议签名 | `logout()` |
-| 请求 | `POST /auth/logout`，空 JSON body 或无业务字段 |
+| 请求 | `POST /auth/logout`，优先 Refresh JSON body；旧会话完全无 body |
 | 使用页面 | `/me/profile` |
-| Authorization | 是 |
+| Authorization | 新客户端凭Refresh认证，不要求有效Access；旧无body路径要求有效Bearer |
 
 | 请求字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| 无 | - | - | Token 从 Authorization 请求头读取 |
+| `refreshToken` | string | body 存在时必填 | 非空且最大 128 字符；无 body 才回退旧有效 Bearer |
 
 | 响应 data 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `data` | null | 无业务数据 |
 
-缺失说明：文档未明确空请求应发送 `{}` 还是完全无 body；示例为 `{}`。前端可按示例发送空对象，不增加业务字段。
+已明确：新会话提交 `{"refreshToken":"<刷新凭据>"}`，旧会话不传 body；`{}` 不会回退 Bearer，而是参数错误 40001。Refresh 退出不要求有效 Access；成功或认证终态清理本地，网络/500 保留。
+
+### 5.3.1 刷新登录凭据（新增）
+
+`POST /auth/refresh` 由 `src/utils/request.ts` 内部低层 `httpClient.post` 编排，避免与 `api/auth.ts` 循环导入；不单独暴露页面操作。JSON字段 `refreshToken` 必填非空、最大128字符，不要求有效Access；响应字段与登录完整双Token相同。仅业务40103触发，单页单飞和跨页Web Lock，成功条件提交并最多重放一次；认证接口不递归刷新。详见 [API 3.5](../api/api-reference.md#35-刷新登录凭据)。
 
 ### 5.4 获取当前用户 `getCurrentUser`
 
@@ -818,7 +825,7 @@
 | 1 | 用户相关响应 | `status` 数值含义没有枚举定义 | 只展示已知值并为未知值提供兜底文本 |
 | 2 | 注册 | 请求有 `phone`，响应无 `phone` | 不从注册响应读取手机号 |
 | 3 | 登录 | `42901` 已列出但登录限流未实现 | 不展示“已启用登录限流” |
-| 4 | 退出 | 空对象与无 body 未统一说明 | 可按示例发送 `{}`，不增加字段 |
+| 4 | 退出 | 已明确 body 与无 body 的区别 | Refresh body 非空；旧 Bearer 无 body；`{}` 为 40001 |
 | 5 | 资料详情 | `favorited` 仍描述为预留，但收藏模块已实现 | 登录用户调用独立收藏状态接口 |
 | 6 | 我的上传 | `pageSize` 最大值未说明 | 仅使用保守分页值，不声称具体上限 |
 | 7 | 创建资料 | 多个字符串和标签精确长度未列出 | 前端只做基础校验，错误以后端为准 |

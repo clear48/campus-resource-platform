@@ -4,11 +4,11 @@
 
 本文档记录当前已经落地的“用户认证模块”，对应代码包路径为 `com.john.campus`。
 
-当前模块覆盖注册、登录、退出登录、当前用户查询、JWT 鉴权拦截、密码加密、Redis Token 黑名单。登录限流、验证码、管理员用户管理、注解式权限控制等能力属于后续优化方向，本模块暂未涉及。
+当前模块覆盖注册、登录、退出登录、当前用户查询、JWT 鉴权拦截、密码加密、双 Token 自动刷新、Redis 可撤销会话和旧 Token 黑名单。登录限流、验证码、管理员用户管理、注解式权限控制等能力属于后续优化方向，本模块暂未涉及。
 
 ## 1. 模块目标
 
-用户认证模块用于完成平台最基础的身份能力：用户注册、用户登录、JWT 签发、当前用户识别、退出登录和 Token 黑名单校验。
+用户认证模块用于完成平台最基础的身份能力：用户注册、用户登录、JWT 签发、当前用户识别、退出登录、刷新凭据轮换、Redis 会话归属及 Token 黑名单校验。
 
 该模块是后续资料上传、下载、收藏、管理员审核等模块的前置基础，后续业务接口可以通过 `UserContextHolder` 获取当前登录用户信息。
 
@@ -16,9 +16,10 @@
 
 - 用户注册：接收用户名、密码、昵称、邮箱、手机号，使用 BCrypt 加密密码后写入 `user` 表。
 - 用户登录：按用户名查询用户，校验 BCrypt 密码，校验用户状态，签发 JWT。
-- 用户退出登录：解析当前 Token 的 `jti`，写入 Redis 黑名单，并设置 Token 剩余有效期作为 TTL。
+- 用户退出登录：优先用 Refresh 删除 sid 会话；旧有效 Bearer 路径删除 sid（若有）并写 jti 黑名单。
+- 自动刷新：Access 默认 900 秒，40103 触发前端单飞刷新；opaque Refresh 固定七天，Lua CAS 轮换且不滑动 TTL。
 - 当前用户查询：通过 JWT 拦截器解析当前用户 ID，再查询 `user` 表返回用户信息。
-- JWT 鉴权拦截：解析 `Authorization: Bearer {token}`，提取 `userId`、`role`、`jti`，写入 `UserContextHolder`。
+- JWT 鉴权拦截：解析 `Authorization: Bearer {token}`，提取 `userId`、`role`、`jti`、`sid` 并校验会话归属，写入 `UserContextHolder`。
 - Redis 黑名单校验：请求进入受保护接口时，如果 `jti` 已存在于黑名单 Key，则返回 Token 已失效。
 - 统一异常处理：业务异常、参数校验异常、Token 异常统一返回 `ApiResponse`。
 
@@ -39,7 +40,8 @@
 | --- | --- | --- | --- | --- | --- |
 | 用户注册 | `POST` | `/api/v1/auth/register` | 否 | 无 | `AuthController.register` |
 | 用户登录 | `POST` | `/api/v1/auth/login` | 否 | 无 | `AuthController.login` |
-| 用户退出登录 | `POST` | `/api/v1/auth/logout` | 是 | 学生或管理员 | `AuthController.logout` |
+| 刷新登录凭据 | `POST` | `/api/v1/auth/refresh` | Refresh 自行认证 | 持有有效当前 Refresh | `AuthController.refresh` |
+| 用户退出登录 | `POST` | `/api/v1/auth/logout` | Refresh 自行认证或旧有效 Bearer | 无角色限制 | `AuthController.logout` |
 | 获取当前用户 | `GET` | `/api/v1/users/me` | 是 | 学生或管理员 | `UserController.me` |
 
 ## 4. 涉及数据库表
@@ -83,16 +85,20 @@
 | 数据结构 | String |
 | Value | `logout` |
 | TTL | JWT 剩余有效期 |
-| 写入时机 | 用户调用 `POST /api/v1/auth/logout` |
+| 写入时机 | 无 body 的旧 Bearer 退出路径 |
 | 读取时机 | `JwtAuthenticationInterceptor.preHandle` |
 | 用途 | 用户退出登录后，让未过期 JWT 立即失效 |
 
 本模块暂未实现 `crp:auth:user:token-version:{userId}`。
 
-### 5.2 Redis 与 MySQL 一致性
+### 5.2 刷新会话
+
+`crp:auth:session:{sid}` Hash 保存 userId/currentHash/used 摘要；Redis 仅存 SHA-256，无明文 Refresh。TTL 为登录起固定 604800 秒，轮换不滑动；2048 次轮换上限，超限撤销。创建、轮换、撤销由单 Key Lua 原子完成。详见 [生命周期指南](01-auth-token-lifecycle.md)。
+
+### 5.3 Redis 与 MySQL 一致性
 
 - Token 黑名单只用于补足 JWT 退出登录后的服务端失效能力，不回写 MySQL。
-- 用户是否可用仍以 MySQL `user.status` 为准，登录和 `GET /api/v1/users/me` 都会校验用户状态。
+- 用户是否可用仍以 MySQL `user.status` 为准，登录、刷新和 `GET /api/v1/users/me` 都会校验用户状态；受保护接口未统一逐次查库。
 - 黑名单 Key 的 TTL 使用 JWT 剩余有效期，避免 Token 过期后 Redis 仍长期保留无意义数据。
 - 如果退出登录时 Redis 写入失败，当前代码会由 `GlobalExceptionHandler` 统一返回 `50001 SERVER_ERROR`。
 - 如果后续实现管理员禁用用户后批量失效 Token，可增加 `crp:auth:user:token-version:{userId}`，当前模块暂未涉及。
@@ -103,10 +109,10 @@
 
 | 文件 | 说明 |
 | --- | --- |
-| `campus-resource-platform/src/main/java/com/john/campus/controller/AuthController.java` | 注册、登录、退出登录接口入口 |
+| `campus-resource-platform/src/main/java/com/john/campus/controller/AuthController.java` | 注册、登录、刷新、退出登录接口入口 |
 | `campus-resource-platform/src/main/java/com/john/campus/controller/UserController.java` | 当前用户查询接口入口 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/AuthService.java` | 认证业务接口 |
-| `campus-resource-platform/src/main/java/com/john/campus/service/impl/AuthServiceImpl.java` | 注册、登录、退出登录核心业务实现 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/impl/AuthServiceImpl.java` | 注册、登录、刷新、退出登录核心业务实现 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/UserService.java` | 当前用户业务接口 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/impl/UserServiceImpl.java` | 当前用户查询业务实现 |
 | `campus-resource-platform/src/main/java/com/john/campus/service/PasswordService.java` | 密码加密与校验接口 |
@@ -118,6 +124,9 @@
 | `campus-resource-platform/src/main/java/com/john/campus/common/UserContextHolder.java` | 当前用户 ThreadLocal 上下文 |
 | `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java` | Redis Key 常量 |
 | `campus-resource-platform/src/main/java/com/john/campus/exception/GlobalExceptionHandler.java` | 全局异常处理 |
+| `campus-resource-platform/src/main/java/com/john/campus/service/AuthSessionService.java` | 随机 Refresh、摘要、Redis 会话与 Lua 编排 |
+| `campus-resource-platform/src/main/java/com/john/campus/dto/AuthRefreshDTO.java` | Refresh 请求非空与最大长度校验 |
+| `campus-resource-platform/src/main/resources/lua/auth-session-*.lua` | 创建/轮换/撤销单 Key 原子状态机 |
 
 ### 6.2 核心方法
 
@@ -125,6 +134,9 @@
 | --- | --- | --- |
 | `AuthController` | `register(AuthRegisterDTO)` | 注册接口入口 |
 | `AuthController` | `login(AuthLoginDTO)` | 登录接口入口 |
+| `AuthController` | `refresh(AuthRefreshDTO)` | 刷新接口入口 |
+| `AuthServiceImpl` | `refresh(String)` / `logoutSession(String)` | 刷新轮换与整个会话撤销 |
+| `AuthSessionService` | `newCredential` / `parse` / `create` / `inspect` / `rotate` / `revoke` | 凭据与 Redis 状态机 |
 | `AuthController` | `logout(HttpServletRequest, AuthRefreshDTO)` | 退出登录接口入口 |
 | `UserController` | `me()` | 当前用户接口入口 |
 | `AuthService` | `register(AuthRegisterDTO)` | 注册业务接口 |
@@ -132,7 +144,7 @@
 | `AuthService` | `logout(String)` | 退出登录业务接口 |
 | `AuthServiceImpl` | `register(AuthRegisterDTO)` | 用户重复校验、密码加密、入库 |
 | `AuthServiceImpl` | `login(AuthLoginDTO)` | 用户查询、密码校验、JWT 签发 |
-| `AuthServiceImpl` | `logout(String)` | 写入 Redis Token 黑名单 |
+| `AuthServiceImpl` | `logout(String)` | 可信旧Bearer删除sid（若有）并写jti黑名单 |
 | `UserService` | `getCurrentUser()` | 当前用户查询业务接口 |
 | `UserServiceImpl` | `getCurrentUser()` | 根据上下文 userId 查询用户 |
 | `UserMapper` | `selectByUsername(String)` | 按用户名查询用户 |
@@ -141,13 +153,13 @@
 | `UserMapper` | `updateLastLoginAt(Long, LocalDateTime)` | 更新最近登录时间 |
 | `PasswordService` | `encode(String)` | BCrypt 加密密码 |
 | `PasswordService` | `matches(String, String)` | 校验明文密码和密文是否匹配 |
-| `JwtUtils` | `generateToken(Long, Integer)` | 生成 JWT |
+| `JwtUtils` | `generateToken(Long, Integer)` 及 sid/剩余期限重载 | 兼容旧 Token；新 Access 含 sid 并受会话期限约束 |
 | `JwtUtils` | `parseToken(String)` | 解析 JWT |
 | `JwtUtils` | `getUserId(String)` | 从 JWT 获取用户 ID |
 | `JwtUtils` | `getRole(String)` | 从 JWT 获取角色 |
 | `JwtUtils` | `getJti(String)` | 从 JWT 获取 jti |
 | `JwtUtils` | `getRemainingSeconds(String)` | 获取 Token 剩余有效期 |
-| `JwtAuthenticationInterceptor` | `preHandle(...)` | 解析 Token、校验黑名单、写入上下文 |
+| `JwtAuthenticationInterceptor` | `preHandle(...)` | 验签/到期、黑名单、sid 归属、写入上下文 |
 | `JwtAuthenticationInterceptor` | `afterCompletion(...)` | 清理 `ThreadLocal` |
 | `UserContextHolder` | `set(LoginUser)` | 写入当前用户上下文 |
 | `UserContextHolder` | `getRequiredUserId()` | 获取当前登录用户 ID |
@@ -178,7 +190,7 @@
 ### 7.3 受保护接口鉴权流程
 
 1. 请求进入 `/api/v1/**`。
-2. `WebMvcConfig` 排除登录、注册、健康检查、搜索、排行榜等无需登录路径。
+2. `WebMvcConfig` 排除登录、注册、刷新、退出、健康检查、搜索、排行榜等路径；刷新和退出自行认证。
 3. `JwtAuthenticationInterceptor.preHandle` 读取 `Authorization` 请求头。
 4. 校验请求头格式必须为 `Bearer {token}`。
 5. 调用 `JwtUtils.parseToken` 解析 JWT。
@@ -193,7 +205,7 @@
 1. `WebMvcConfig` 排除退出路由，Controller 将 body 中的 Refresh 交给 Service 自行校验；旧客户端无 body 时交 Bearer 给 Service 验签。
 2. Refresh 退出使用 Lua 验证当前或已用合法摘要，再删除整个 session；会话已不存在幂等成功。
 3. 旧 Bearer 退出校验有效 JWT，有 sid 则删除该会话，再将当前 jti 写黑名单，TTL 为 Access 剩余秒数。
-4. 后续新 Token 因 sid 会话不存在返回 40105，旧 Token 命中黑名单返回 40102。
+4. 后续鉴权先判断过期 40103，再判断黑名单 40102；未过期且未命中黑名单时，sid 不存在才返回 40105。
 
 ### 7.5 当前用户查询流程
 
@@ -206,162 +218,95 @@
 7. 用户状态不是 `User.STATUS_NORMAL` 时抛出 `FORBIDDEN`。
 8. 返回 `UserVO`，不返回 `password_hash`、`phone` 等敏感或非必要字段。
 
+### 7.6 刷新流程
+
+1. `AuthController.refresh` 校验非空、最长 128 字符的 Refresh body，传给 `AuthServiceImpl.refresh`。
+2. `AuthSessionService.parse/inspect` 验证格式、当前摘要与会话期限；已知旧凭据重放会撤销，随机猜测只拒绝。
+3. MySQL 查询当前用户状态和角色；不可用账号撤销会话，数据库失败不消耗凭据。
+4. 准备含同 sid、新 jti 的 Access，期限不超过会话剩余时间；Lua CAS 轮换 Refresh，保留原 TTL。
+5. 前端持锁条件提交双凭据，原业务请求最多重放一次；登录/注册/刷新/退出不递归刷新。
+
 ## 8. 模块内部类之间的关系
 
 ```mermaid
 classDiagram
-    class AuthController {
-        +register(AuthRegisterDTO)
-        +login(AuthLoginDTO)
-        +logout(HttpServletRequest)
-    }
-
-    class UserController {
-        +me()
-    }
-
-    class AuthService {
-        <<interface>>
-        +register(AuthRegisterDTO)
-        +login(AuthLoginDTO)
-        +logout(String)
-    }
-
-    class AuthServiceImpl {
-        +register(AuthRegisterDTO)
-        +login(AuthLoginDTO)
-        +logout(String)
-    }
-
-    class UserService {
-        <<interface>>
-        +getCurrentUser()
-    }
-
-    class UserServiceImpl {
-        +getCurrentUser()
-    }
-
-    class UserMapper {
-        +selectByUsername(String)
-        +selectById(Long)
-        +insert(User)
-        +updateLastLoginAt(Long, LocalDateTime)
-    }
-
-    class PasswordService {
-        <<interface>>
-        +encode(String)
-        +matches(String, String)
-    }
-
-    class JwtUtils {
-        +generateToken(Long, Integer)
-        +parseToken(String)
-        +getJti(String)
-        +getRemainingSeconds(String)
-    }
-
-    class JwtAuthenticationInterceptor {
-        +preHandle(...)
-        +afterCompletion(...)
-    }
-
-    class UserContextHolder {
-        +set(LoginUser)
-        +getRequiredUserId()
-        +clear()
-    }
-
     AuthController --> AuthService
+    AuthController --> AuthRefreshDTO
     AuthService <|.. AuthServiceImpl
     AuthServiceImpl --> UserMapper
     AuthServiceImpl --> PasswordService
     AuthServiceImpl --> JwtUtils
-    UserController --> UserService
-    UserService <|.. UserServiceImpl
+    AuthServiceImpl --> AuthSessionService
+    AuthSessionService --> RedisLua
+    JwtAuthenticationInterceptor --> JwtUtils
+    JwtAuthenticationInterceptor --> Redis会话与黑名单
+    JwtAuthenticationInterceptor --> UserContextHolder
     UserServiceImpl --> UserMapper
     UserServiceImpl --> UserContextHolder
-    JwtAuthenticationInterceptor --> JwtUtils
-    JwtAuthenticationInterceptor --> UserContextHolder
 ```
+
+`RedisLua` 表示三份 Lua 资源而非 Java 类；`AuthRefreshDTO` 同时用于刷新和有 body 的退出。JwtClaims 新增 sid，旧构造器保留兼容。
 
 ## 9. 模块核心时序图
 
 ```mermaid
 sequenceDiagram
-    participant Client as 客户端
-    participant AuthController
-    participant AuthServiceImpl
-    participant UserMapper
-    participant PasswordService
-    participant JwtUtils
-    participant Redis as Redis
-
-    Client->>AuthController: POST /api/v1/auth/register
-    AuthController->>AuthServiceImpl: register(AuthRegisterDTO)
-    AuthServiceImpl->>UserMapper: selectByUsername(username)
-    AuthServiceImpl->>PasswordService: encode(password)
-    AuthServiceImpl->>UserMapper: insert(user)
-    AuthServiceImpl-->>AuthController: UserVO
-    AuthController-->>Client: ApiResponse<UserVO>
-
-    Client->>AuthController: POST /api/v1/auth/login
-    AuthController->>AuthServiceImpl: login(AuthLoginDTO)
-    AuthServiceImpl->>UserMapper: selectByUsername(username)
-    AuthServiceImpl->>PasswordService: matches(raw, hash)
-    AuthServiceImpl->>UserMapper: updateLastLoginAt(id, now)
-    AuthServiceImpl->>JwtUtils: generateToken(userId, role)
-    AuthServiceImpl-->>AuthController: AuthLoginVO
-    AuthController-->>Client: ApiResponse<AuthLoginVO>
-
-    Client->>AuthController: POST /api/v1/auth/logout
-    AuthController->>AuthServiceImpl: logout(token)
-    AuthServiceImpl->>JwtUtils: getJti(token)
-    AuthServiceImpl->>JwtUtils: getRemainingSeconds(token)
-    AuthServiceImpl->>Redis: SET blacklist:jti logout EX remainingSeconds
-    AuthController-->>Client: ApiResponse<Void>
+    participant Client as 前端
+    participant Auth as AuthController/AuthServiceImpl
+    participant DB as UserMapper/MySQL
+    participant JWT as JwtUtils
+    participant Store as AuthSessionService/Redis
+    Client->>Auth: login(账号密码)
+    Auth->>DB: 按用户名查询用户
+    Auth->>Auth: BCrypt密码与账号状态校验
+    Auth->>DB: 更新last_login_at
+    Auth->>JWT: 生成含sid的Access
+    Auth->>Store: create随机Refresh摘要与固定七天TTL
+    Auth-->>Client: 双Token和用户信息
+    Client->>Auth: refresh(当前Refresh)
+    Auth->>Store: inspect摘要
+    Auth->>DB: 当前用户状态与角色
+    Auth->>JWT: 准备新Access
+    Auth->>Store: Lua CAS轮换，TTL不变
+    Auth-->>Client: 新双Token
+    Client->>Auth: logout(Refresh)
+    Auth->>Store: 当前或已用摘要认证后DEL sid
+    Auth-->>Client: 成功
 ```
 
-## 10. 模块流程图
+## 10. 自动刷新流程图
 
 ```mermaid
 flowchart TD
-    A["客户端请求受保护接口"] --> B["JwtAuthenticationInterceptor"]
-    B --> C{"Authorization 是否为 Bearer Token"}
-    C -- 否 --> D["抛出 UNAUTHORIZED"]
-    C -- 是 --> E["JwtUtils.parseToken"]
-    E --> F{"Token 是否有效"}
-    F -- 否 --> D
-    F -- 是 --> G["读取 jti"]
-    G --> H{"Redis 黑名单是否命中"}
-    H -- 是 --> I["抛出 TOKEN_BLACKLISTED"]
-    H -- 否 --> J["写入 UserContextHolder"]
-    J --> K["Controller"]
-    K --> L["Service"]
-    L --> M["Mapper / Redis"]
-    M --> N["ApiResponse"]
-    N --> O["afterCompletion 清理 ThreadLocal"]
+    A[业务请求] --> B{是否40103且未重放}
+    B -->|否| C[正常结果或错误分类处理]
+    B -->|是| D[同页single-flight与Web Lock]
+    D --> E[锁内重读generation和双Token]
+    E --> F{同代Access已更新}
+    F -->|是| H[用新Access重放原请求一次]
+    F -->|否| G[Refresh认证和CAS轮换]
+    G --> H
 ```
 
 ## 11. 鉴权流程图
 
 ```mermaid
-flowchart LR
-    A["请求 /api/v1/**"] --> B{"是否命中排除路径"}
-    B -- "是" --> C["直接进入 Controller"]
-    B -- "否" --> D["JwtAuthenticationInterceptor"]
-    D --> E{"Authorization 是否存在"}
-    E -- "否" --> F["40101 UNAUTHORIZED"]
-    E -- "是" --> G["解析 Bearer Token"]
-    G --> H{"JWT 是否有效"}
-    H -- "否" --> F
-    H -- "是" --> I{"Redis 黑名单是否命中"}
-    I -- "是" --> J["40102 TOKEN_BLACKLISTED"]
-    I -- "否" --> K["写入 UserContextHolder"]
-    K --> L["进入 Controller / Service"]
-    L --> M["afterCompletion 清理上下文"]
+flowchart TD
+    A[受保护请求] --> B{Bearer格式与签名有效}
+    B -->|否| C[40101]
+    B -->|是| D{Access过期}
+    D -->|是| E[40103]
+    D -->|否| F{jti黑名单命中}
+    F -->|是| G[40102]
+    F -->|否| H{无sid的历史Token}
+    H -->|是| K[写请求上下文并执行业务]
+    H -->|否| I{Redis会话userId匹配}
+    I -->|否| J[40105]
+    I -->|是| K
+    K --> L[请求结束清ThreadLocal]
 ```
+
+Redis 查询异常统一失败关闭为 50001；顺序决定已退出且过期的 Token 先返回 40103。公开路径不走此图；刷新/退出由 Service 认证。完整前后端协作见 [生命周期指南](01-auth-token-lifecycle.md)。
 
 ## 12. 异常处理
 
@@ -374,6 +319,8 @@ flowchart LR
 | Token 缺失或格式错误 | `JwtAuthenticationInterceptor.preHandle` | `40101 UNAUTHORIZED` |
 | Token 签名无效 | `JwtUtils.parseToken` | `40101 UNAUTHORIZED` |
 | Token 已过期 | `JwtUtils.parseToken` | `40103 TOKEN_EXPIRED` |
+| Refresh 失效、重放或会话超轮换上限 | `AuthSessionService` | `40104 REFRESH_TOKEN_INVALID` |
+| sid 不存在或归属不匹配 | `JwtAuthenticationInterceptor.preHandle` | `40105 SESSION_REVOKED` |
 | Token 已退出登录 | `JwtAuthenticationInterceptor.preHandle` | `40102 TOKEN_BLACKLISTED` |
 | 当前用户不存在 | `UserServiceImpl.getCurrentUser` | `40401 RESOURCE_NOT_FOUND` |
 | DTO 参数校验失败 | `GlobalExceptionHandler` | `40001 PARAM_ERROR` |
@@ -384,6 +331,9 @@ HTTP 状态码由 `GlobalExceptionHandler.resolveHttpStatus` 统一转换：
 | --- | --- |
 | `40101 UNAUTHORIZED` | `401 Unauthorized` |
 | `40102 TOKEN_BLACKLISTED` | `401 Unauthorized` |
+| `40103 TOKEN_EXPIRED` | `401 Unauthorized` |
+| `40104 REFRESH_TOKEN_INVALID` | `401 Unauthorized` |
+| `40105 SESSION_REVOKED` | `401 Unauthorized` |
 | `40301 FORBIDDEN` | `403 Forbidden` |
 | `40401 RESOURCE_NOT_FOUND` | `404 Not Found` |
 | `42901 RATE_LIMITED` | `429 Too Many Requests` |
@@ -405,7 +355,8 @@ HTTP 状态码由 `GlobalExceptionHandler.resolveHttpStatus` 统一转换：
 | --- | --- | --- |
 | `AuthServiceImpl.register` | `@Transactional(rollbackFor = Exception.class)` | 插入用户时出现异常需要回滚 |
 | `AuthServiceImpl.login` | `@Transactional(rollbackFor = Exception.class)` | 登录成功后更新 `last_login_at`，失败时回滚 |
-| `AuthServiceImpl.logout` | 本模块暂未涉及数据库事务 | 只写 Redis 黑名单，不操作 MySQL |
+| `AuthServiceImpl.refresh` | 无跨库事务 | 只读 MySQL 后 Redis Lua CAS；查库失败不消耗 Refresh |
+| `AuthServiceImpl.logout` / `logoutSession` | 无 MySQL 事务 | Redis 会话撤销，旧 Bearer 路径还写 jti 黑名单 |
 | `UserServiceImpl.getCurrentUser` | 本模块暂未涉及事务 | 只读查询 |
 
 说明：
@@ -416,7 +367,9 @@ HTTP 状态码由 `GlobalExceptionHandler.resolveHttpStatus` 统一转换：
 
 ## 15. 测试用例
 
-### 15.1 已执行验证
+### 15.1 历史验证与本次代码验证
+
+下表前两项为早期实现历史结果，保留其当时范围；2026-11-01 代码变更后，认证及 Controller mock/unit 58/58、前端 101/101 与构建通过。本轮文档同步未重跑业务测试，具体复验命令见 [指南](01-auth-token-lifecycle.md#7-配置验证与现有限制)。
 
 | 测试项 | 命令 | 结果 |
 | --- | --- | --- |
@@ -433,8 +386,8 @@ HTTP 状态码由 `GlobalExceptionHandler.resolveHttpStatus` 统一转换：
 | 密码错误 | 登录时传入错误密码 | 返回 `40101 UNAUTHORIZED` |
 | 查询当前用户成功 | 携带 `Authorization: Bearer {token}` 请求 `GET /api/v1/users/me` | 返回当前用户信息 |
 | 未携带 Token 查询当前用户 | 不传 `Authorization` 请求 `GET /api/v1/users/me` | 返回 `40101 UNAUTHORIZED` |
-| 退出登录成功 | 携带 Token 请求 `POST /api/v1/auth/logout` | 返回 `code = 0`，Redis 写入黑名单 |
-| 退出后再次访问 | 使用退出后的 Token 请求 `GET /api/v1/users/me` | 返回 `40102 TOKEN_BLACKLISTED` |
+| 新客户端退出成功 | body 携带 Refresh 请求 `POST /api/v1/auth/logout` | `code = 0`，删除 sid 会话 |
+| 退出后再次访问 | 使用退出后的 Access 请求受保护接口 | 按先后顺序：过期40103、黑名单40102、否则会话撤销40105 |
 
 Postman 测试集合：
 
@@ -446,8 +399,8 @@ Postman 测试集合：
 ## 16. 面试可讲点
 
 - 密码没有明文存储，而是通过 `BCryptPasswordEncoder` 加密后保存到 `password_hash`。
-- JWT 中携带 `userId`、`role`、`jti`，`jti` 用于退出登录后的 Token 黑名单。
-- JWT 是无状态认证，但退出登录需要服务端失效能力，因此使用 Redis 黑名单补足。
+- 新JWT携带 `sid`、`userId`、`role`、`jti`；sid用于会话撤销，jti黑名单保留旧Bearer退出兼容。
+- JWT 自包含身份，加 Redis 会话撤销和旧黑名单；系统整体非完全无状态。
 - Redis 黑名单 TTL 使用 Token 剩余有效期，避免黑名单 Key 长期占用内存。
 - `JwtAuthenticationInterceptor` 将用户信息放入 `UserContextHolder`，业务层无需重复解析 Token。
 - `afterCompletion` 清理 `ThreadLocal`，避免 Web 容器线程复用导致用户信息串线。
@@ -456,7 +409,6 @@ Postman 测试集合：
 
 ## 17. 后续优化方向
 
-- 在 `AuthController.logout` 中支持直接读取 `Authorization` 请求头，减少对 request attribute 的依赖。
 - 增加 `UserMapper.selectByEmail`、`selectByPhone`，注册前给出更精确的重复提示。
 - 增加登录限流，使用 Redis 防止暴力破解。
 - 增加验证码或邮箱验证。
@@ -484,7 +436,7 @@ feat(auth): implement user authentication module
 
 每请求验证顺序为签名/到期、jti 黑名单、新 Token 的 sid 会话归属、写 ThreadLocal；请求结束清理。旧无 sid Token 兼容但无法刷新。专属错误码：40103 到期、40104 Refresh 无效、40105 会话撤销。40101/40102 不触发自动刷新。
 
-每会话最多 2048 次轮换（正常七天约 672 次），超限删除会话并要求重新登录，防止已用摘要无限膨胀。同一会话由 Redis 单 Key Lua 串行化；刷新成功保留旧凭据摘要用于重放检测，退出删除会话并使所有同 sid Access 失效，不影响其他设备。无新增数据库表、依赖或其他业务模块修改。Refresh 不记录日志，Redis 只存摘要；客户端须妥善保管明文。
+每会话最多 2048 次轮换（正常七天约 672 次），超限删除会话并要求重新登录，防止已用摘要无限膨胀。同一会话由 Redis 单 Key Lua 串行化；刷新成功保留旧凭据摘要用于重放检测，退出删除会话并使所有同 sid Access 在后续鉴权失效（优先错误顺序见第 11 节），不影响其他设备。无新增数据库表、依赖或其他业务模块修改。Refresh 不记录日志，Redis 只存摘要；客户端须妥善保管明文。
 
 前端已接入自动刷新（见下一节）。新增本地 mock/unit 测试覆盖 JWT、业务编排、控制器切片、会话存储返回值及拦截器。按用户要求不执行 Docker/真实 MySQL/Redis 集成测试；Lua 真正原子性和外部服务集成尚未验证。
 

@@ -15,3 +15,5 @@
 | 排行榜与定时维护 | `RankingController`、`AdminRankingController`、`task/` | `rankings.ts`、首页与管理员排行榜页 | [`09-rank-development-process.md`](09-rank-development-process.md) |
 
 新增功能时，先归属到现有模块；只有确实独立的业务边界才新增新的模块开发过程文档。跨模块的 MySQL、Redis、接口契约必须分别同步到 [`../database/`](../database/)、[`../05-redis-design.md`](../05-redis-design.md) 和 [`../api/api-reference.md`](../api/api-reference.md)。
+
+认证专题：[双 Token 生命周期与自动刷新](01-auth-token-lifecycle.md)，配合认证模块开发记录阅读。已实现刷新轮换与sid会话撤销，用户级全设备撤销仍未实现。

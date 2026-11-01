@@ -261,6 +261,7 @@
 | `40101` | 账号或密码错误 |
 | `40301` | 用户已被禁用 |
 | `42901` | 登录尝试过于频繁，当前代码暂未实现 |
+| `50001` | 数据库操作或 Redis 会话创建失败 |
 
 ### 3.3 用户退出登录
 
@@ -268,8 +269,8 @@
 - 认证：JSON body `{"refreshToken":"<刷新凭据>"}`；Access 已过期仍可退出。旧客户端可不传 body，仅携带有效 `Authorization: Bearer <Access>`，由 Service 自行认证。
 - 权限：持有本次登录的合法凭据，无角色限制。
 - 成功响应：`{"code":0,"message":"success","data":null}`。
-- 错误：40001 参数错误；40101 缺少或无效 Bearer；40103 Bearer 已过期；40104 刷新凭据伪造；50001 Redis 异常。
-- 行为：Refresh 退出删除会话，使同 sid 所有 Access 失效；旧 Bearer 退出还写 jti 黑名单。已不存在的 Refresh 会话幂等成功。
+- 错误：40001 参数错误；40101 缺少或无效 Bearer；40103 Bearer 已过期；40104 Refresh格式非法或在现存sid中摘要不匹配；50001 Redis 异常。
+- 行为：Refresh 退出删除会话，后续鉴权按验签/过期→黑名单→sid顺序拒绝；旧 Bearer 退出还写 jti 黑名单。格式合法且sid已不存在时幂等成功，不再核验secret。body存在时refreshToken必填非空且最大128字符；`{}`返回40001，不回退Bearer。
 
 ### 3.4 获取当前用户信息
 
@@ -317,8 +318,32 @@
 | --- | --- |
 | `40101` | 未登录或 Token 无效 |
 | `40102` | Token 已失效 |
+| `40103` | Access 已过期，可按刷新协议恢复后重试一次 |
+| `40105` | sid 会话不存在或用户归属不匹配 |
 | `40401` | 用户不存在 |
 | `40301` | 用户已被禁用 |
+| `50001` | 数据库查询或 Redis 鉴权失败，不降级放行 |
+
+### 3.5 刷新登录凭据
+
+| 项目 | 内容 |
+| --- | --- |
+| 请求方法与URL | `POST /api/v1/auth/refresh` |
+| 认证 | Refresh 自行认证，不要求有效 Access，不走统一 Access 拦截 |
+| 请求字段 | `refreshToken`：string，必填、非空、最大128字符 |
+| 权限 | 持有当前有效 Refresh，无角色限制 |
+| 成功 | HTTP 200 / code=0，完整 data 与登录相同：accessToken、tokenType、expiresIn、user、refreshToken、refreshExpiresIn |
+| 失败 | 400/40001参数；401/40104无效、过期、已用重放、会话超轮换上限；500/50001外部服务异常 |
+
+请求示意：
+
+```json
+{"refreshToken":"<当前刷新凭据>"}
+```
+
+刷新前 inspect 当前摘要，再查 MySQL 最新账号状态/角色（不可用账号撤销并返回40104）；数据库失败不消耗凭据。Lua CAS 保证只使用一次，轮换不延长登录起七天期限；Access 期限也不能越过会话剩余时间。旧无sid Access无法换取Refresh，需重新登录。
+
+客户端必须同时保存本次返回的 Access 和 Refresh，替换旧凭据，不能反复使用旧 Refresh：已知旧摘要重放会删除整个会话；随机猜测不会撤销合法会话。前端仅在业务40103时刷新并最多重放一次，认证接口自身不得递归刷新。完整响应与生命周期见 [认证指南](../modules/01-auth-token-lifecycle.md)。
 
 ## 4. 资料模块
 
@@ -1691,23 +1716,6 @@ Authorization: Bearer eyJhbG...
 - 说明：接口只接受 resourceId，并读取该资料在数据库中关联的 fileId，不接受客户端独立传入 fileId。
 
 
-## 认证刷新协议（2026-11-01）
+## 认证刷新协议说明入口
 
-登录 `POST /api/v1/auth/login` 在原有响应中增加 `refreshToken`、`refreshExpiresIn`（秒）；Access 默认 900 秒，可由 `JWT_EXPIRATION_SECONDS` 覆盖。Refresh 是独立随机 opaque 凭据，不是 JWT，也不能当作 Bearer Access 使用。
-
-| 接口 | 请求与认证 | 成功响应 | 失败 |
-| --- | --- | --- | --- |
-| `POST /api/v1/auth/refresh` | JSON `{"refreshToken":"<刷新凭据>"}`，不要求有效 Access；凭 Refresh 认证 | `code=0`，data 与登录相同，必须同时替换两个 Token | 参数空/过长 HTTP 400/40001；凭据无效、过期、重放 HTTP 401/40104；外部服务异常 HTTP 500/50001 |
-| `POST /api/v1/auth/logout` | 优先 JSON `{"refreshToken":"<刷新凭据>"}`；无 body 时兼容有效 `Authorization: Bearer <Access>` | `code=0,data=null`；撤销本次登录会话 | 无凭据 HTTP 401/40101；伪造 Refresh HTTP 401/40104；旧 Bearer 过期 HTTP 401/40103 |
-
-刷新前读取 MySQL 当前账号状态和角色，账号不存在或禁用即撤销刷新会话并返回 40104；数据库失败不消耗凭据。刷新成功后旧 Refresh 不能再次刷新，已知旧凭据重放会撤销整个会话；随机猜测不会撤销合法会话。刷新和退出自行认证，不能依赖过期 Access 的拦截结果。每会话最多 2048 次轮换，超限撤销并要求重新登录。
-
-刷新会话从登录起固定七天，轮换不延长绝对期限。`refreshExpiresIn` 为本次响应时剩余秒数；新 Access 也不会越过会话期限。退出删除会话后，同会话所有新旧 Access 均返回 40105。另一设备独立登录不受影响。升级前无 sid 的 Access 继续按原黑名单认证，不能刷新，过期后需重新登录。
-
-响应示意（敏感值均为占位符）：
-
-```json
-{"code":0,"message":"success","data":{"accessToken":"<Access>","tokenType":"Bearer","expiresIn":900,"user":{"userId":10001,"role":1},"refreshToken":"<Refresh>","refreshExpiresIn":604800}}
-```
-
-客户端只在 40103 时尝试刷新，并最多重放原请求一次；登录、注册、刷新、退出接口不得递归刷新。网络异常与服务端 500 不能视为凭据被撤销。刷新凭据为 bearer secret，调用方不得写入日志、URL 或共享文档。
+正式契约已同步到 [3.2 登录](#32-用户登录)、[3.3 退出](#33-用户退出登录) 和 [3.5 刷新](#35-刷新登录凭据)。端到端流程、错误优先顺序、旧客户端与存储边界见 [生命周期指南](../modules/01-auth-token-lifecycle.md)。本轮仅文档同步，不代表代码已合入main或部署。

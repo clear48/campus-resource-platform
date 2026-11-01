@@ -8,7 +8,7 @@ Redis 在本项目中不是简单缓存，而是承担以下真实业务能力�
 - 使用 ZSet 实现热门资料排行榜和热门搜索词排行榜。
 - 使用 Redis + Lua 实现下载限流，防止恶意刷下载量。
 - 使用 Hash 临时统计下载量，由定时任务批量同步到 MySQL。
-- 保存登录 Token 黑名单或登录态辅助信息。
+- 保存固定七天刷新会话、一次性轮换摘要和旧Token黑名单，提供登录撤销能力。
 - 缓存文件 MD5 去重结果，提升上传前秒传判断速度。
 
 ## 2. Key 命名规范
@@ -53,6 +53,7 @@ crp:stats:resource:download:delta
 | 下载增量当前批次指针 | `crp:stats:resource:download:syncing:current` | String | 不主动设置 TTL；值为正在处理的 UUID 批次 ID |
 | 总榜重建临时数据 | `crp:rank:resource:hot:all:rebuild:active` | ZSet | 成功后 `RENAME` 消失；下次重建前主动清理遗留数据 |
 | 总榜维护锁 | `crp:lock:sync:hot-rank-maintenance` | Redisson RReadWriteLock | 不传 leaseTime，使用看门狗自动续期 |
+| 登录刷新会话 | `crp:auth:session:{sid}` | Hash | 固定七天，不滑动 |
 | 登录 Token 黑名单 | `crp:auth:token:blacklist:{jti}` | String | Token 剩余有效期 |
 | 用户登录态版本 | `crp:auth:user:token-version:{userId}` | String | 可不设置或与登录策略一致 |
 | 文件 MD5 去重缓存 | `crp:cache:file:md5:{fileMd5}:{fileSize}` | String | 6-24 小时 |
@@ -630,107 +631,63 @@ RedisKeyConstants.DOWNLOAD_DELTA           // "crp:stats:resource:download:delta
 
 ### 9.0 当前实现状态
 
-当前用户认证模块已经实现 Token 黑名单 Key：
-
-```text
-crp:auth:token:blacklist:{jti}
-```
-
-对应代码：
-
-```java
-RedisKeyConstants.TOKEN_BLACKLIST
-RedisKeyConstants.tokenBlacklist(String jti)
-```
-
-用户 Token 版本 Key 仍属于后续优化方向，本阶段代码暂未实现。
+已实现 JWT Access + opaque Refresh、Redis 可撤销会话、旧 Bearer 退出黑名单。代码位于 `AuthSessionService`、`AuthServiceImpl`、`JwtAuthenticationInterceptor` 及三份 `auth-session-*.lua`。用户 Token version 仍为设计预留，没有全设备撤销 API。完整流程见 [生命周期指南](modules/01-auth-token-lifecycle.md)。
 
 ### 9.1 Key 设计
 
-JWT 黑名单：
+| Key | 实现状态 | 用途 |
+| --- | --- | --- |
+| `crp:auth:session:{sid}` | 已实现 | 本次登录的刷新与撤销状态 |
+| `crp:auth:token:blacklist:{jti}` | 已实现 | 旧 Bearer 退出路径的单 Access 黑名单 |
+| `crp:auth:user:token-version:{userId}` | 设计预留 | 用户级全部 Token 失效，当前未实现 |
 
-```text
-crp:auth:token:blacklist:{jti}
-```
-
-用户 Token 版本：
-
-```text
-crp:auth:user:token-version:{userId}
-```
-
-说明：`crp:auth:user:token-version:{userId}` 为设计预留 Key，当前代码暂未实现。
-
-示例：
-
-```text
-crp:auth:token:blacklist:7b2f3d8a9c
-crp:auth:user:token-version:10001
-```
+Key 由 `RedisKeyConstants.AUTH_SESSION/authSession` 和 `TOKEN_BLACKLIST/tokenBlacklist` 统一生成，不能硬编码到业务层。
 
 ### 9.2 数据结构
 
-String。
-
-JWT 黑名单值：
-
-```text
-logout
-```
-
-Token 版本值：
-
-```text
-3
-```
+- 会话为 Hash：`userId` 为归属，`currentHash` 为当前 Refresh 的 SHA-256 摘要，`used:<hash>` 为已轮换摘要标记。Redis 不保存 Refresh 明文。
+- 黑名单为 String，值 `logout`；只判断 Key 存在。
+- Token version 规划为 String 数字，当前没有读写实现。
 
 ### 9.3 使用场景
 
-- 用户退出登录后，让未过期 JWT 立即失效。
-- 管理员禁用用户后，可以通过递增 Token 版本让旧 Token 失效。
-- 修改密码后，可以让用户历史 Token 全部失效。
+- 登录创建独立 sid；Refresh 为安全随机 `sid.secret`，Access 含同 sid。
+- 刷新时验证当前摘要，查 MySQL 最新账号状态和角色，再 Lua CAS 一次性轮换；已知旧摘要重放撤销会话，未知随机摘要只拒绝。
+- 新客户端退出认证当前或已用 Refresh 摘要后删除会话；旧客户端有效 Bearer 退出删除 sid（若有）并写当前 jti 黑名单。
+- 会话删除后阻止该 sid 的所有新旧 Access 后续鉴权，不影响另一设备独立会话；用户级封禁/降权即时全局失效尚未实现。
 
 ### 9.4 TTL 策略
 
 | Key | TTL |
 | --- | --- |
-| `crp:auth:token:blacklist:{jti}` | JWT 剩余有效期 |
-| `crp:auth:user:token-version:{userId}` | 可不设置 TTL，或设置为用户最长登录有效期 |
+| `crp:auth:session:{sid}` | 登录起固定 604800 秒，轮换不重设 TTL |
+| `crp:auth:token:blacklist:{jti}` | Access 剩余有效期 |
+| `crp:auth:user:token-version:{userId}` | 尚未实现，无当前运行 TTL |
 
-JWT 黑名单 TTL 不应超过 Token 原始过期时间，否则会浪费 Redis 空间。
+Access 默认 900 秒，由 `JWT_EXPIRATION_SECONDS` 覆盖，但新签发的 Access 不得超过会话剩余期限。Refresh 七天为代码常量 `AuthSessionService.SESSION_SECONDS`，无对应环境变量。单会话最多 2048 次轮换，超限 Lua 删除会话并要求重新登录，防止 used 摘要无限增长。
 
 ### 9.5 更新时机
 
 | 动作 | Redis 操作 |
 | --- | --- |
-| 用户登录 | 签发 JWT，JWT 中写入 `userId`、`role` 和 `jti` |
-| 用户退出 | `SET crp:auth:token:blacklist:{jti} logout EX 剩余秒数` |
-| 请求鉴权 | 校验 JWT 签名、过期时间和 Redis 黑名单 |
-| 修改密码 | 当前代码暂未实现 |
-| 管理员禁用用户 | 当前代码暂未实现 |
+| 用户登录 | Lua 原子创建 Hash 和七天 TTL，成功后才返回双 Token |
+| 用户刷新 | inspect验证当前摘要→MySQL查用户→Lua CAS currentHash并记used摘要，保留TTL |
+| Refresh退出 | Lua匹配当前/已用摘要后DEL会话；sid已不存在幂等成功，不再核验secret |
+| 旧Bearer退出 | 可信JWT的sid会话DEL（若有），再SET jti黑名单并设剩余TTL |
+| 请求鉴权 | 验签/到期→jti黑名单→新Token的sid归属；旧无sidToken仅旧路径 |
+| 修改密码、管理员批量撤销 | 当前未提供对应会话管理入口 |
 
-### 9.6 MySQL 一致性处理
+### 9.6 MySQL 一致性和故障边界
 
-用户基础状态以 MySQL `user.status` 为准。
+账号状态以 MySQL 为准，登录、刷新和当前用户查询会读取状态；拦截器不统一逐次查 MySQL，不能声称禁用/降权后所有旧 Access 立即失效。刷新查库失败不消耗 Refresh；Redis CAS 不创建已退出的会话，刷新与退出交错不会使会话复活。登录 MySQL 事务不能回滚 Redis，最终提交失败可能留下未返回客户端的孤立会话，TTL 负责回收。
 
-鉴权时建议：
+认证链路所有 Redis 查询/写入异常均失败关闭，HTTP 500 / 50001；当前普通接口也没有仅验 JWT 或回源 MySQL 放行的降级。丢失 Redis 会话会使新 Token 无法通过会话鉴权，不能把认证状态按可随意丢弃的普通缓存处理。
 
-1. 校验 JWT 签名和过期时间。
-2. 查询 Redis 黑名单。
-3. 当前用户查询接口会通过 MySQL `user.status` 校验用户状态。
-4. 后续如果实现 Token 版本机制，可在拦截器中增加 Redis Token 版本校验。
+错误优先顺序为验签/到期、黑名单、sid：已退出的 Access 仍可能先返回过期40103或黑名单40102，只有此前通过才返回会话撤销40105。旧无sid Token只能按旧黑名单兼容，需重新登录取得Refresh。
 
-如果 Redis 不可用：
+### 9.7 为什么选择 Hash 和 String
 
-- 对普通业务接口可以降级为只校验 JWT 和 MySQL 用户状态。
-- 对管理员接口建议失败关闭，避免权限风险。
-
-### 9.7 为什么选择 String
-
-- 黑名单只需要判断 Key 是否存在。
-- Token 版本只需要保存一个数字。
-- String 的 `SET EX`、`EXISTS`、`INCR` 都很直接。
-- 不需要复杂集合结构。
+会话 Hash 将 userId、当前摘要及有上限的已用摘要集中到一个 Key，便于 Lua 原子轮换/撤销且共享绝对 TTL；旧黑名单只需判断存在性，使用 String + SET EX。Token version 的 String 数字方案仍是后续规划。
 
 ## 10. 文件 MD5 去重缓存
 
@@ -939,7 +896,7 @@ resourceId
 | 热门搜索词 | 返回空列表或默认词 |
 | 下载限流 | 建议失败关闭，防止被刷 |
 | 下载量统计 | 下载主流程可继续，但记录补偿日志 |
-| Token 黑名单 | 管理端接口建议失败关闭，普通接口可结合 MySQL 用户状态降级 |
+| Token 黑名单 / 刷新会话 | 当前所有认证 Redis 异常均失败关闭，HTTP 500/50001；无普通接口 MySQL 降级 |
 | MD5 去重缓存 | 降级查 MySQL |
 
 ## 13. 推荐 Redis Key 常量
@@ -987,15 +944,6 @@ public final class RedisKeyConstants {
 - 缓存一致性采用 Cache Aside；统计一致性采用 Redis 增量 + 定时落库；状态敏感操作以 MySQL 为准并删除缓存。
 
 
-## 认证刷新会话（2026-11-01，已实现）
+## 认证刷新会话说明入口
 
-- Key：`crp:auth:session:{sid}`，统一由 `RedisKeyConstants.authSession` 构造。
-- 数据结构：Hash；`userId` 保存归属，`currentHash` 保存当前 Refresh 的 SHA-256 摘要，`used:{hash}` 保存已经轮换掉的摘要标记。明文 Refresh 不入 Redis。
-- Refresh 格式：安全随机的 32 位十六进制 sid + `.` + 32 字节安全随机 secret 的 Base64URL 编码。每次登录独立会话。
-- TTL：登录起固定 604800 秒；创建 Hash/设置 TTL 为单个 Lua 原子操作；轮换只 HSET，不更新 TTL，不能无限续期。
-- 刷新：先 inspect 校验凭据，再查 MySQL 用户状态/角色并准备 Token，最后 Lua CAS 摘要。只有旧摘要仍是 currentHash 时才轮换成功；会话已删除则失败，绝不重建。
-- 重放：匹配已知 used 摘要时删除会话并拒绝；未知随机摘要只拒绝，不删除，避免猜测 sid 导致合法会话被踢。
-- 退出：Lua 接受当前或已用的合法摘要并 DEL 会话，已不存在幂等成功。新 Access 的 sid 在每次鉴权时检查 userId 归属，因此退出无论先于还是后于刷新 CAS，都不能留下有效的新 Access。
-- 一致性：无数据库表结构变化；刷新查库失败不消耗 Refresh；Redis 错误失败关闭并返回 50001，不降级放行或误报凭据无效。登录 Redis 创建成功但 MySQL 事务最终提交失败时，最多留下不可见于客户端且七天后回收的孤立会话，不会返回有效登录响应。
-- 旧 Token：无 sid 的历史 Access 继续使用 `crp:auth:token:blacklist:{jti}`。新客户端 Refresh 退出直接删除 session，旧 Bearer 退出同时删除 sid（如有）并写原 jti 黑名单。
-- 已用摘要随七天会话一同清理；Lua 限制每会话最多 2048 次轮换（正常 15 分钟刷新七天约 672 次），超限原子删除会话并返回 40104，避免单 Hash 无限增长。本轮仅本地单元测试，未声明真实 Redis 并发/Lua 集成验证通过。
+认证 Key、TTL、状态机和故障边界统一见本文件 [第 9 节](#9-登录-token)；端到端生命周期、客户端并发与兼容方案见 [认证指南](modules/01-auth-token-lifecycle.md)。本轮为文档同步，未执行真实 Redis Lua 集成测试。

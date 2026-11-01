@@ -208,3 +208,9 @@
 
 - 新增 `docs/07-project-runbook.md`，作为 MySQL、Redis、后端、前端、联调与排查的统一启动入口；根 `README.md` 已链接该手册。
 - 手册明确 `VITE_API_BASE_URL=/api/v1`、后端健康检查和运行时上传目录规则；未写入任何真实敏感信息。
+
+## 2026-11-01 双 Token 说明交接
+
+- 工作分支`codex/auth-auto-refresh`；后端`abf8a403`、前端`aa5b4f7f`已推送，尚未merge/deploy；原dev工作区修改保持独立。
+- 文档已按[生命周期指南](modules/01-auth-token-lifecycle.md)统一刷新、退出、兼容、错误优先顺序和Redis失败关闭；JWT_SECRET轮换不等于撤销Refresh。
+- 上轮 58/101 单测与构建结果仅引用历史证据，本轮不改代码/依赖/表，不重跑业务测试，不执行外部服务集成。本轮 16 份文档的本地链接、锚点、指南 4 个 JSON 示例和代码围栏检查通过，`git diff --check` 通过；文档随当前功能分支提交推送。

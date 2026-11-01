@@ -239,3 +239,9 @@
 
 - 新增 `docs/07-project-runbook.md`，集中说明 MySQL 初始化、Redis 本机或虚拟机连接、后端环境变量与 Maven Wrapper 启动、前端 Vite 代理、健康检查、浏览器验收、测试构建和常见排查。
 - 根 `README.md` 已加入运行手册入口。手册只提供变量名和占位符，不记录真实密码、Token、密钥或测试账号。
+
+## 2026-11-01 认证双 Token 文档同步
+
+- 后端代码`abf8a403`、前端代码`aa5b4f7f`均已推送`origin/codex/auth-auto-refresh`；尚未合入main，尚未部署。
+- 新增[完整生命周期指南](modules/01-auth-token-lifecycle.md)，同步认证/API/Redis主体、前端需求与页面说明、运行部署配置、索引与JWT局限口径。Access默认900秒可覆盖，Refresh固定七天；现存环境显式7200不会自动改变。
+- 上轮代码验证：后端认证及 Controller 本地 mock/unit 58/58、前端 101/101、生产构建通过；本轮纯文档，未重跑业务测试，未执行真实数据库/Redis 集成或部署。本轮校验 16 份文档的本地链接、锚点、指南 4 个 JSON 示例和代码围栏，结果通过；`git diff --check` 通过。
