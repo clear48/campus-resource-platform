@@ -115,4 +115,28 @@
         WHERE id = #{id}
     </update>
 
+    <select id="selectNormalLocalAfterId" resultMap="FileInfoResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM file_info
+        WHERE id &gt; #{lastId}
+          AND storage_type = 1
+          AND status = 1
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectWithoutReadyBackupAfterId" resultMap="FileInfoResultMap">
+        SELECT fi.id, fi.file_md5, fi.original_name, fi.stored_name, fi.file_ext, fi.mime_type,
+               fi.file_size, fi.storage_type, fi.storage_path, fi.uploader_id, fi.ref_count,
+               fi.status, fi.created_at, fi.updated_at
+        FROM file_info fi
+        LEFT JOIN file_backup_record fbr ON fbr.file_id = fi.id AND fbr.status = 1
+        WHERE fi.id &gt; #{lastId}
+          AND fi.storage_type = 1
+          AND fi.status = 1
+          AND fbr.id IS NULL
+        ORDER BY fi.id
+        LIMIT #{limit}
+    </select>
+
 </mapper>

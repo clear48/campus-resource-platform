@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.john.campus.mapper.FileIntegrityEventMapper">
+    <resultMap id="FileIntegrityEventResultMap" type="com.john.campus.entity.FileIntegrityEvent">
+        <id column="id" property="id"/>
+        <result column="file_id" property="fileId"/>
+        <result column="backup_record_id" property="backupRecordId"/>
+        <result column="event_type" property="eventType"/>
+        <result column="status" property="status"/>
+        <result column="detected_count" property="detectedCount"/>
+        <result column="attempt_count" property="attemptCount"/>
+        <result column="error_code" property="errorCode"/>
+        <result column="detected_at" property="detectedAt"/>
+        <result column="confirmed_at" property="confirmedAt"/>
+        <result column="recovered_at" property="recoveredAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="selectLatestOpenMissing" resultMap="FileIntegrityEventResultMap">
+        SELECT id, file_id, backup_record_id, event_type, status, detected_count, attempt_count,
+               error_code, detected_at, confirmed_at, recovered_at, created_at, updated_at
+        FROM file_integrity_event
+        WHERE file_id = #{fileId}
+          AND event_type = 1
+          AND status IN (0, 1, 2, 4)
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <insert id="insert" parameterType="com.john.campus.entity.FileIntegrityEvent" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO file_integrity_event
+            (file_id, backup_record_id, event_type, status, detected_count, attempt_count, error_code)
+        VALUES
+            (#{fileId}, #{backupRecordId}, #{eventType}, #{status}, #{detectedCount}, #{attemptCount}, #{errorCode})
+    </insert>
+
+    <update id="markConfirmedAndRestoring">
+        UPDATE file_integrity_event
+        SET backup_record_id = #{backupRecordId}, status = 2, detected_count = detected_count + 1,
+            attempt_count = attempt_count + 1, confirmed_at = CURRENT_TIMESTAMP, error_code = NULL
+        WHERE id = #{id}
+          AND status = 0
+    </update>
+
+    <update id="retryRestoring">
+        UPDATE file_integrity_event
+        SET backup_record_id = #{backupRecordId}, status = 2,
+            attempt_count = attempt_count + 1, error_code = NULL
+        WHERE id = #{id}
+          AND status = 4
+    </update>
+
+    <update id="markRecovered">
+        UPDATE file_integrity_event
+        SET status = 3, error_code = NULL, recovered_at = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+          AND status = 2
+    </update>
+
+    <update id="markFailed">
+        UPDATE file_integrity_event
+        SET status = 4, error_code = #{errorCode}
+        WHERE id = #{id}
+          AND status = 2
+    </update>
+
+    <update id="markIgnored">
+        UPDATE file_integrity_event
+        SET status = 5, error_code = #{errorCode}
+        WHERE id = #{id}
+          AND status IN (0, 1, 2, 4)
+    </update>
+</mapper>

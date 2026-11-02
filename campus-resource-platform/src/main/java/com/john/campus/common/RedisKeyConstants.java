@@ -22,6 +22,9 @@ public final class RedisKeyConstants {
      */
     public static final String FILE_MD5_CACHE = "crp:cache:file:md5:%s:%d";
 
+    /** 单文件副本创建、巡检恢复及未来业务删除共用的分布式互斥锁。 */
+    public static final String FILE_PROTECTION_LOCK = "crp:lock:file:protection:%d";
+
     /**
      * 公开资料详情缓存 Key，String 值为不含用户态字段的 ResourceDetailVO JSON。
      */
@@ -113,6 +116,11 @@ public final class RedisKeyConstants {
      */
     public static String fileMd5Cache(String fileMd5, long fileSize) {
         return String.format(FILE_MD5_CACHE, fileMd5, fileSize);
+    }
+
+    /** 统一生成每文件保护锁Key，避免多实例同时创建副本或写回同一路径。 */
+    public static String fileProtectionLock(long fileId) {
+        return String.format(FILE_PROTECTION_LOCK, fileId);
     }
 
     /**

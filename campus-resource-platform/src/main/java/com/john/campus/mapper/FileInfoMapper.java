@@ -1,6 +1,7 @@
 package com.john.campus.mapper;
 
 import com.john.campus.entity.FileInfo;
+import java.util.List;
 import org.apache.ibatis.annotations.Param;
 
 /**
@@ -27,4 +28,10 @@ public interface FileInfoMapper {
      * 秒传命中时对已存在文件的引用次数加一。
      */
     int increaseRefCount(@Param("id") Long id);
+
+    /** 按主键游标扫描正常本地文件，避免定时巡检使用大OFFSET。 */
+    List<FileInfo> selectNormalLocalAfterId(@Param("lastId") Long lastId, @Param("limit") int limit);
+
+    /** 扫描尚无READY副本的正常本地文件，MySQL作为可重放的后台任务来源。 */
+    List<FileInfo> selectWithoutReadyBackupAfterId(@Param("lastId") Long lastId, @Param("limit") int limit);
 }

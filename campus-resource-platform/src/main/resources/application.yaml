@@ -59,6 +59,18 @@ app:
     storage-path: ${APP_UPLOAD_STORAGE_PATH:./data/user-uploads}
     # 就绪检查和落盘前容量校验共用该安全水位，生产环境必须显式为正数。
     min-free-space-bytes: ${APP_UPLOAD_MIN_FREE_SPACE_BYTES:268435456}
+  file-protection:
+    # 默认关闭；完成迁移、双根目录身份文件和真实删除恢复验收后才能启用。
+    enabled: ${FILE_PROTECTION_ENABLED:false}
+    backup-path: ${FILE_PROTECTION_BACKUP_PATH:./data/file-backups}
+    storage-id: ${FILE_PROTECTION_STORAGE_ID:}
+    backup-id: ${FILE_PROTECTION_BACKUP_ID:}
+    batch-size: ${FILE_PROTECTION_BATCH_SIZE:200}
+    backup-fixed-delay-ms: ${FILE_PROTECTION_BACKUP_DELAY_MS:30000}
+    integrity-fixed-delay-ms: ${FILE_PROTECTION_INTEGRITY_DELAY_MS:10000}
+    missing-count-threshold: ${FILE_PROTECTION_MISSING_COUNT_THRESHOLD:3}
+    missing-ratio-threshold: ${FILE_PROTECTION_MISSING_RATIO_THRESHOLD:0.01}
+    max-recovery-attempts: ${FILE_PROTECTION_MAX_RECOVERY_ATTEMPTS:3}
 
 rank:
   sync:

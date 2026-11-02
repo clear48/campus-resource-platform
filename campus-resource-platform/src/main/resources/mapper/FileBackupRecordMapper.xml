@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.john.campus.mapper.FileBackupRecordMapper">
+    <resultMap id="FileBackupRecordResultMap" type="com.john.campus.entity.FileBackupRecord">
+        <id column="id" property="id"/>
+        <result column="file_id" property="fileId"/>
+        <result column="backup_path" property="backupPath"/>
+        <result column="file_size" property="fileSize"/>
+        <result column="file_md5" property="fileMd5"/>
+        <result column="file_sha256" property="fileSha256"/>
+        <result column="status" property="status"/>
+        <result column="last_error_code" property="lastErrorCode"/>
+        <result column="backup_completed_at" property="backupCompletedAt"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="selectByFileId" resultMap="FileBackupRecordResultMap">
+        SELECT id, file_id, backup_path, file_size, file_md5, file_sha256, status,
+               last_error_code, backup_completed_at, created_at, updated_at
+        FROM file_backup_record
+        WHERE file_id = #{fileId}
+        LIMIT 1
+    </select>
+
+    <insert id="upsertPending">
+        INSERT INTO file_backup_record (file_id, file_size, file_md5, status)
+        VALUES (#{id}, #{fileSize}, #{fileMd5}, 0)
+        ON DUPLICATE KEY UPDATE
+            file_size = VALUES(file_size),
+            file_md5 = VALUES(file_md5),
+            status = CASE WHEN status = 1 THEN status ELSE 0 END,
+            last_error_code = CASE WHEN status = 1 THEN last_error_code ELSE NULL END
+    </insert>
+
+    <update id="markReady">
+        UPDATE file_backup_record
+        SET backup_path = #{backupPath}, file_size = #{fileSize}, file_md5 = #{fileMd5},
+            file_sha256 = #{fileSha256}, status = 1, last_error_code = NULL,
+            backup_completed_at = CURRENT_TIMESTAMP
+        WHERE file_id = #{fileId}
+    </update>
+
+    <update id="markFailed">
+        UPDATE file_backup_record
+        SET status = 2, last_error_code = #{errorCode}
+        WHERE file_id = #{fileId}
+          AND status &lt;&gt; 1
+    </update>
+
+    <update id="retireByFileId">
+        UPDATE file_backup_record
+        SET status = 3
+        WHERE file_id = #{fileId}
+    </update>
+</mapper>
