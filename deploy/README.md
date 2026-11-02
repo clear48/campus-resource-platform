@@ -58,7 +58,7 @@ openssl rand -base64 48
 | TLS | `TLS_RUNTIME_VOLUME` | 默认 `campus-resource-platform_tls_runtime`，证书脚本创建并校验的外部卷 |
 | 数据库管理员 | `MYSQL_ROOT_PASSWORD` | 仅初始化和维护；已有 MySQL 卷不会因修改此变量自动轮换密码 |
 | 应用账号 | `MYSQL_APP_USERNAME`、`MYSQL_APP_PASSWORD` | Compose 映射为后端 `MYSQL_USERNAME`、`MYSQL_PASSWORD`；业务库固定为 `campus_resource_platform` |
-| Redis / JWT | `REDIS_PASSWORD`、`JWT_SECRET`、`JWT_EXPIRATION_SECONDS=7200` | 生产独立 Secret、Token 有效期秒数；连接地址由 Compose 固定为 `redis:6379` |
+| Redis / JWT | `REDIS_PASSWORD`、`JWT_SECRET`、`JWT_EXPIRATION_SECONDS=900` | 生产独立 Secret、Token 有效期秒数；连接地址由 Compose 固定为 `redis:6379` |
 | 上传 | `APP_UPLOAD_MIN_FREE_SPACE_BYTES=5368709120` | 5 GiB 保留水位；容器路径固定 `/data/uploads`，请求 / 单文件上限固定 60 MB / 50 MB |
 | 定时同步 | `RANK_DOWNLOAD_DELTA_SYNC_ENABLED`、`RANK_HOT_RANKING_SYNC_ENABLED` | 默认 `true`；协议切换前排查旧同步批次 |
 | JVM / 容器 | `JAVA_TOOL_OPTIONS`、`BACKEND_MEMORY_LIMIT`、`MYSQL_MEMORY_LIMIT`、`REDIS_MEMORY_LIMIT`、`NGINX_MEMORY_LIMIT` | 默认 JVM 堆 128～512 MiB；容器分别 `768m/512m/160m/64m` |
@@ -389,3 +389,9 @@ sudo sh deploy/scripts/Test-Deploy07Certificate.sh
 根据 2026-09-25 的历史生产验收记录，DEPLOY-03 生产安全收敛、DEPLOY-04 本地发布门禁、DEPLOY-05 真实服务器部署、DEPLOY-06 DNS 和 DEPLOY-07 HTTPS/自动续期均已完成。当前任务为 DEPLOY-08 公网业务验收与生产联合备份恢复，状态为 `IN_PROGRESS`。当时 2 GB 服务器上的 MySQL 稳态内存接近 512 MiB 容器上限，虽未发生 cgroup 超限、OOM 或持续 Swap，仍应作为首要容量监控项；历史结论不代替当前运行检查。
 
 DEPLOY-08 已提供 `scripts/Test-Deploy08PublicAcceptance.ps1` 只读公网预检、`scripts/deploy08-backup.sh` 生产联合备份脚本和 `scripts/deploy08-restore-preflight.sh` 独立恢复介质预检。备份脚本默认只预检，真实执行必须显式确认停机；它在同一停写切点导出 MySQL、归档 Redis AOF 卷和上传卷，并使用预先导入的 GPG 公钥加密。恢复预检会核对独立固定的签名信任链、六个加密产物、恢复私钥、Secret、隔离 Docker daemon 以及当前/上一版镜像，但不会创建资源。完整命令、安全边界、尚未执行项和恢复要求见 [DEPLOY-08 运行手册](../docs/DEPLOY-08-RUNBOOK.md)。脚本资产完成不代表生产备份或恢复已经通过。
+
+## 双 Token 版本配套说明
+
+刷新机制当前位于 `codex/auth-auto-refresh`（`abf8a403`、`aa5b4f7f`已推送），尚未合入main或部署；部署前需配套交付前后端，重新登录取得Refresh。源码与模板Access默认900秒，现存真实`.env`中的显式`JWT_EXPIRATION_SECONDS=7200`仍优先，本次不自动修改它。Refresh固定604800秒来自代码常量，当前没有刷新TTL环境变量。
+
+JWT_SECRET轮换只使旧Access验签失效，Refresh不依赖JWT签名仍可直接换取新Access；前端40101不自动刷新，不能因此认为服务端Refresh已撤销。Redis会话应单独撤销，当前无全量撤销API，不以清空整个Redis替代。完整行为及存储边界见 [认证指南](../docs/modules/01-auth-token-lifecycle.md)。本轮为文档同步，未执行部署或真实MySQL/Redis集成。

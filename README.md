@@ -12,7 +12,9 @@
 
 [快速启动](#快速启动) · [部署上线](#部署上线) · [部署运行手册](deploy/README.md) · [后端亮点](#值得阅读的后端实现) · [面试复盘](docs/interview/README.md) · [接口文档](docs/api/api-reference.md) · [项目结构](#项目结构) · [已知边界](#当前边界与后续方向)
 
-正式站点：[https://campusshare.online](https://campusshare.online)。`dev`、`codex/deploy-02` 和 `deploy` 的现有提交已汇总到 [`main` 分支](https://github.com/clear48/campus-resource-platform/tree/main)，仓库仅保留 `main` 主干。服务器、DNS 与 HTTPS 的历史验收已完成，公网完整业务和生产备份恢复仍处于 DEPLOY-08 阶段，详见[部署交接](docs/DEPLOYMENT_HANDOFF.md)。
+现已停止维护网站。
+
+源码、认证自动刷新、本地数据保护与压测工具已汇总到 [`main` 分支](https://github.com/clear48/campus-resource-platform/tree/main)。下方部署配置和命令仅保留为历史参考及自行部署说明，不代表网站仍在维护或提供在线服务。
 
 课程课件、复习笔记和实验资料容易散落在群聊与个人网盘中。本项目围绕「上传 → 审核 → 公开检索 → 下载 / 收藏」建立完整业务闭环，用具体业务展示 **Spring Boot、MyBatis、MySQL、Redis、JWT、事务与并发控制** 的使用方式，并提供 Vue 演示界面和按模块整理的开发文档。
 
@@ -24,7 +26,7 @@
 
 | 模块 | 已实现能力 |
 | --- | --- |
-| 用户认证 | 注册、登录、个人信息、BCrypt 密码哈希、JWT 鉴权、退出 Token 黑名单 |
+| 用户认证 | 注册、双 Token 登录与自动刷新、个人信息、BCrypt 密码哈希、JWT + Redis 会话撤销（兼容旧 Token 黑名单） |
 | 文件上传 | 大小与扩展名校验、MD5 + 文件大小去重、授权感知的秒传预检、本地文件存储 |
 | 资料管理 | 创建待审核资料、公开详情、我的上传、有效状态下的重复提交约束 |
 | 管理员审核 | 待审核列表、待审核文件读取、通过 / 拒绝 / 下架、审核流水 |
@@ -64,7 +66,7 @@ flowchart LR
     T --> M[(MySQL)]
 ```
 
-前端通过 `/api/v1` 调用 Spring MVC 接口；后端采用 `Controller → Service → Mapper → MySQL` 分层。Redis 承担缓存、Token 黑名单、限流、排行和临时计数；文件保存在独立的运行时目录中。更多流程图见[总体架构](docs/modules/00-overall-architecture.md)。
+前端通过 `/api/v1` 调用 Spring MVC 接口；后端采用 `Controller → Service → Mapper → MySQL` 分层。Redis 承担缓存、刷新会话与旧 Token 黑名单、限流、排行和临时计数；文件保存在独立的运行时目录中。更多流程图见[总体架构](docs/modules/00-overall-architecture.md)。
 
 | 层次 | 技术 |
 | --- | --- |
@@ -122,7 +124,7 @@ git clone --branch main https://github.com/clear48/campus-resource-platform.git
 Set-Location campus-resource-platform
 ```
 
-`main` 是已通过本地测试与构建的集成版本，也是当前唯一保留的分支。后续新功能可从 `main` 创建临时功能分支，验证后合回并删除。macOS / Linux 使用 `cd campus-resource-platform` 进入克隆后的仓库。
+`main` 是已通过本地测试与构建的集成主干。后续新功能可从 `main` 创建临时功能分支，验证后合回并删除。macOS / Linux 使用 `cd campus-resource-platform` 进入克隆后的仓库。
 
 ### 2. 初始化新数据库
 
@@ -154,7 +156,7 @@ $env:MYSQL_PASSWORD = '<你的 MySQL 密码>'
 $env:REDIS_HOST = 'localhost'
 $env:REDIS_PORT = '6379'
 $env:REDIS_PASSWORD = ''
-# 随机生成仅供本地会话使用的 JWT 密钥；重启时换密钥会使旧 Token 失效。
+# 随机生成本地 JWT 签名密钥；换密钥只使旧 Access 验签失败，Refresh 会话需单独撤销。
 $jwtBytes = New-Object byte[] 48
 $jwtGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
 $jwtGenerator.GetBytes($jwtBytes)
@@ -236,6 +238,8 @@ WHERE NOT EXISTS (
 
 ## 部署上线
 
+现已停止维护网站。以下内容仅供学习、历史复盘及自行部署参考，不再作为现有网站的运维安排。
+
 以下命令均从**仓库根目录**执行。部署采用 Docker Compose 单机方案：Nginx 提供 Vue 静态页面，将同源 `/api/v1/**` 代理到 Spring Boot，后端访问私网 MySQL 和 Redis。只运行一个后端实例，上传文件保存在固定的 `/data/uploads` 持久卷中。
 
 ### 1. 服务器与部署文件
@@ -282,8 +286,8 @@ chmod 600 deploy/.env
 | `MYSQL_ROOT_PASSWORD` | 独立随机管理员密码，仅用于数据库初始化和维护 |
 | `MYSQL_APP_USERNAME`、`MYSQL_APP_PASSWORD` | 默认账号 `campus_app`，禁止 `root`；应用密码至少 16 字节且满足强度校验 |
 | `REDIS_PASSWORD` | 独立强随机密码，至少 16 字节；Redis 开启 AOF 和 `noeviction` |
-| `JWT_SECRET` | 独立随机密钥，至少 32 个 UTF-8 字节；更换后已有 Token 会失效 |
-| `JWT_EXPIRATION_SECONDS` | 默认 `7200` 秒 |
+| `JWT_SECRET` | 独立随机密钥，至少 32 个 UTF-8 字节；更换后旧 Access 验签失效，Refresh 会话仍需独立撤销 |
+| `JWT_EXPIRATION_SECONDS` | 默认 `900` 秒，可显式覆盖；Refresh 会话固定七天，当前没有刷新期限环境变量 |
 | `HTTP_PORT`、`HTTPS_PORT` | 默认 `80` / `443`；仅基础 Compose 不会启用 HTTPS |
 | `ACME_WEBROOT_DIR` | 默认 `/srv/campusshare/acme`，宿主机公开 challenge 目录 |
 | `TLS_RUNTIME_VOLUME` | 默认 `campus-resource-platform_tls_runtime`，由证书脚本创建的外部卷 |
@@ -324,7 +328,7 @@ curl --fail http://127.0.0.1/api/v1/health/readiness
 
 ### 4. DNS、HTTPS 与证书续期
 
-当前正式域名为 `campusshare.online`：根域名 `A` 指向服务器公网 IPv4，`www` 使用 `CNAME` 指向根域名。HTTPS Nginx 和证书脚本固定校验这两个域名；部署到其他域名时需同步调整配置、证书校验及公网验收脚本，没有可直接替换的 `DOMAIN` 环境变量。
+历史部署使用域名 `campusshare.online`：根域名 `A` 指向服务器公网 IPv4，`www` 使用 `CNAME` 指向根域名。HTTPS Nginx 和证书脚本固定校验这两个域名；自行部署到其他域名时需同步调整配置、证书校验及公网验收脚本，没有可直接替换的 `DOMAIN` 环境变量。
 
 首次启用 HTTPS 必须按[证书签发与续期步骤](deploy/README.md#9-deploy-07-https-与证书续期)依次完成：
 
@@ -407,6 +411,8 @@ npm run build
 - 下载统计在创建记录阶段触发，不能等同于文件已完整传输到客户端。
 - 周期榜使用固定周期 Key 与 TTL，尚非精确自然日 / 周 / 月切桶。
 - Redis 是受保护接口的鉴权依赖；部分缓存可以降级，不代表所有功能都能脱离 Redis 运行。
-- 已完成 2 GB 服务器部署及 DNS / HTTPS 历史验收；生产完整业务与备份恢复仍在 DEPLOY-08 阶段，GitHub Actions CI、公开压测和真实 Redis 故障与并发验证仍可补强。
+- 现已停止维护网站；历史上完成了 2 GB 服务器部署及 DNS / HTTPS 验收，DEPLOY-08 的未完成生产验收不作为当前维护计划。已有本地压测结果不等同于公开生产容量，GitHub Actions CI 和真实 Redis 故障验证仍可补强。
 
 欢迎围绕这些明确的边界提出改进建议。提交问题时请附复现步骤和脱敏日志；提交代码前请运行相关测试。当前仓库尚未添加 `LICENSE`，README 不声明特定开源许可证。
+
+双 Token 完整生命周期、自动刷新与退出并发边界见 [认证指南](docs/modules/01-auth-token-lifecycle.md)。实现已合入 `main`，本次未部署到服务器。自行升级需要前后端版本配套，并重新登录取得 Refresh；真实 `.env` 若显式配置7200仍覆盖新默认900，本次不自动改写环境文件。

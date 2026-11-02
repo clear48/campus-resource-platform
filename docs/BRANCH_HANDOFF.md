@@ -1,5 +1,14 @@
 # 分支交接记录
 
+## 2026-11-02 全部分支汇入 main 与网站停止维护
+
+- 集成目标：`main`。先快进 `dev@fdd82716`，再合并分叉的 `codex/auth-auto-refresh@ed79a203`；仅 `CURRENT_STATUS.md` 和本文件存在内容冲突，保留本地备份、压测与认证双方记录。
+- README 明确“现已停止维护网站”，保留部署资产供复盘与自行部署；同步认证指南已合入主干的状态，本轮不部署或变更生产配置。
+- 用户已有 `docs/DEPLOYMENT-QA-QUICK-REVIEW.md` 修改留在原工作区，不提交、不覆盖；现有认证工作树保留。
+- 本轮新写入仅为合并冲突处理及网站/交接状态，业务实现采用已提交分支内容，不新增依赖、表结构或 Redis 协议。
+- 验证：隔离 MySQL 下 `mvnw.cmd test` 232/232、认证专项 26/26、打包通过；`npm run test:unit -- --reporter=dot` 101/101 与 `npm run build` 通过；本地备份 8/8、恢复 14/14，`python -B -m unittest discover -s tests/performance -p 'test_*.py' -v` 共 42 项（41 通过、1 项显式 JMeter 前置未配置而跳过）。文档 74 个链接/锚点及 `git diff --check` 通过。
+- 保留 16 项既有 npm 审计提示（7 moderate、9 high）和主包大小提示；无依赖升级或生产操作。提交说明：`merge: integrate branches and mark website unmaintained`，实际提交和推送结果见最终回执。
+
 ## 2026-10-28 本地压测执行完成
 
 - 分支`dev`；本轮工具提交4c82e98e、8ab58a72、166c05e3、a11bead9、5289ddba、05f15fa7均已推送。报告提交说明：`docs(perf): record completed local load tests and findings`。
@@ -41,6 +50,16 @@
 - 本地固定目录仅作为新环境建议。历史数据库保存绝对`storage_path`，本轮不移动现有运行文件；迁移固定目录必须单独完成文件复制、路径更新和下载验证。
 - 本轮只完成伪MySQL/Redis客户端驱动的模拟黑盒测试；当前机器缺少`redis-cli`和`redis-check-rdb`，3306/6379也未提供专用本地服务，尚不能宣称真实联合恢复成功。
 - 操作手册：`docs/LOCAL-DATA-PROTECTION.md`；运行入口同步到`docs/07-project-runbook.md`和`docs/README.md`。
+## 登录自动刷新开发交接（2026-11-01）
+
+- 开发分支：`codex/auth-auto-refresh`，基线 `origin/main@8bde7775`，位于独立工作树；不得把原 `dev` 分支的未提交修改混入。
+- 本轮范围包括后端认证、前端会话/请求层、对应单测和文档。前端历史任务队列不重新启动。
+- 后端采用含 `sid` 的短期 Access JWT 与 opaque Refresh Token；Redis 仅保存刷新摘要，轮换保留固定会话 TTL，退出删除会话，旧无 `sid` Token 在原有效期内兼容但不可刷新。
+- 后端小功能已提交并推送 `abf8a40`。专项五类 26/26 通过；进一步回归命令（仓库根目录）：`./campus-resource-platform/mvnw.cmd -f campus-resource-platform/pom.xml '-Dtest=JwtUtilsTest,AuthServiceRefreshTest,AuthSessionServiceTest,*ControllerTest,JwtAuthenticationInterceptorTest' test -q`，11 类、58/58 通过，均为本地 mock/unit。
+- 前端小功能已完成：双 Token 单 JSON 保存、单飞刷新、跨标签页锁、会话快照保护、一次请求重放，下载流复用且保留票据。认证失败清理与资料更新持锁重检，旧无 Refresh 会话过期后仍可退出；网络或 500 失败保留凭据供重试。
+- 前端命令（仓库根目录）：`npm --prefix frontend run test:unit -- --reporter=dot`，33 文件、101/101 通过；`npm --prefix frontend run build` 通过。`git diff --check` 通过，只读复核无阻塞问题。
+- 实现与测试已完成，功能保留在开发分支供审阅，未合并或部署到 `main`。旧会话需重新登录取得双 Token；无 Web Locks 时仅单页串行。没有待执行的前端队列任务。
+- 用户明确只要求本地简单单元测试，不执行 Docker 或真实数据库/Redis 集成测试。不得将 mock 单测结果描述为真实 Redis Lua 原子性验证。
 
 ## 2026-10-17 四分支合入 main
 
@@ -239,3 +258,9 @@
 
 - 新增 `docs/07-project-runbook.md`，作为 MySQL、Redis、后端、前端、联调与排查的统一启动入口；根 `README.md` 已链接该手册。
 - 手册明确 `VITE_API_BASE_URL=/api/v1`、后端健康检查和运行时上传目录规则；未写入任何真实敏感信息。
+
+## 2026-11-01 双 Token 说明交接
+
+- 工作分支`codex/auth-auto-refresh`；后端`abf8a403`、前端`aa5b4f7f`已推送，尚未merge/deploy；原dev工作区修改保持独立。
+- 文档已按[生命周期指南](modules/01-auth-token-lifecycle.md)统一刷新、退出、兼容、错误优先顺序和Redis失败关闭；JWT_SECRET轮换不等于撤销Refresh。
+- 上轮 58/101 单测与构建结果仅引用历史证据，本轮不改代码/依赖/表，不重跑业务测试，不执行外部服务集成。本轮 16 份文档的本地链接、锚点、指南 4 个 JSON 示例和代码围栏检查通过，`git diff --check` 通过；文档随当前功能分支提交推送。

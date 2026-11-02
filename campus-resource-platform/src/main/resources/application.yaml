@@ -53,7 +53,7 @@ app:
   jwt:
     # JWT 密钥属于必填安全配置；缺失、过短或仍使用历史公开默认值时，应用会在启动阶段拒绝运行。
     secret: ${JWT_SECRET:}
-    expiration-seconds: ${JWT_EXPIRATION_SECONDS:7200}
+    expiration-seconds: ${JWT_EXPIRATION_SECONDS:900}
   upload:
     # 用户上传文件与源码、构建产物分离，默认落在专用运行时目录，仍可通过环境变量覆盖。
     storage-path: ${APP_UPLOAD_STORAGE_PATH:./data/user-uploads}

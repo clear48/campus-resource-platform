@@ -56,3 +56,5 @@ Postman 本地环境文件只保留可公开的示例变量；真实账号、Tok
 - Spring Boot、MyBatis、Redis、MySQL 技术栈复盘：[`interview/03-technology-stack-review.md`](interview/03-technology-stack-review.md)
 - 高频问题与回答提纲：[`interview/04-interview-question-bank.md`](interview/04-interview-question-bank.md)
 - 局限与演进路线：[`interview/05-limitations-and-improvement-roadmap.md`](interview/05-limitations-and-improvement-roadmap.md)
+
+认证说明入口：[登录双 Token 生命周期与自动刷新](modules/01-auth-token-lifecycle.md)，覆盖登录、请求、轮换、退出、错误优先顺序与验证边界；功能分支已推送，尚未合入main或部署。

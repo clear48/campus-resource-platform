@@ -69,6 +69,15 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
             throw new BusinessException(ErrorCode.TOKEN_BLACKLISTED);
         }
 
+        // 新 Token 绑定 Redis 会话，退出删除会话后，同次登录的所有 Access 均失效。
+        if (claims.sid() != null) {
+            Object sessionUser = stringRedisTemplate.opsForHash().get(
+                    RedisKeyConstants.authSession(claims.sid()), "userId");
+            if (!String.valueOf(claims.userId()).equals(sessionUser)) {
+                throw new BusinessException(ErrorCode.SESSION_REVOKED);
+            }
+        }
+
         LoginUser loginUser = new LoginUser(claims.userId(), claims.role(), claims.jti());
 
         // 同时写入 ThreadLocal 和 request attribute：Service 层用前者，Controller 特殊场景可用后者。

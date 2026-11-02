@@ -28,5 +28,8 @@ export interface LoginResult {
   accessToken: string
   tokenType: string
   expiresIn: number
+  /** 升级前旧响应可能缺省；新客户端同时保存并轮换两个凭据。 */
+  refreshToken?: string
+  refreshExpiresIn?: number
   user: AuthUser
 }

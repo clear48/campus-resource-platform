@@ -97,7 +97,7 @@ $env:MYSQL_URL = 'jdbc:mysql://<mysql-host>:3306/campus_resource_platform?useUni
 
 ## 4. 启动 Redis
 
-默认 Redis 为 `localhost:6379`、数据库 `0`。完整演示依赖 Redis：Token 黑名单、MD5 缓存、收藏状态、下载限流、排行榜和下载增量同步都会使用它。
+默认 Redis 为 `localhost:6379`、数据库 `0`。完整演示依赖 Redis：刷新会话与旧 Token 黑名单、MD5 缓存、收藏状态、下载限流、排行榜和下载增量同步都会使用它。
 
 ### 4.1 Redis 在本机
 
@@ -150,7 +150,7 @@ $env:JWT_SECRET = '<仅本地使用的随机长字符串>'
 $env:APP_UPLOAD_STORAGE_PATH = 'C:\campusshare-dev\uploads' # 新环境建议使用仓库外固定目录
 ```
 
-`JWT_SECRET` 为必填安全变量，必须使用至少 32 个 UTF-8 字节的随机值。变量缺失、长度不足或仍使用历史公开默认值时，后端会在启动阶段拒绝运行；更换密钥会让既有 Token 立即失效。
+`JWT_SECRET` 为必填安全变量，必须使用至少 32 个 UTF-8 字节的随机值。变量缺失、长度不足或仍使用历史公开默认值时，后端会在启动阶段拒绝运行；更换密钥会让旧 Access 验签失败，但 Refresh 不依赖 JWT 签名，仍可能直接换取新 Access。前端对 40101 不自动刷新；完整撤销需另外撤销 Redis 会话，当前没有全量撤销 API。
 
 可选变量：
 
@@ -159,7 +159,7 @@ $env:APP_UPLOAD_STORAGE_PATH = 'C:\campusshare-dev\uploads' # 新环境建议使
 | `MYSQL_URL` | 本机 `campus_resource_platform` | 数据库不在本机 |
 | `APP_UPLOAD_MAX_FILE_SIZE` | `50MB` | 调整单文件上限 |
 | `APP_UPLOAD_MAX_REQUEST_SIZE` | `60MB` | 调整请求总大小 |
-| `JWT_EXPIRATION_SECONDS` | `7200` | 调整本地 Token 有效期 |
+| `JWT_EXPIRATION_SECONDS` | `900` | 调整 Access 有效期；Refresh 固定七天，不由该变量控制 |
 | `RANK_DOWNLOAD_DELTA_SYNC_ENABLED` | `true` | 排查时临时关闭下载量同步 |
 | `RANK_HOT_RANKING_SYNC_ENABLED` | `true` | 排查时临时关闭排行榜维护 |
 
@@ -373,3 +373,9 @@ Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
 ```
 
 相关文档：[接口文档](api/api-reference.md)、[Redis 设计](05-redis-design.md)、[前端运行说明](../frontend/README.md)、[前端接口映射](frontend/03-api-mapping.md)。
+
+## 双 Token 自动刷新本地验证入口
+
+参见 [认证生命周期指南](modules/01-auth-token-lifecycle.md#7-配置验证与现有限制)。Access默认900秒，Refresh固定七天来自代码常量；只有收到业务40103才按需刷新，没有后台计时器。前后端需要配套更新、重新登录获取Refresh；旧Postman集合Logout无body仍可走Bearer兼容路径，集合中名称含Refresh的旧条目实际是login重新登录。
+
+`codex/auth-auto-refresh` 的后端 `abf8a403`、前端 `aa5b4f7f` 已推送但尚未merge/deploy。现存本地或生产`.env`显式7200仍会覆盖900，文档/模板更新不会改写真实环境。上轮本地58/101单测及构建通过，本轮只做文档检查，未重跑业务测试。

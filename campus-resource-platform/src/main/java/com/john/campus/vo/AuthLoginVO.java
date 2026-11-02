@@ -8,5 +8,10 @@ package com.john.campus.vo;
  * @param expiresIn Token 有效期，单位秒
  * @param user 当前登录用户信息
  */
-public record AuthLoginVO(String accessToken, String tokenType, long expiresIn, UserVO user) {
+public record AuthLoginVO(String accessToken, String tokenType, long expiresIn, UserVO user,
+                          String refreshToken, long refreshExpiresIn) {
+    /** 兼容既有接口测试及不支持刷新的调用方。 */
+    public AuthLoginVO(String accessToken, String tokenType, long expiresIn, UserVO user) {
+        this(accessToken, tokenType, expiresIn, user, null, 0);
+    }
 }

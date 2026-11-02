@@ -26,12 +26,9 @@ async function loadCurrentUser() {
   errorMessage.value = ''
 
   try {
+    const expected = session.snapshot()
     const user = await getCurrentUser()
-    const token = session.accessToken.value
-
-    if (token) {
-      session.setSession(token, user)
-    }
+    await session.updateCurrentUser(user, expected)
   } catch (error) {
     errorMessage.value = error instanceof ApiBusinessError ? error.message : '获取用户信息失败'
   } finally {
@@ -39,7 +36,7 @@ async function loadCurrentUser() {
   }
 }
 
-/** 退出必须先调用后端，使 JWT 进入 Redis 黑名单后再清理浏览器会话。 */
+/** 退出编排由 API 层持锁完成，页面不重复清理新会话。 */
 async function submitLogout() {
   if (logoutLoading.value) {
     return
@@ -50,7 +47,6 @@ async function submitLogout() {
 
   try {
     await logout()
-    session.clearSession()
     ElMessage.success('已退出登录')
     await router.replace('/login')
   } catch (error) {

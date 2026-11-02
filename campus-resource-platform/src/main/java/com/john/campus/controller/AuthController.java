@@ -2,6 +2,7 @@ package com.john.campus.controller;
 
 import com.john.campus.common.ApiResponse;
 import com.john.campus.dto.AuthLoginDTO;
+import com.john.campus.dto.AuthRefreshDTO;
 import com.john.campus.dto.AuthRegisterDTO;
 import com.john.campus.interceptor.JwtAuthenticationInterceptor;
 import com.john.campus.service.AuthService;
@@ -46,13 +47,24 @@ public class AuthController {
         return ApiResponse.success(authService.login(request));
     }
 
+    /** 刷新接口只凭独立的 Refresh Token 认证，允许 Access 已过期。 */
+    @PostMapping("/refresh")
+    public ApiResponse<AuthLoginVO> refresh(@Valid @RequestBody AuthRefreshDTO body) {
+        return ApiResponse.success(authService.refresh(body.refreshToken()));
+    }
+
     /**
-     * 退出登录入口，依赖拦截器提前解析 Token 并写入 request attribute。
+     * 退出登录入口，由 Service 验证刷新凭据或旧客户端的 Bearer Token。
      */
     @PostMapping("/logout")
-    public ApiResponse<Void> logout(HttpServletRequest request) {
-        String token = (String) request.getAttribute(JwtAuthenticationInterceptor.ACCESS_TOKEN_ATTRIBUTE);
-        authService.logout(token);
+    public ApiResponse<Void> logout(HttpServletRequest request,
+            @Valid @RequestBody(required = false) AuthRefreshDTO body) {
+        // 有刷新凭据时撤销整个会话；旧客户端仍可提交有效的 Bearer Token。
+        if (body != null) {
+            authService.logoutSession(body.refreshToken());
+        } else {
+            authService.logout(request.getHeader(JwtAuthenticationInterceptor.AUTHORIZATION_HEADER));
+        }
         return ApiResponse.success();
     }
 }

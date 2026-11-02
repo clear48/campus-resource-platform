@@ -49,12 +49,13 @@ describe('LoginView', () => {
   })
 
   it('登录成功后应提交凭据、保存会话并返回首页', async () => {
-    login.mockResolvedValue({ accessToken: 'student-token', tokenType: 'Bearer', expiresIn: 7200, user })
+    login.mockResolvedValue({ accessToken: 'student-token', refreshToken: 'student-refresh', tokenType: 'Bearer', expiresIn: 900, user })
     const { router, wrapper } = await mountLogin()
     await submitValidLogin(wrapper)
 
     expect(login).toHaveBeenCalledWith({ username: 'student', password: 'password123' })
     expect(localStorage.getItem('crp.access-token')).toBe('student-token')
+    expect(JSON.parse(localStorage.getItem('crp.auth-session') ?? '{}').refreshToken).toBe('student-refresh')
     expect(JSON.parse(localStorage.getItem('crp.current-user') ?? 'null')).toEqual(user)
     expect(router.currentRoute.value.path).toBe('/')
   })

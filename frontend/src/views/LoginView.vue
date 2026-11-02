@@ -5,6 +5,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { login } from '../api/auth'
 import type { LoginRequest } from '../types/auth'
 import { ApiBusinessError } from '../utils/request'
+import { session } from '../state/session'
 
 const router = useRouter()
 const route = useRoute()
@@ -34,7 +35,7 @@ function resolveRedirectTarget(redirect: unknown): string {
 }
 
 /**
- * 登录成功后先保存最小会话数据，T11 会把存取和失效清理统一收口到会话状态模块。
+ * 登录结果提交与刷新/退出共用锁，晚到结果不能覆盖新账号。
  */
 async function submitLogin() {
   const valid = await loginFormRef.value?.validate().catch(() => false)
@@ -47,10 +48,12 @@ async function submitLogin() {
   errorMessage.value = ''
 
   try {
+    const expected = session.snapshot()
     const loginResult = await login({ ...loginForm })
 
-    localStorage.setItem('crp.access-token', loginResult.accessToken)
-    localStorage.setItem('crp.current-user', JSON.stringify(loginResult.user))
+    if (!await session.commitLogin(loginResult, expected)) {
+      throw new ApiBusinessError(40105, '登录状态已变更，请重试')
+    }
     await router.push(resolveRedirectTarget(route.query.redirect))
   } catch (error) {
     errorMessage.value = error instanceof ApiBusinessError ? error.message : '登录失败，请稍后重试'
