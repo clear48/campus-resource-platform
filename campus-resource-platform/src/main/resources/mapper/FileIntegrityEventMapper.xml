@@ -29,6 +29,23 @@
         LIMIT 1
     </select>
 
+    <select id="selectLatestByFileAndType" resultMap="FileIntegrityEventResultMap">
+        SELECT id, file_id, backup_record_id, event_type, status, detected_count, attempt_count,
+               error_code, detected_at, confirmed_at, recovered_at, created_at, updated_at
+        FROM file_integrity_event
+        WHERE file_id = #{fileId}
+          AND event_type = #{eventType}
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+
+    <select id="selectOpenMissingFileIds" resultType="long">
+        SELECT DISTINCT file_id
+        FROM file_integrity_event
+        WHERE event_type = 1
+          AND status IN (0, 1, 2, 4)
+    </select>
+
     <insert id="insert" parameterType="com.john.campus.entity.FileIntegrityEvent" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO file_integrity_event
             (file_id, backup_record_id, event_type, status, detected_count, attempt_count, error_code)

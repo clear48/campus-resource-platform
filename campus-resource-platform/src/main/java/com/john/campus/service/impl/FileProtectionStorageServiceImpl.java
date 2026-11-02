@@ -1,6 +1,7 @@
 package com.john.campus.service.impl;
 
 import com.john.campus.entity.FileInfo;
+import com.john.campus.entity.FileBackupRecord;
 import com.john.campus.exception.FileProtectionException;
 import com.john.campus.service.FileProtectionStorageService;
 import java.io.IOException;
@@ -89,6 +90,99 @@ public class FileProtectionStorageServiceImpl implements FileProtectionStorageSe
             throw failure("BACKUP_IO_ERROR", "创建在线单文件副本失败", ex);
         } finally {
             deleteTemporaryQuietly(temporary);
+        }
+    }
+
+    @Override
+    public FileState inspect(FileInfo fileInfo) {
+        assertRootsReady();
+        validateFileInfo(fileInfo);
+        Path target = resolveInsideRoot(fileInfo.getStoragePath(), storageRoot, "SOURCE_PATH_OUTSIDE_ROOT");
+        if (!Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            return FileState.MISSING;
+        }
+        if (!Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(target)) {
+            return FileState.UNSAFE;
+        }
+        try {
+            return Files.size(target) == fileInfo.getFileSize() ? FileState.HEALTHY : FileState.SIZE_MISMATCH;
+        } catch (IOException ex) {
+            throw failure("SOURCE_INSPECTION_ERROR", "读取活动文件状态失败", ex);
+        }
+    }
+
+    @Override
+    public boolean restoreMissing(FileInfo fileInfo, FileBackupRecord backupRecord) {
+        assertRootsReady();
+        validateFileInfo(fileInfo);
+        validateBackupRecord(fileInfo, backupRecord);
+        Path target = resolveInsideRoot(fileInfo.getStoragePath(), storageRoot, "RESTORE_PATH_OUTSIDE_ROOT");
+        Path parent = target.getParent();
+        if (!Files.isDirectory(parent, LinkOption.NOFOLLOW_LINKS)) {
+            throw failure("RESTORE_PARENT_UNAVAILABLE", "恢复目标父目录不可用");
+        }
+        assertNoSymbolicLinks(storageRoot, parent);
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            if (inspect(fileInfo) == FileState.HEALTHY) {
+                return false;
+            }
+            throw failure("RESTORE_TARGET_EXISTS", "恢复目标已存在但不可信，禁止覆盖");
+        }
+
+        Path source = resolveInsideRoot(backupRecord.getBackupPath(), backupRoot, "BACKUP_PATH_OUTSIDE_ROOT");
+        assertRegularFile(source, "BACKUP_NOT_REGULAR");
+        try {
+            Digests backupDigests = digestFile(source);
+            assertBackupDigests(fileInfo, backupRecord, backupDigests);
+            Path temporary = parent.resolve(".restore-" + fileInfo.getId() + "-"
+                    + UUID.randomUUID().toString().replace("-", "") + ".part");
+            try {
+                Digests copied = copyAndDigest(source, temporary);
+                assertBackupDigests(fileInfo, backupRecord, copied);
+                try {
+                    // 同目录无覆盖移动：其他请求只会观察到“缺失”或完整文件，不会读取半文件。
+                    Files.move(temporary, target);
+                } catch (FileAlreadyExistsException race) {
+                    if (inspect(fileInfo) == FileState.HEALTHY) {
+                        return false;
+                    }
+                    throw failure("RESTORE_TARGET_RACE", "恢复发布前目标重新出现且不可信");
+                }
+                try {
+                    Digests published = digestFile(target);
+                    assertBackupDigests(fileInfo, backupRecord, published);
+                } catch (FileProtectionException ex) {
+                    quarantineFailedPublication(target, fileInfo.getId());
+                    throw ex;
+                } catch (IOException ex) {
+                    quarantineFailedPublication(target, fileInfo.getId());
+                    throw failure("RESTORE_POSTCHECK_IO_ERROR", "恢复文件发布后无法完成摘要复核", ex);
+                }
+                return true;
+            } finally {
+                deleteTemporaryQuietly(temporary);
+            }
+        } catch (FileProtectionException ex) {
+            throw ex;
+        } catch (IOException ex) {
+            throw failure("RESTORE_IO_ERROR", "在线单文件恢复失败", ex);
+        }
+    }
+
+    private void validateBackupRecord(FileInfo fileInfo, FileBackupRecord backupRecord) {
+        if (backupRecord == null || !backupRecord.isReady() || !fileInfo.getId().equals(backupRecord.getFileId())
+                || !fileInfo.getFileSize().equals(backupRecord.getFileSize())
+                || !fileInfo.getFileMd5().equalsIgnoreCase(backupRecord.getFileMd5())
+                || !StringUtils.hasText(backupRecord.getFileSha256())) {
+            throw failure("BACKUP_RECORD_NOT_READY", "没有与当前文件元数据一致的READY副本");
+        }
+    }
+
+    private void assertBackupDigests(FileInfo fileInfo, FileBackupRecord backupRecord, Digests digests) {
+        if (digests.bytes() != fileInfo.getFileSize()
+                || !digests.md5().equalsIgnoreCase(fileInfo.getFileMd5())
+                || !digests.sha256().equalsIgnoreCase(backupRecord.getFileSha256())) {
+            throw failure("BACKUP_DIGEST_MISMATCH", "在线副本摘要不一致，禁止恢复");
         }
     }
 
@@ -234,6 +328,16 @@ public class FileProtectionStorageServiceImpl implements FileProtectionStorageSe
             Files.deleteIfExists(temporary);
         } catch (IOException ignored) {
             // 临时文件清理由后续巡检兜底；这里不能覆盖主异常。
+        }
+    }
+
+    private void quarantineFailedPublication(Path target, long fileId) {
+        Path failed = target.resolveSibling(".restore-failed-" + fileId + "-"
+                + UUID.randomUUID().toString().replace("-", ""));
+        try {
+            Files.move(target, failed);
+        } catch (IOException ex) {
+            throw failure("RESTORE_QUARANTINE_FAILED", "恢复后校验失败且无法隔离已发布文件", ex);
         }
     }
 

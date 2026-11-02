@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.john.campus.entity.FileInfo;
+import com.john.campus.entity.FileBackupRecord;
 import com.john.campus.exception.FileProtectionException;
 import com.john.campus.service.impl.FileProtectionStorageServiceImpl;
 import java.nio.charset.StandardCharsets;
@@ -77,6 +78,28 @@ class FileProtectionStorageServiceImplTest {
                 .isEqualTo("ROOT_MARKER_MISSING");
     }
 
+    @Test
+    void shouldRestoreConfirmedMissingFileWithoutStoppingOrOverwriting() throws Exception {
+        byte[] content = "restore-online-content".getBytes(StandardCharsets.UTF_8);
+        Path source = storageRoot.resolve("restore.txt");
+        Files.write(source, content);
+        FileInfo fileInfo = normalFile(3L, source, content);
+        FileProtectionStorageService.BackupArtifact artifact = storageService.createVerifiedBackup(fileInfo);
+        FileBackupRecord record = readyRecord(fileInfo, artifact);
+        Files.delete(source);
+
+        assertThat(storageService.inspect(fileInfo)).isEqualTo(FileProtectionStorageService.FileState.MISSING);
+        assertThat(storageService.restoreMissing(fileInfo, record)).isTrue();
+        assertThat(source).hasBinaryContent(content);
+
+        Files.writeString(source, "unexpected-existing-content");
+        assertThatThrownBy(() -> storageService.restoreMissing(fileInfo, record))
+                .isInstanceOf(FileProtectionException.class)
+                .extracting(ex -> ((FileProtectionException) ex).getErrorCode())
+                .isEqualTo("RESTORE_TARGET_EXISTS");
+        assertThat(Files.readString(source)).isEqualTo("unexpected-existing-content");
+    }
+
     private FileInfo normalFile(long id, Path path, byte[] content) throws Exception {
         FileInfo fileInfo = new FileInfo();
         fileInfo.setId(id);
@@ -90,5 +113,18 @@ class FileProtectionStorageServiceImplTest {
 
     private String digest(String algorithm, byte[] content) throws Exception {
         return HexFormat.of().formatHex(MessageDigest.getInstance(algorithm).digest(content));
+    }
+
+    private FileBackupRecord readyRecord(
+            FileInfo fileInfo, FileProtectionStorageService.BackupArtifact artifact) {
+        FileBackupRecord record = new FileBackupRecord();
+        record.setId(30L);
+        record.setFileId(fileInfo.getId());
+        record.setBackupPath(artifact.backupPath());
+        record.setFileSize(artifact.fileSize());
+        record.setFileMd5(artifact.fileMd5());
+        record.setFileSha256(artifact.fileSha256());
+        record.setStatus(FileBackupRecord.STATUS_READY);
+        return record;
     }
 }

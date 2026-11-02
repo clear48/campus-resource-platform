@@ -68,7 +68,8 @@ app:
     batch-size: ${FILE_PROTECTION_BATCH_SIZE:200}
     backup-fixed-delay-ms: ${FILE_PROTECTION_BACKUP_DELAY_MS:30000}
     integrity-fixed-delay-ms: ${FILE_PROTECTION_INTEGRITY_DELAY_MS:10000}
-    missing-count-threshold: ${FILE_PROTECTION_MISSING_COUNT_THRESHOLD:3}
+    # 默认两个文件同时缺失即熔断，保证自动恢复严格限定为单文件误删。
+    missing-count-threshold: ${FILE_PROTECTION_MISSING_COUNT_THRESHOLD:2}
     missing-ratio-threshold: ${FILE_PROTECTION_MISSING_RATIO_THRESHOLD:0.01}
     max-recovery-attempts: ${FILE_PROTECTION_MAX_RECOVERY_ATTEMPTS:3}
 

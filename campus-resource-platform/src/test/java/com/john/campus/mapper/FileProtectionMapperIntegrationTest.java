@@ -77,6 +77,7 @@ class FileProtectionMapperIntegrationTest {
 
         FileIntegrityEvent detected = integrityEventMapper.selectLatestOpenMissing(9L);
         assertThat(detected.getId()).isEqualTo(event.getId());
+        assertThat(integrityEventMapper.selectOpenMissingFileIds()).containsExactly(9L);
         assertThat(integrityEventMapper.markConfirmedAndRestoring(event.getId(), 99L)).isEqualTo(1);
         assertThat(integrityEventMapper.markRecovered(event.getId())).isEqualTo(1);
         assertThat(integrityEventMapper.selectLatestOpenMissing(9L)).isNull();
