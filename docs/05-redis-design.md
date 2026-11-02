@@ -57,7 +57,12 @@ crp:stats:resource:download:delta
 | 登录 Token 黑名单 | `crp:auth:token:blacklist:{jti}` | String | Token 剩余有效期 |
 | 用户登录态版本 | `crp:auth:user:token-version:{userId}` | String | 可不设置或与登录策略一致 |
 | 文件 MD5 去重缓存 | `crp:cache:file:md5:{fileMd5}:{fileSize}` | String | 6-24 小时 |
+| 文件保护单文件锁 | `crp:lock:file:protection:{fileId}` | Redisson RLock | 不传 leaseTime，使用看门狗自动续期 |
 | 用户收藏集合 | `crp:user:favorites:{userId}` | Set | 30 分钟 |
+
+### 3.1 文件保护单文件锁
+
+`FileBackupService` 与 `FileIntegrityService` 对同一 `fileId` 共用 `crp:lock:file:protection:{fileId}`。锁只协调并发副本创建和恢复，不保存恢复事实；任务重放状态以 MySQL 的 `file_backup_record`、`file_integrity_event` 为准。获取锁失败或 Redis 异常时本轮跳过/失败关闭，不能退化为无锁覆盖活动文件。恢复成功后主动失效对应 `crp:cache:file:md5:{fileMd5}:{fileSize}`，下次预检回源数据库。
 
 ## 4. 资料详情缓存
 

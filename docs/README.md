@@ -14,6 +14,7 @@
 | `06-project-progress.md` | 项目总体协作 | 已实现能力、测试记录和进度 |
 | `07-project-runbook.md` | 项目运行维护 | 前后端启动、联调、验收与排查 |
 | `LOCAL-DATA-PROTECTION.md` | 本地数据保护 | Windows本地MySQL、Redis、上传文件联合备份、SHA-256校验与隔离恢复 |
+| `modules/10-file-online-protection-development-process.md` | 在线文件保护 | 单文件自动检测、双重确认、批量熔断、在线原子恢复与业务503门禁 |
 | `12-local-load-test-plan.md` | 本地性能测试 | 单实例后端、MySQL、Redis、本地文件的压测流程、负载阶梯、限流边界与统计对账 |
 | `test/2026-10-28-local-loadtest-report.md` | 本地压测执行记录 | 真实环境、稳态数据、并发失败证据、最终一致性与完成范围 |
 | `test/2026-10-28-local-loadtest-summary.json` | 脱敏压测证据 | 每轮参数/指标、资源窗口、专项结果、原始文件SHA256与最终验证 |

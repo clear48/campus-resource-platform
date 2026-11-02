@@ -13,6 +13,7 @@
 | 下载与限流 | `DownloadController` | `downloads.ts`、资料详情与下载记录页 | [`07-download-development-process.md`](07-download-development-process.md) |
 | 收藏 | `FavoriteController` | `favorites.ts`、资料详情与我的收藏页 | [`08-favorite-development-process.md`](08-favorite-development-process.md) |
 | 排行榜与定时维护 | `RankingController`、`AdminRankingController`、`task/` | `rankings.ts`、首页与管理员排行榜页 | [`09-rank-development-process.md`](09-rank-development-process.md) |
+| 在线文件保护 | `FileBackupTask`、`FileIntegrityTask`、文件业务门禁 | 无独立页面 | [`10-file-online-protection-development-process.md`](10-file-online-protection-development-process.md) |
 
 新增功能时，先归属到现有模块；只有确实独立的业务边界才新增新的模块开发过程文档。跨模块的 MySQL、Redis、接口契约必须分别同步到 [`../database/`](../database/)、[`../05-redis-design.md`](../05-redis-design.md) 和 [`../api/api-reference.md`](../api/api-reference.md)。
 

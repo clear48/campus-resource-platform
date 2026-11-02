@@ -1,5 +1,14 @@
 # 分支交接记录
 
+## 2026-11-02 在线单文件保护交接
+
+- 当前分支：`dev`，已推送至 `origin/dev`。提交依次为：`e6b4e5f`（数据库与配置骨架）、`587ce2e`（SHA-256 在线副本）、`fb898af`（自动巡检和在线恢复）、`9a698f2`（业务可用性门禁）、`333a10f`（审核数据库切片测试接线）。
+- 功能默认关闭。接手者先执行 `sql/migrations/20261102_file_online_protection.sql`，创建互不嵌套的活动/副本目录和 `.crp-storage-id`、`.crp-backup-id`，配置匹配 ID 后完成真实误删演练，才能启用 `FILE_PROTECTION_ENABLED=true`。
+- 自动恢复严格限定为单文件：默认同轮两个文件缺失即熔断；单文件需连续两轮确认，并在 Redisson 单文件锁内二次查库。副本未 READY、摘要不一致、根目录身份错误或目标出现异常文件时均不覆盖。
+- 受影响入口在恢复窗口返回 HTTP 503/`50301`，其他文件与后端服务继续正常运行。该机制不替代 `docs/LOCAL-DATA-PROTECTION.md` 的停机联合灾备。
+- 当前未完成真实磁盘演练、生产启用、事件管理接口或告警通知；不能把单元/H2 测试描述为真实 MySQL、Redis 与磁盘故障验证。
+- 用户原有未提交修改 `docs/DEPLOYMENT-QA-QUICK-REVIEW.md` 始终保留，未纳入本任务提交。
+
 ## 2026-11-02 全部分支汇入 main 与网站停止维护
 
 - 集成目标：`main`。先快进 `dev@fdd82716`，再合并分叉的 `codex/auth-auto-refresh@ed79a203`；仅 `CURRENT_STATUS.md` 和本文件存在内容冲突，保留本地备份、压测与认证双方记录。

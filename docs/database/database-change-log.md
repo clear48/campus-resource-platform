@@ -1,5 +1,19 @@
 # 数据库变更记录
 
+## 2026-11-02 在线单文件保护
+
+### 变更结论
+
+新增 `file_backup_record` 和 `file_integrity_event` 两张表。前者保存在线副本的物理路径、大小、MD5、SHA-256 和状态；后者保存文件缺失检测、连续确认、恢复、失败与批量熔断事件。初始化结构已更新 `sql/init.sql`，存量库使用 `sql/migrations/20261102_file_online_protection.sql`。
+
+### 一致性与兼容性
+
+- 迁移只新增表和索引，不修改 `file_info`、`resource`、下载或审核表，保护功能默认关闭。
+- `file_backup_record.file_id` 使用唯一索引，任务以数据库状态作为可重放依据；文件复制不放入数据库长事务。
+- `file_integrity_event` 保留恢复尝试次数、首次/最后检测、恢复完成时间和稳定错误码，便于崩溃后续扫及人工审计。
+- 发布顺序：先执行迁移并创建两个根目录身份文件，再部署应用，完成真实演练后才设置 `FILE_PROTECTION_ENABLED=true`。
+- 回滚应用前先关闭保护开关；两张审计表可保留。若必须删除，先导出审计数据，再删除 `file_integrity_event`，最后删除 `file_backup_record`。
+
 ## 2026-08-13 资料有效状态条件唯一约束
 
 ### 变更结论

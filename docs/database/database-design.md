@@ -23,6 +23,8 @@
 | `user` | 用户表 | 保存学生、管理员账号信息 |
 | `category` | 分类表 | 保存课程资料分类，支持父子分类 |
 | `file_info` | 文件信息表 | 保存物理文件信息、MD5、存储路径 |
+| `file_backup_record` | 文件在线副本表 | 保存单文件副本路径、MD5、SHA-256 与就绪状态 |
+| `file_integrity_event` | 文件完整性事件表 | 保存缺失发现、确认、恢复、失败和熔断审计 |
 | `user_file_authorization` | 用户文件授权表 | 保存用户经真实上传验证后可引用的物理文件关系 |
 | `resource` | 资料表 | 保存资料业务信息和审核状态 |
 | `favorite` | 收藏表 | 保存用户收藏关系，防止重复收藏 |
@@ -55,6 +57,9 @@
 | `download_record.user_id` | `user.id` | 下载用户 |
 | `download_record.resource_id` | `resource.id` | 被下载资料 |
 | `download_record.file_id` | `file_info.id` | 被下载文件 |
+| `file_backup_record.file_id` | `file_info.id` | 在线副本对应的活动文件 |
+| `file_integrity_event.file_id` | `file_info.id` | 完整性事件对应的活动文件 |
+| `file_integrity_event.backup_record_id` | `file_backup_record.id` | 恢复时使用的副本记录，可空 |
 | `audit_record.resource_id` | `resource.id` | 被审核资料 |
 | `audit_record.auditor_id` | `user.id` | 审核管理员 |
 
@@ -160,6 +165,14 @@
 ### 6.3 用户文件授权表 `user_file_authorization`
 
 该表把“全局物理文件已存在”和“当前用户可引用该文件”拆开。`uk_user_file_authorization (user_id, file_id)` 保证授权幂等；`source_type` 区分首次上传、实际内容去重和历史迁移。MD5 缓存只能定位候选文件，不能代替该表的用户级授权判断。
+
+### 6.4 文件在线副本表 `file_backup_record`
+
+每个正常本地文件最多保留一条当前副本记录，`uk_file_backup_record_file (file_id)` 保证任务重试不会创建重复业务记录。`backup_path` 指向 SHA-256 内容寻址副本，`file_size`、`file_md5` 和 `file_sha256` 用于恢复前后的完整性校验；状态为 `PENDING`、`READY`、`FAILED` 或 `RETIRED`。
+
+### 6.5 文件完整性事件表 `file_integrity_event`
+
+该表记录 `MISSING`、`SIZE_MISMATCH`、`HASH_MISMATCH`、`ROOT_UNAVAILABLE` 等事件，以及 `DETECTED`、`CONFIRMED`、`RESTORING`、`RECOVERED`、`FAILED`、`IGNORED` 状态。`idx_file_integrity_event_open` 支持按文件定位尚未闭环的事件，`idx_file_integrity_event_status_created` 支持运维排查。
 
 ## 7. 资料表 `resource`
 
