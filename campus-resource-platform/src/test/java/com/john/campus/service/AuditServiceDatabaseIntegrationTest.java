@@ -79,6 +79,12 @@ class AuditServiceDatabaseIntegrationTest {
     @MockitoBean
     private FileStorageService fileStorageService;
 
+    /**
+     * 文件可用性门禁由独立专项测试覆盖，本切片只验证审核状态机和数据库事务。
+     */
+    @MockitoBean
+    private FileAvailabilityService fileAvailabilityService;
+
     @AfterEach
     void clearUserContext() {
         // 审核服务依赖登录上下文判断管理员权限，测试后必须清理 ThreadLocal。
