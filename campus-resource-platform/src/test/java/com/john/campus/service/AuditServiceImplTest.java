@@ -41,6 +41,8 @@ class AuditServiceImplTest {
     @Mock
     private FileStorageService fileStorageService;
     @Mock
+    private FileAvailabilityService fileAvailabilityService;
+    @Mock
     private RankingService rankingService;
     @Mock
     private ResourceDetailCacheService resourceDetailCacheService;
@@ -57,6 +59,7 @@ class AuditServiceImplTest {
                 auditRecordMapper,
                 fileInfoMapper,
                 fileStorageService,
+                fileAvailabilityService,
                 rankingService,
                 resourceDetailCacheServiceProvider);
         UserContextHolder.set(new LoginUser(90001L, 2, "audit-heat-test-jti"));

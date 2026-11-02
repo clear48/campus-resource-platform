@@ -5,6 +5,7 @@ import com.john.campus.common.UserContextHolder;
 import com.john.campus.entity.FileInfo;
 import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.FileInfoMapper;
+import com.john.campus.service.FileAvailabilityService;
 import com.john.campus.service.FileAuthorizationService;
 import com.john.campus.service.FileContentValidator;
 import com.john.campus.service.FileMd5CacheService;
@@ -57,18 +58,24 @@ public class FileServiceImpl implements FileService {
      * 文件内容校验器在计算哈希和落盘前确认扩展名、MIME 与真实结构一致。
      */
     private final FileContentValidator fileContentValidator;
+    /**
+     * 秒传前确认既有物理文件健康，避免为缺失文件继续创建用户授权。
+     */
+    private final FileAvailabilityService fileAvailabilityService;
 
     public FileServiceImpl(
             FileInfoMapper fileInfoMapper,
             FileStorageService fileStorageService,
             FileMd5CacheService fileMd5CacheService,
             FileAuthorizationService fileAuthorizationService,
-            FileContentValidator fileContentValidator) {
+            FileContentValidator fileContentValidator,
+            FileAvailabilityService fileAvailabilityService) {
         this.fileInfoMapper = fileInfoMapper;
         this.fileStorageService = fileStorageService;
         this.fileMd5CacheService = fileMd5CacheService;
         this.fileAuthorizationService = fileAuthorizationService;
         this.fileContentValidator = fileContentValidator;
+        this.fileAvailabilityService = fileAvailabilityService;
     }
 
     /**
@@ -153,6 +160,7 @@ public class FileServiceImpl implements FileService {
      * 秒传：命中既有文件时引用次数原子自增，并回填缓存，返回该文件。
      */
     private FileUploadVO secondUpload(FileInfo fileInfo) {
+        fileAvailabilityService.requireAvailable(fileInfo);
         // 只有真实文件上传并经服务端计算内容哈希后，才为当前用户建立授权。
         fileAuthorizationService.authorizeExistingFile(
                 fileInfo.getId(), UserContextHolder.getRequiredUserId());

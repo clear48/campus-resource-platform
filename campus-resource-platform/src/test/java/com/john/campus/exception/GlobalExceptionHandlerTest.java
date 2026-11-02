@@ -24,4 +24,16 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().code()).isEqualTo(ErrorCode.STORAGE_INSUFFICIENT.getCode());
     }
+
+    @Test
+    void temporarilyUnavailableFileShouldMapToHttp503() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleBusinessException(
+                new BusinessException(ErrorCode.FILE_TEMPORARILY_UNAVAILABLE));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().code()).isEqualTo(ErrorCode.FILE_TEMPORARILY_UNAVAILABLE.getCode());
+    }
 }

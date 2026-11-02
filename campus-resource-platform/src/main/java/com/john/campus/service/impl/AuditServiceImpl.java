@@ -16,6 +16,7 @@ import com.john.campus.mapper.AuditRecordMapper;
 import com.john.campus.mapper.FileInfoMapper;
 import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.service.AuditService;
+import com.john.campus.service.FileAvailabilityService;
 import com.john.campus.service.FileStorageService;
 import com.john.campus.service.RankingService;
 import com.john.campus.service.ResourceDetailCacheService;
@@ -71,6 +72,10 @@ public class AuditServiceImpl implements AuditService {
      */
     private final FileStorageService fileStorageService;
     /**
+     * 审核取流前阻断缺失或异常文件，等待后台在线恢复完成。
+     */
+    private final FileAvailabilityService fileAvailabilityService;
+    /**
      * 审核提交后维护排行榜成员；不能在事务内直接写 Redis，否则数据库回滚会留下错误榜单状态。
      */
     private final RankingService rankingService;
@@ -85,12 +90,14 @@ public class AuditServiceImpl implements AuditService {
             AuditRecordMapper auditRecordMapper,
             FileInfoMapper fileInfoMapper,
             FileStorageService fileStorageService,
+            FileAvailabilityService fileAvailabilityService,
             RankingService rankingService,
             ObjectProvider<ResourceDetailCacheService> resourceDetailCacheServiceProvider) {
         this.resourceMapper = resourceMapper;
         this.auditRecordMapper = auditRecordMapper;
         this.fileInfoMapper = fileInfoMapper;
         this.fileStorageService = fileStorageService;
+        this.fileAvailabilityService = fileAvailabilityService;
         this.rankingService = rankingService;
         this.resourceDetailCacheService = resourceDetailCacheServiceProvider.getIfAvailable();
     }
@@ -103,11 +110,13 @@ public class AuditServiceImpl implements AuditService {
             AuditRecordMapper auditRecordMapper,
             FileInfoMapper fileInfoMapper,
             FileStorageService fileStorageService,
+            FileAvailabilityService fileAvailabilityService,
             RankingService rankingService) {
         this.resourceMapper = resourceMapper;
         this.auditRecordMapper = auditRecordMapper;
         this.fileInfoMapper = fileInfoMapper;
         this.fileStorageService = fileStorageService;
+        this.fileAvailabilityService = fileAvailabilityService;
         this.rankingService = rankingService;
         this.resourceDetailCacheService = null;
     }
@@ -306,6 +315,8 @@ public class AuditServiceImpl implements AuditService {
         if (fileInfo == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "审核文件不存在或已删除");
         }
+
+        fileAvailabilityService.requireAvailable(fileInfo);
 
         FileStorageService.FileResource fileResource = fileStorageService.loadAsResource(fileInfo.getStoragePath());
         return new ReviewFileInfo(

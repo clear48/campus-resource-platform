@@ -138,6 +138,9 @@ public class GlobalExceptionHandler {
         if (code == ErrorCode.STORAGE_INSUFFICIENT.getCode()) {
             return HttpStatus.INSUFFICIENT_STORAGE;
         }
+        if (code == ErrorCode.FILE_TEMPORARILY_UNAVAILABLE.getCode()) {
+            return HttpStatus.SERVICE_UNAVAILABLE;
+        }
         if (code >= 50000) {
             return HttpStatus.INTERNAL_SERVER_ERROR;
         }

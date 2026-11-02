@@ -56,6 +56,8 @@ class DownloadServiceImplTest {
     @Mock
     private FileStorageService fileStorageService;
     @Mock
+    private FileAvailabilityService fileAvailabilityService;
+    @Mock
     private StringRedisTemplate stringRedisTemplate;
     @Mock
     private RankingService rankingService;
@@ -74,6 +76,7 @@ class DownloadServiceImplTest {
                 fileInfoMapper,
                 downloadRateLimiter,
                 fileStorageService,
+                fileAvailabilityService,
                 stringRedisTemplate,
                 rankingService);
         UserContextHolder.set(new LoginUser(10001L, 1, "download-heat-test-jti"));
@@ -172,7 +175,8 @@ class DownloadServiceImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void reusedTicketShouldBeRejectedBeforeDatabaseAccess() {
+    void reusedTicketShouldBeRejectedAfterAvailabilityCheckAndBeforeFileRead() {
+        when(downloadRecordMapper.selectById(300L)).thenReturn(downloadRecord());
         when(stringRedisTemplate.execute(any(DefaultRedisScript.class), anyList())).thenReturn(0L);
 
         assertThatThrownBy(() -> downloadService.loadFile(300L, "A".repeat(43)))
@@ -180,13 +184,12 @@ class DownloadServiceImplTest {
                 .extracting("code")
                 .isEqualTo(ErrorCode.RESOURCE_STATUS_INVALID.getCode());
 
-        verify(downloadRecordMapper, never()).selectById(any());
+        verify(fileAvailabilityService).requireAvailable(any(FileInfo.class));
+        verify(fileStorageService, never()).loadAsResource(anyString());
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void ticketIssuedBeforeOfflineShouldNotLoadFile() {
-        when(stringRedisTemplate.execute(any(DefaultRedisScript.class), anyList())).thenReturn(1L);
         when(downloadRecordMapper.selectById(300L)).thenReturn(downloadRecord());
         Resource offlineResource = approvedResource();
         offlineResource.setStatus(Resource.STATUS_OFFLINE);

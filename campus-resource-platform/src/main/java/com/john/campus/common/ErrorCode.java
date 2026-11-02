@@ -30,6 +30,7 @@ public enum ErrorCode {
     /**
      * 5xxxx 表示服务端内部异常或外部依赖异常。
      */
+    FILE_TEMPORARILY_UNAVAILABLE(50301, "文件暂不可用，系统正在自动恢复"),
     STORAGE_INSUFFICIENT(50701, "存储空间不足"),
     SERVER_ERROR(50001, "服务端异常");
 

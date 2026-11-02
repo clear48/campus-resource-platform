@@ -15,6 +15,7 @@ import com.john.campus.mapper.FileInfoMapper;
 import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.service.DownloadRateLimiter;
 import com.john.campus.service.DownloadService;
+import com.john.campus.service.FileAvailabilityService;
 import com.john.campus.service.FileStorageService;
 import com.john.campus.service.RankingService;
 import com.john.campus.vo.DownloadTicketVO;
@@ -81,6 +82,10 @@ public class DownloadServiceImpl implements DownloadService {
     private final FileInfoMapper fileInfoMapper;
     private final DownloadRateLimiter downloadRateLimiter;
     private final FileStorageService fileStorageService;
+    /**
+     * 下载记录和文件取流共用可用性门禁，恢复窗口不产生无效成功记录。
+     */
+    private final FileAvailabilityService fileAvailabilityService;
     private final StringRedisTemplate stringRedisTemplate;
     /**
      * 排行榜只承接下载成功后的派生热度更新，任何 Redis 故障均不能改变下载记录的写入结果。
@@ -93,6 +98,7 @@ public class DownloadServiceImpl implements DownloadService {
             FileInfoMapper fileInfoMapper,
             DownloadRateLimiter downloadRateLimiter,
             FileStorageService fileStorageService,
+            FileAvailabilityService fileAvailabilityService,
             StringRedisTemplate stringRedisTemplate,
             RankingService rankingService) {
         this.downloadRecordMapper = downloadRecordMapper;
@@ -100,6 +106,7 @@ public class DownloadServiceImpl implements DownloadService {
         this.fileInfoMapper = fileInfoMapper;
         this.downloadRateLimiter = downloadRateLimiter;
         this.fileStorageService = fileStorageService;
+        this.fileAvailabilityService = fileAvailabilityService;
         this.stringRedisTemplate = stringRedisTemplate;
         this.rankingService = rankingService;
     }
@@ -133,6 +140,7 @@ public class DownloadServiceImpl implements DownloadService {
         if (fileInfo == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "文件不存在或已删除");
         }
+        fileAvailabilityService.requireAvailable(fileInfo);
 
         // 写入下载成功记录，审计字段（IP、UA）一并落库。
         DownloadRecord record = new DownloadRecord();
@@ -223,7 +231,6 @@ public class DownloadServiceImpl implements DownloadService {
         }
 
         LoginUser currentUser = UserContextHolder.getRequired();
-        consumeDownloadTicket(currentUser.userId(), downloadRecordId, downloadTicket);
 
         DownloadRecord record = downloadRecordMapper.selectById(downloadRecordId);
         if (record == null) {
@@ -247,6 +254,10 @@ public class DownloadServiceImpl implements DownloadService {
         if (fileInfo == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "文件不存在或已删除");
         }
+
+        // 恢复窗口不消费一次性票据；确认文件健康后再原子消费，随后立即打开文件流。
+        fileAvailabilityService.requireAvailable(fileInfo);
+        consumeDownloadTicket(currentUser.userId(), downloadRecordId, downloadTicket);
 
         FileStorageService.FileResource fileResource = fileStorageService.loadAsResource(fileInfo.getStoragePath());
         return new DownloadFileInfo(

@@ -52,6 +52,8 @@ class FileServiceImplTest {
     private FileAuthorizationService fileAuthorizationService;
     @Mock
     private FileContentValidator fileContentValidator;
+    @Mock
+    private FileAvailabilityService fileAvailabilityService;
 
     private FileService fileService;
 
@@ -62,7 +64,8 @@ class FileServiceImplTest {
                 fileStorageService,
                 fileMd5CacheService,
                 fileAuthorizationService,
-                fileContentValidator);
+                fileContentValidator,
+                fileAvailabilityService);
         UserContextHolder.set(new LoginUser(USER_ID, 1, "file-authorization-test-jti"));
     }
 
@@ -150,6 +153,23 @@ class FileServiceImplTest {
         assertThat(result.secondUpload()).isTrue();
         verify(fileAuthorizationService).authorizeExistingFile(FILE_ID, USER_ID);
         verify(fileMd5CacheService).putFound(MD5, SIZE, FILE_ID);
+    }
+
+    @Test
+    void unavailableExistingFileShouldStopBeforeSecondUploadAuthorization() {
+        MockMultipartFile upload = uploadFile();
+        FileInfo existing = existingFile();
+        BusinessException unavailable = new BusinessException(ErrorCode.FILE_TEMPORARILY_UNAVAILABLE);
+        when(fileStorageService.resolveExtension("same.pdf")).thenReturn("pdf");
+        stubValidatedPdf(upload);
+        when(fileStorageService.calculateMd5(upload)).thenReturn(MD5);
+        when(fileInfoMapper.selectByMd5AndSize(MD5, SIZE)).thenReturn(existing);
+        doThrow(unavailable).when(fileAvailabilityService).requireAvailable(existing);
+
+        assertThatThrownBy(() -> fileService.upload(upload)).isSameAs(unavailable);
+
+        verify(fileAuthorizationService, never()).authorizeExistingFile(anyLong(), anyLong());
+        verify(fileMd5CacheService, never()).putFound(anyString(), anyLong(), any());
     }
 
     @Test
