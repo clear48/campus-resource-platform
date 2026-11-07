@@ -1,7 +1,18 @@
 # 搜索模块开发流程文档
 
 > 本文档遵循 `docs/AGENTS.md` 第 24 节《模块开发流程文档规范》生成。
-> 当前状态：**搜索模块首版主链路已完成（DTO/VO → Mapper SQL → Redis 热词 Key → Service → Controller），并已同步 API、Redis、进度、README 文档**。搜索模块基于审核模块产生的 `resource.status = 1 APPROVED` 资料集合，提供公开资料检索能力，并通过 Redis ZSet 记录热门搜索词。剩余待补充：搜索接口测试、热词 Service 单测、搜索建议接口、搜索限流。
+> 当前状态：**搜索模块首版主链路已完成（DTO/VO → Mapper SQL → Redis 热词 Key → Service → Controller），并已同步 API、Redis、进度、README 文档**。搜索模块基于审核模块产生的 `resource.status = 1 APPROVED` 资料集合，提供公开资料检索能力，并通过 Redis ZSet 记录热门搜索词。剩余待补充：搜索建议接口、搜索限流；热词 Service 自然周期测试见本次修正。
+
+
+## 自然周期热词修正（2026-11-07）
+
+热词统计与资料榜统一使用上海时区的日期桶：`daily:{yyyy-MM-dd}`、`weekly:{weekMonday}`、`monthly:{yyyy-MM}`，其中周从周一零点开始，月从每月一日零点开始。读写均通过 `RankingPeriod` 和带 Instant 的 Key 方法，不再生成无日期周期 Key。
+
+- 每次非空关键词统计采样一次 Clock，三个自然周期桶加 1；每桶固定在周期结束后 2/14/60 天回收，重复搜索不延后过期。
+- `SearchServiceImpl` 保留原 Spring 构造器，新增显式 Clock 构造器供确定性边界测试；不用新增 Bean、依赖或表。
+- 查询仅取当期桶；Redis 缺失或失败返回空，不影响搜索主链路。计分与设置过期时间仍是两个非联合原子命令。
+- 部署时统一切换新版本。旧固定 Key 不再读写，不把无事件时间的历史累计分数复制到当前桶；新桶从切换后的行为开始统计，旧 Key 停写后等待原 TTL 回收。
+- 本节说明当前实现；后文首版步骤、测试与 commit 记录属于历史。固定 Clock 验收场景包括跨日/周/月和热词读写一致，当前执行结果见 `docs/CURRENT_STATUS.md`。
 
 ---
 
@@ -12,7 +23,7 @@
 | 模块名称 | 搜索模块 |
 | 英文标识 | search |
 | 文档路径 | `docs/modules/06-search-development-process.md` |
-| 当前分支 | `dev` |
+| 当前分支 | `main` / `dev`（2026-11-07 集成；原自然周期临时分支已合入） |
 | 当前状态 | 首版主链路已完成并已同步 API/Redis/进度/README 文档，剩余测试与增强见待完成事项 |
 | 前置依赖模块 | 用户认证模块、分类查询模块、资料模块、审核模块 |
 | 下游模块 | 下载模块、收藏模块、排行榜模块 |
@@ -147,9 +158,9 @@
 
 | Key | 类型 | 用途 | TTL |
 | --- | --- | --- | --- |
-| `crp:rank:search:keyword:daily` | ZSet | 当日热门搜索词 | 2 天 |
-| `crp:rank:search:keyword:weekly` | ZSet | 本周热门搜索词 | 14 天 |
-| `crp:rank:search:keyword:monthly` | ZSet | 本月热门搜索词 | 60 天 |
+| `crp:rank:search:keyword:daily:{yyyy-MM-dd}` | ZSet | 当日热门搜索词 | 当日结束 + 2 天 |
+| `crp:rank:search:keyword:weekly:{weekMonday}` | ZSet | 本周热门搜索词 | 当周结束 + 14 天 |
+| `crp:rank:search:keyword:monthly:{yyyy-MM}` | ZSet | 本月热门搜索词 | 当月结束 + 60 天 |
 
 Member：归一化后的搜索关键词。
 
@@ -169,8 +180,8 @@ Score：搜索次数。
 当前真实代码状态：
 
 - `RedisKeyConstants` 已有 Token 黑名单、文件 MD5 缓存以及搜索热词 Key。
-- `crp:rank:search:keyword:{period}` 常量 `SEARCH_KEYWORD_RANK` 和格式化方法 `searchKeywordRank(String period)` 已实现。
-- `SearchServiceImpl` 已接入 `StringRedisTemplate`，搜索成功后对 `daily`、`weekly`、`monthly` 三个 ZSet 执行 `ZINCRBY +1` 并设置 2/14/60 天 TTL；关键词为空或 Redis 不可用时跳过，异常时记录日志且不阻断搜索主流程。
+- `crp:rank:search:keyword:{period}:{bucket}` 常量 `SEARCH_KEYWORD_RANK` 和格式化方法 `searchKeywordRank(RankingPeriod period, Instant eventTime)` 已实现。
+- `SearchServiceImpl` 已接入 `StringRedisTemplate`，搜索成功后对 `daily`、`weekly`、`monthly` 三个 ZSet 执行 `ZINCRBY +1` 并固定在对应周期结束后 2/14/60 天回收；关键词为空或 Redis 不可用时跳过，异常时记录日志且不阻断搜索主流程。
 
 ---
 
@@ -359,7 +370,7 @@ DELETED(4)        不进入搜索结果
 | --- | --- | --- |
 | T1 | 搜索文档初稿 | `docs/modules/06-search-development-process.md` |
 | T2 | DTO/VO | `SearchResourceQueryDTO`、`SearchResourceVO` |
-| T3 | Redis Key 常量 | `RedisKeyConstants.searchKeywordRank(period)` |
+| T3 | Redis Key 常量 | `RedisKeyConstants.searchKeywordRank(period, eventTime)` |
 | T4 | Mapper 搜索 SQL | `searchApprovedResources`、`countApprovedResources` |
 | T5 | Service 搜索编排 | 参数校验、排序白名单、关键词归一化、热词统计 |
 | T6 | Controller | `GET /api/v1/search/resources` |
@@ -373,20 +384,20 @@ DELETED(4)        不进入搜索结果
 - 已阅读 `AGENTS.md` 和 `docs/AGENTS.md`，确认模块开发流程文档规范。
 - 已阅读 `docs/06-project-progress.md`，确认搜索模块是下一阶段推荐开发模块。
 - 已阅读 `docs/api/api-reference.md` 搜索模块设计，确认首版主接口为 `GET /api/v1/search/resources`。
-- 已阅读 `docs/05-redis-design.md` 热门搜索词设计，确认 Redis Key 为 `crp:rank:search:keyword:{period}`。
+- 已阅读 `docs/05-redis-design.md` 热门搜索词设计，确认 Redis Key 为 `crp:rank:search:keyword:{period}:{bucket}`。
 - 已阅读 `docs/02-business-flow.md` 搜索流程，确认普通搜索必须固定过滤 `APPROVED`。
 - 已确认 `WebMvcConfig` 已放行 `/api/v1/search/**`。
 - 已确认当前真实代码中尚无 `SearchController`、`SearchService` 和搜索 Mapper 方法。
 - 已生成本搜索模块开发流程文档初稿。
 - 已创建 `SearchResourceQueryDTO`，承载关键词、分类、课程名、资料类型、标签、排序和分页参数。
 - 已创建 `SearchResourceVO`，作为搜索结果列表项，避免直接返回 `Resource` Entity。
-- 已为 `RedisKeyConstants` 补充 `SEARCH_KEYWORD_RANK` 常量和 `searchKeywordRank(String period)` 方法。
+- 已为 `RedisKeyConstants` 补充 `SEARCH_KEYWORD_RANK` 常量和 `searchKeywordRank(RankingPeriod period, Instant eventTime)` 方法。
 - 已为 `ResourceMapper` 补充 `searchApprovedResources(...)` 和 `countApprovedResources(...)`。
 - 已在 `ResourceMapper.xml` 中补充公开搜索 SQL，固定过滤 `status = 1`，并使用排序白名单避免直接拼接前端字段。
 - 已补充 `ResourceDatabaseIntegrationTest` 搜索 Mapper 用例，覆盖状态隔离、筛选、分页和排序回退。
 - 已创建 `SearchService` 和 `SearchServiceImpl`，完成参数兜底校验、排序白名单归一化、关键词 trim、Mapper 调用和 VO 转换。
 - 已补充 `SearchServiceDatabaseIntegrationTest`，覆盖 Service 搜索链路、默认查询和非法参数。
-- 已在 `SearchServiceImpl` 接入 Redis 热门搜索词统计：搜索成功后对 `daily`、`weekly`、`monthly` 三个 ZSet 递增关键词分数，并按 2/14/60 天设置 TTL，Key 统一走 `RedisKeyConstants.searchKeywordRank(period)`。
+- 已在 `SearchServiceImpl` 接入 Redis 热门搜索词统计：搜索成功后对 `daily`、`weekly`、`monthly` 三个 ZSet 递增关键词分数，并按周期结束后 2/14/60 天的固定绝对时刻回收，Key 统一走 `RedisKeyConstants.searchKeywordRank(period, eventTime)`。
 - 已通过 `ObjectProvider<StringRedisTemplate>` 将热词统计声明为可选依赖：Redis 未装配（如 `@MybatisTest` 切片）时跳过统计，避免破坏现有集成测试上下文。
 - 已实现热词统计降级：空/空白关键词不写入，Redis 异常仅记录日志、不阻断搜索主流程。
 - 已创建 `SearchController`，实现 `GET /api/v1/search/resources`，通过 `@Valid SearchResourceQueryDTO` 绑定查询参数，返回 `ApiResponse<PageResult<SearchResourceVO>>`。
@@ -608,7 +619,7 @@ docs(search): add search module development process
 本步目标：
 - 修改 `campus-resource-platform/src/main/java/com/john/campus/common/RedisKeyConstants.java`。
 - 新增 `SEARCH_KEYWORD_RANK = "crp:rank:search:keyword:%s"`。
-- 新增 `searchKeywordRank(String period)` 方法，统一生成完整 Key。
+- 新增 `searchKeywordRank(RankingPeriod period, Instant eventTime)` 方法，统一生成完整 Key。
 - 保留已有 Token 黑名单和文件 MD5 缓存 Key，不改变原有方法签名。
 
 涉及文件或类：
@@ -616,7 +627,7 @@ docs(search): add search module development process
 - `docs/05-redis-design.md`（只核对 Key 命名，不修改）
 
 完成标准：
-- 业务代码后续可以通过 `RedisKeyConstants.searchKeywordRank("daily")` 生成 `crp:rank:search:keyword:daily`。
+- 业务代码后续可以通过 `RedisKeyConstants.searchKeywordRank(RankingPeriod.DAILY, eventTime)` 生成 `crp:rank:search:keyword:daily:{yyyy-MM-dd}`。
 - 不在 Service 中硬编码 Redis Key。
 - 新增常量和方法有简洁中文注释，说明用途和数据结构。
 
@@ -706,9 +717,9 @@ docs(search): add search module development process
 本步目标：
 - 注入 `StringRedisTemplate`。
 - 搜索成功且归一化关键词非空时，对 daily、weekly、monthly 三个 ZSet 执行分数递增。
-- 使用 `RedisKeyConstants.searchKeywordRank(period)` 生成 Key。
+- 使用 `RedisKeyConstants.searchKeywordRank(period, eventTime)` 生成 Key。
 - Redis 统计失败时记录日志或吞掉异常，不影响搜索结果返回。
-- 为 daily、weekly、monthly Key 设置符合 `docs/05-redis-design.md` 的 TTL：2 天、14 天、60 天。
+- 为 daily、weekly、monthly Key 设置符合 `docs/05-redis-design.md` 的 固定回收时刻：当日结束 + 2 天、当周结束 + 14 天、当月结束 + 60 天。
 
 涉及文件或类：
 - `service/impl/SearchServiceImpl.java`
@@ -813,7 +824,7 @@ docs(search): add search module development process
 
 完成标准：
 - 文档不把搜索建议、排行榜、Elasticsearch 写成已完成，除非代码真实实现。
-- Redis Key 使用 `crp:rank:search:keyword:{period}`，不得使用旧示例 `ranking:search:keyword:*`。
+- Redis Key 使用 `crp:rank:search:keyword:{period}:{bucket}`，不得使用旧示例 `ranking:search:keyword:*`。
 - 测试命令和结果要写清楚。
 
 本步不做什么：

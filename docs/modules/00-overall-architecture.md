@@ -300,7 +300,7 @@ flowchart TD
     FAV --> RANK_INPUT
     SEARCH_PUB --> RANK_INPUT
 
-    RANK_INPUT --> RANK_ZSET["Redis ZSet 实时排序<br/>crp:rank:resource:hot:{period}"]
+    RANK_INPUT --> RANK_ZSET["Redis ZSet 实时排序<br/>自然周期 {period}:{bucket} / 累计 all"]
     RANK_INPUT --> RANK_DELTA["下载增量 Hash<br/>crp:stats:resource:download:delta"]
 
     RANK_DELTA --> SYNC_TASK["定时任务(60s)<br/>Redisson锁→批次隔离<br/>→MySQL原子累加<br/>→幂等明细→HDEL确认"]
@@ -349,9 +349,9 @@ stateDiagram-v2
 | `crp:cache:file:md5:{md5}:{size}` | String | 文件 | MD5秒传三态缓存 | 正6h / 负5min |
 | `crp:cache:resource:detail:{id}` | String | 资料 | 公开详情JSON快照 | 30min+随机 |
 | `crp:lock:cache:resource:detail:{id}` | RLock | 资料 | 详情缓存回源/失效锁 | 看门狗 |
-| `crp:rank:search:keyword:daily` | ZSet | 搜索 | 日热门搜索词 | 2天 |
-| `crp:rank:search:keyword:weekly` | ZSet | 搜索 | 周热门搜索词 | 14天 |
-| `crp:rank:search:keyword:monthly` | ZSet | 搜索 | 月热门搜索词 | 60天 |
+| `crp:rank:search:keyword:daily:{yyyy-MM-dd}` | ZSet | 搜索 | 上海自然日热门搜索词 | 日结束+2天 |
+| `crp:rank:search:keyword:weekly:{mondayDate}` | ZSet | 搜索 | 上海自然周热门搜索词，周一日期命名 | 周结束+14天 |
+| `crp:rank:search:keyword:monthly:{yyyy-MM}` | ZSet | 搜索 | 上海自然月热门搜索词 | 月结束+60天 |
 | `crp:rate:download:user:{userId}` | ZSet | 下载 | 用户下载限流 | 窗口+60s |
 | `crp:rate:download:ip:{ip}` | ZSet | 下载 | IP下载限流 | 窗口+60s |
 | `crp:dedup:download:{userId}:{rid}` | String | 下载 | 重复下载去重 | 10-30min |
@@ -360,9 +360,9 @@ stateDiagram-v2
 | `crp:stats:resource:download:syncing:{batchId}` | Hash | 排行 | 下载增量同步批次详情 | 按批次清理 |
 | `crp:stats:resource:download:syncing:current` | String | 排行 | 当前同步批次ID | 不设TTL |
 | `crp:user:favorites:{userId}` | Set | 收藏 | 用户收藏集合缓存 | 30min |
-| `crp:rank:resource:hot:daily` | ZSet | 排行 | 日热门资料榜 | 2天 |
-| `crp:rank:resource:hot:weekly` | ZSet | 排行 | 周热门资料榜 | 14天 |
-| `crp:rank:resource:hot:monthly` | ZSet | 排行 | 月热门资料榜 | 60天 |
+| `crp:rank:resource:hot:daily:{yyyy-MM-dd}` | ZSet | 排行 | 上海自然日热门资料榜 | 日结束+2天 |
+| `crp:rank:resource:hot:weekly:{mondayDate}` | ZSet | 排行 | 上海自然周热门资料榜，周一日期命名 | 周结束+14天 |
+| `crp:rank:resource:hot:monthly:{yyyy-MM}` | ZSet | 排行 | 上海自然月热门资料榜 | 月结束+60天 |
 | `crp:rank:resource:hot:all` | ZSet | 排行 | 总热门资料榜 | 不设TTL |
 | `crp:rank:resource:hot:all:rebuild:{batchId}` | ZSet | 排行 | all榜重建批次（RENAME原子替换） | 重建后清理 |
 | `crp:lock:sync:download-delta` | RLock | 排行 | 下载增量同步锁 | 看门狗 |
@@ -423,7 +423,7 @@ stateDiagram-v2
 
 | 场景 | 降级方式 |
 |------|----------|
-| 热门资料 Redis 不可用 | 降级 MySQL `hot_score` 查询 |
+| 热门资料 Redis 不可用 | 自然周期返回空列表，仅 all 降级 MySQL `hot_score` 查询 |
 | 热门搜索词 Redis 不可用 | 返回空列表 |
 | 详情缓存 Redis 不可用 | 直接查 MySQL 返回 |
 | 下载限流 Redis 不可用 | 失败关闭（拒绝下载） |

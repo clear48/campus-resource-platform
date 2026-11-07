@@ -12,18 +12,23 @@ import com.john.campus.service.RankingService;
 import com.john.campus.vo.HotResourceRankingVO;
 import com.john.campus.vo.HotSearchKeywordRankingVO;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.redisson.api.RLock;
 import org.redisson.api.RReadWriteLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.context.annotation.Lazy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
@@ -75,7 +80,7 @@ public class RankingServiceImpl implements RankingService {
     private final ResourceMapper resourceMapper;
 
     /**
-     * Redis 是可降级依赖，测试切片或异常环境未装配时仍可走资料榜 MySQL 兜底。
+     * Redis 是可降级依赖；未装配时仅 all 使用 MySQL，周期榜返回空。
      */
     private final ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider;
 
@@ -84,35 +89,48 @@ public class RankingServiceImpl implements RankingService {
      */
     private final RedissonClient redissonClient;
 
+    /** 可注入时钟只负责取 Instant，业务周期由 RankingPeriod 的上海时区决定。 */
+    private final Clock clock;
+
+    @Autowired
     public RankingServiceImpl(
             ResourceMapper resourceMapper,
             ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
             @Lazy RedissonClient redissonClient) {
+        this(resourceMapper, stringRedisTemplateProvider, redissonClient, Clock.systemUTC());
+    }
+
+    /** 显式时钟入口用于确定性验证跨日、周、月边界，不依赖真实等待。 */
+    public RankingServiceImpl(ResourceMapper resourceMapper,
+            ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
+            RedissonClient redissonClient, Clock clock) {
         this.resourceMapper = resourceMapper;
         this.stringRedisTemplateProvider = stringRedisTemplateProvider;
         this.redissonClient = redissonClient;
+        this.clock = Objects.requireNonNull(clock, "时钟不能为空");
     }
 
     /**
-     * 查询热门资料：优先按 Redis 分数倒序读取，再批量补齐审核通过资料；Redis 失败时降级 MySQL 快照。
+     * 查询热门资料：优先按 Redis 分数倒序读取，再批量补齐审核通过资料；Redis 失败时仅总榜降级 MySQL，自然周期返回空。
      */
     @Override
     public List<HotResourceRankingVO> listHotResources(HotResourceRankingQueryDTO query) {
         // 先把默认值、分类和周期归一化，后续 Redis Key 与 Mapper 参数只能使用校验后的值。
         ResolvedResourceRankingQuery resolvedQuery = resolveResourceRankingQuery(query);
+        Instant queryTime = clock.instant();
         StringRedisTemplate stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
         if (stringRedisTemplate == null) {
-            // Redis 未装配时不把运营查询变成服务不可用，直接使用 MySQL 热度快照。
-            return listHotResourcesFromMysql(resolvedQuery);
+            // 自然周期没有可还原的 MySQL 快照；只有 all 可以使用总榜兜底。
+            return fallbackHotResources(resolvedQuery);
         }
 
         try {
-            return listHotResourcesFromRedis(stringRedisTemplate, resolvedQuery);
+            return listHotResourcesFromRedis(stringRedisTemplate, resolvedQuery, queryTime);
         } catch (RuntimeException ex) {
-            // 实时榜读取失败不能让首页不可用，改用 resource.hot_score 快照提供兜底结果。
-            log.warn("查询 Redis 热门资料榜失败，降级 MySQL: period={}, categoryId={}",
+            // 周期榜故障返回空，不能把历史总量当作当期热度。
+            log.warn("查询 Redis 热门资料榜失败，按周期降级: period={}, categoryId={}",
                     resolvedQuery.period().getCode(), resolvedQuery.categoryId(), ex);
-            return listHotResourcesFromMysql(resolvedQuery);
+            return fallbackHotResources(resolvedQuery);
         }
     }
 
@@ -123,6 +141,7 @@ public class RankingServiceImpl implements RankingService {
     public List<HotSearchKeywordRankingVO> listHotSearchKeywords(HotSearchKeywordRankingQueryDTO query) {
         // 搜索词不属于交易数据，参数通过后允许 Redis 故障时降级为空结果。
         ResolvedSearchKeywordRankingQuery resolvedQuery = resolveSearchKeywordRankingQuery(query);
+        Instant queryTime = clock.instant();
         StringRedisTemplate stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
         if (stringRedisTemplate == null) {
             return List.of();
@@ -130,7 +149,7 @@ public class RankingServiceImpl implements RankingService {
 
         try {
             // 热词 ZSet 的 member 是归一化关键词，score 是累计搜索次数。
-            String key = RedisKeyConstants.searchKeywordRank(resolvedQuery.period().getCode());
+            String key = RedisKeyConstants.searchKeywordRank(resolvedQuery.period(), queryTime);
             Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet()
                     .reverseRangeWithScores(key, 0, resolvedQuery.limit() - 1L);
             if (tuples == null || tuples.isEmpty()) {
@@ -180,7 +199,7 @@ public class RankingServiceImpl implements RankingService {
     }
 
     /**
-     * 真实取消收藏成功后扣减四个周期榜分数；允许得到负分，后续总榜重建会以持久化统计快照校准。
+     * 真实取消收藏按发生当期扣减净行为热度，允许负分；不回改收藏发生时的历史桶。
      */
     @Override
     public void recordResourceUnfavorite(Long resourceId) {
@@ -196,7 +215,7 @@ public class RankingServiceImpl implements RankingService {
     }
 
     /**
-     * 下架后的资料必须主动从四个周期榜移除，避免仅依赖查询时过滤造成 Redis 榜单持续堆积脏成员。
+     * 下架清除当前日/周/月桶和总榜；历史桶等待固定到期，公开查询仍会校验 MySQL 状态。
      */
     @Override
     public void removeOfflineResource(Long resourceId) {
@@ -210,12 +229,14 @@ public class RankingServiceImpl implements RankingService {
         try {
             ZSetOperations<String, String> zSetOperations = stringRedisTemplate.opsForZSet();
             String member = String.valueOf(resourceId);
+            // 一次行为固定一个事件时点，循环跨零点也不会把各榜写入不同周期。
+            Instant eventTime = clock.instant();
             for (RankingPeriod period : RankingPeriod.values()) {
                 if (period == RankingPeriod.ALL) {
                     removeFromAllHotRankingUnderReadLock(zSetOperations, member);
                     continue;
                 }
-                zSetOperations.remove(RedisKeyConstants.resourceHotRank(period.getCode()), member);
+                zSetOperations.remove(RedisKeyConstants.resourceHotRank(period, eventTime), member);
             }
         } catch (RuntimeException ex) {
             // 排行榜属于可重建的派生数据；移除失败不能回滚已提交的下架状态。
@@ -224,7 +245,7 @@ public class RankingServiceImpl implements RankingService {
     }
 
     /**
-     * 统一执行四周期 ZSet 分值变更，并为有 TTL 的周期续期；Redis 不可用时只记录日志，主业务保持可用。
+     * 统一执行四周期 ZSet 分值变更，并为自然周期桶设置固定回收时间；Redis 不可用时只记录日志，主业务保持可用。
      */
     private void adjustResourceHeat(Long resourceId, double delta, String event) {
         if (!isValidResourceId(resourceId)) {
@@ -237,15 +258,17 @@ public class RankingServiceImpl implements RankingService {
         try {
             ZSetOperations<String, String> zSetOperations = stringRedisTemplate.opsForZSet();
             String member = String.valueOf(resourceId);
+            // 一次行为固定一个事件时点，循环跨零点也不会把各榜写入不同周期。
+            Instant eventTime = clock.instant();
             for (RankingPeriod period : RankingPeriod.values()) {
-                String key = RedisKeyConstants.resourceHotRank(period.getCode());
+                String key = RedisKeyConstants.resourceHotRank(period, eventTime);
                 if (period == RankingPeriod.ALL) {
                     adjustAllHotRankingUnderReadLock(zSetOperations, member, delta);
                     continue;
                 }
                 zSetOperations.incrementScore(key, member, delta);
-                // all 总榜不设置过期时间，其余周期通过 TTL 限制 Redis 历史数据的保留窗口。
-                period.getTtl().ifPresent(ttl -> stringRedisTemplate.expire(key, ttl));
+                // 固定绝对回收时间，不因活跃写入续期；此调用与计分仍是两条独立命令。
+                period.expiresAt(eventTime).ifPresent(expiry -> stringRedisTemplate.expireAt(key, Date.from(expiry)));
             }
         } catch (RuntimeException ex) {
             log.warn("写入 Redis 资料热度失败: event={}, resourceId={}, delta={}", event, resourceId, delta, ex);
@@ -302,9 +325,9 @@ public class RankingServiceImpl implements RankingService {
      */
     private List<HotResourceRankingVO> listHotResourcesFromRedis(
             StringRedisTemplate stringRedisTemplate,
-            ResolvedResourceRankingQuery query) {
+            ResolvedResourceRankingQuery query, Instant queryTime) {
         // 资料榜的 member 是 resourceId，score 是实时热度分；不同周期通过不同 Key 隔离。
-        String key = RedisKeyConstants.resourceHotRank(query.period().getCode());
+        String key = RedisKeyConstants.resourceHotRank(query.period(), queryTime);
         // 分类筛选或下架资料会淘汰候选，因此单批读取量要大于最终 limit，才有机会补足榜单。
         int candidateBatchSize = Math.max(MIN_CANDIDATE_BATCH_SIZE, query.limit() * 2);
         // Redis ZSet 的 offset 从 0 开始；每轮推进一个候选批次，避免重复读取同一成员。
@@ -394,10 +417,15 @@ public class RankingServiceImpl implements RankingService {
     }
 
     /**
-     * MySQL 兜底只使用已审核通过资料和热度快照，周期榜在降级时会退化为总榜快照语义。
+     * MySQL 只保存总榜热度；自然周期故障必须为空，不能用累计分数冒充当期分数。
      */
+    private List<HotResourceRankingVO> fallbackHotResources(ResolvedResourceRankingQuery query) {
+        return query.period() == RankingPeriod.ALL ? listHotResourcesFromMysql(query) : List.of();
+    }
+
+    /** 查询总榜持久化快照，并继续固定过滤公开资料与分类。 */
     private List<HotResourceRankingVO> listHotResourcesFromMysql(ResolvedResourceRankingQuery query) {
-        // MySQL 仅保存热度快照，所以此路径可用但无法严格还原 daily/weekly/monthly 的实时周期语义。
+        // 仅 all 的故障降级路径可以进入这里。
         List<Resource> resources = resourceMapper.selectHotApprovedResources(query.categoryId(), query.limit());
         if (resources == null || resources.isEmpty()) {
             return List.of();

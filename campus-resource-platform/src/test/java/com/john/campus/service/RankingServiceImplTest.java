@@ -21,6 +21,10 @@ import com.john.campus.service.impl.RankingServiceImpl;
 import com.john.campus.vo.HotResourceRankingVO;
 import com.john.campus.vo.HotSearchKeywordRankingVO;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -65,11 +69,12 @@ class RankingServiceImplTest {
     @Mock
     private RLock allHotRankReadLock;
 
+    private static final Instant NOW = Instant.parse("2026-11-07T12:00:00Z");
     private RankingService rankingService;
 
     @BeforeEach
     void setUp() {
-        rankingService = new RankingServiceImpl(resourceMapper, stringRedisTemplateProvider, redissonClient);
+        rankingService = new RankingServiceImpl(resourceMapper, stringRedisTemplateProvider, redissonClient, Clock.fixed(NOW, ZoneOffset.UTC));
         org.mockito.Mockito.lenient().when(redissonClient.getReadWriteLock(RedisKeyConstants.HOT_RANK_MAINTENANCE_LOCK))
                 .thenReturn(allHotRankReadWriteLock);
         org.mockito.Mockito.lenient().when(allHotRankReadWriteLock.readLock()).thenReturn(allHotRankReadLock);
@@ -84,7 +89,7 @@ class RankingServiceImplTest {
         query.setCategoryId(10L);
         query.setPeriod("daily");
         when(zSetOperations.reverseRangeWithScores(
-                RedisKeyConstants.resourceHotRank("daily"), 0, 19))
+                RedisKeyConstants.resourceHotRank(RankingPeriod.DAILY, NOW), 0, 19))
                 .thenReturn(tupleSet(
                         tuple("invalid", 100.0D),
                         tuple("102", 90.0D),
@@ -114,9 +119,9 @@ class RankingServiceImplTest {
             staleCandidates.add(tuple(String.valueOf(resourceId), 1.0D));
         }
         when(zSetOperations.reverseRangeWithScores(
-                RedisKeyConstants.resourceHotRank("weekly"), 0, 19)).thenReturn(staleCandidates);
+                RedisKeyConstants.resourceHotRank(RankingPeriod.WEEKLY, NOW), 0, 19)).thenReturn(staleCandidates);
         when(zSetOperations.reverseRangeWithScores(
-                RedisKeyConstants.resourceHotRank("weekly"), 20, 39))
+                RedisKeyConstants.resourceHotRank(RankingPeriod.WEEKLY, NOW), 20, 39))
                 .thenReturn(tupleSet(tuple("100", 10.0D)));
         when(resourceMapper.selectApprovedRankingCandidatesByIds(anyList(), isNull()))
                 .thenReturn(List.of())
@@ -125,12 +130,13 @@ class RankingServiceImplTest {
         List<HotResourceRankingVO> result = rankingService.listHotResources(query);
 
         assertThat(result).extracting(HotResourceRankingVO::resourceId).containsExactly(100L);
-        verify(zSetOperations).reverseRangeWithScores(RedisKeyConstants.resourceHotRank("weekly"), 20, 39);
+        verify(zSetOperations).reverseRangeWithScores(RedisKeyConstants.resourceHotRank(RankingPeriod.WEEKLY, NOW), 20, 39);
     }
 
     @Test
     void hotResourcesShouldFallbackToMysqlWhenRedisIsUnavailable() {
         HotResourceRankingQueryDTO query = new HotResourceRankingQueryDTO();
+        query.setPeriod("all");
         query.setLimit(2);
         query.setCategoryId(8L);
         when(stringRedisTemplateProvider.getIfAvailable()).thenReturn(null);
@@ -168,7 +174,7 @@ class RankingServiceImplTest {
         query.setLimit(3);
         query.setPeriod("daily");
         when(zSetOperations.reverseRangeWithScores(
-                RedisKeyConstants.searchKeywordRank("daily"), 0, 2))
+                RedisKeyConstants.searchKeywordRank(RankingPeriod.DAILY, NOW), 0, 2))
                 .thenReturn(tupleSet(tuple("数据结构", 25.0D), tuple("   ", 10.0D), tuple("操作系统", 12.0D)));
 
         List<HotSearchKeywordRankingVO> result = rankingService.listHotSearchKeywords(query);
@@ -189,7 +195,7 @@ class RankingServiceImplTest {
     void hotSearchKeywordsShouldReturnEmptyWhenRedisFails() {
         mockRedisAvailable();
         when(zSetOperations.reverseRangeWithScores(
-                RedisKeyConstants.searchKeywordRank("daily"), 0, 9))
+                RedisKeyConstants.searchKeywordRank(RankingPeriod.DAILY, NOW), 0, 9))
                 .thenThrow(new RuntimeException("redis unavailable"));
 
         assertThat(rankingService.listHotSearchKeywords(new HotSearchKeywordRankingQueryDTO())).isEmpty();
@@ -204,12 +210,12 @@ class RankingServiceImplTest {
         rankingService.recordResourceUnfavorite(100L);
 
         for (RankingPeriod period : RankingPeriod.values()) {
-            String key = RedisKeyConstants.resourceHotRank(period.getCode());
+            String key = RedisKeyConstants.resourceHotRank(period, NOW);
             verify(zSetOperations).incrementScore(key, "100", 5D);
             verify(zSetOperations).incrementScore(key, "100", 3D);
             verify(zSetOperations).incrementScore(key, "100", -3D);
-            // 三个行为事件都刷新周期榜 TTL；all 总榜没有 TTL，因此不会调用 expire。
-            period.getTtl().ifPresent(ttl -> verify(stringRedisTemplate, times(3)).expire(key, ttl));
+            // 同一周期的行为设置相同绝对到期时间，all 不设置到期时间。
+            period.expiresAt(NOW).ifPresent(expiry -> verify(stringRedisTemplate, times(3)).expireAt(key, Date.from(expiry)));
         }
     }
 
@@ -235,7 +241,7 @@ class RankingServiceImplTest {
         rankingService.removeOfflineResource(100L);
 
         for (RankingPeriod period : RankingPeriod.values()) {
-            String key = RedisKeyConstants.resourceHotRank(period.getCode());
+            String key = RedisKeyConstants.resourceHotRank(period, NOW);
             // ZINCRBY 0 会保留旧分数，并在成员缺失时创建初始成员。
             verify(zSetOperations).incrementScore(key, "100", 0D);
             verify(zSetOperations).remove(key, "100");
@@ -245,13 +251,75 @@ class RankingServiceImplTest {
     @Test
     void resourceHeatUpdateShouldNotPropagateRedisFailure() {
         mockRedisAvailable();
-        when(zSetOperations.incrementScore(RedisKeyConstants.resourceHotRank("daily"), "100", 5D))
+        when(zSetOperations.incrementScore(RedisKeyConstants.resourceHotRank(RankingPeriod.DAILY, NOW), "100", 5D))
                 .thenThrow(new RuntimeException("redis unavailable"));
 
         rankingService.recordResourceDownload(100L);
 
         // Redis 是派生数据存储，异常必须被排行榜服务吞掉，调用下载/收藏/审核主流程不感知失败。
-        verify(zSetOperations).incrementScore(RedisKeyConstants.resourceHotRank("daily"), "100", 5D);
+        verify(zSetOperations).incrementScore(RedisKeyConstants.resourceHotRank(RankingPeriod.DAILY, NOW), "100", 5D);
+    }
+
+
+    @Test
+    void naturalPeriodsShouldNeverFallbackToAllSnapshot() {
+        for (String period : List.of("daily", "weekly", "monthly")) {
+            HotResourceRankingQueryDTO query = new HotResourceRankingQueryDTO();
+            query.setPeriod(period);
+            assertThat(rankingService.listHotResources(query)).isEmpty();
+        }
+        org.mockito.Mockito.verifyNoInteractions(resourceMapper);
+    }
+
+    @Test
+    void queryAndEventsShouldSampleClockOnceAcrossMidnight() {
+        mockRedisAvailable();
+        Clock clock = org.mockito.Mockito.mock(Clock.class);
+        Instant before = Instant.parse("2026-11-08T15:59:59Z");
+        when(clock.instant()).thenReturn(before, before.plusSeconds(2));
+        RankingService service = new RankingServiceImpl(resourceMapper, stringRedisTemplateProvider, redissonClient, clock);
+        service.recordResourceDownload(100L);
+        org.mockito.Mockito.verify(clock).instant();
+        verify(zSetOperations).incrementScore("crp:rank:resource:hot:daily:2026-11-08", "100", 5D);
+        verify(zSetOperations).incrementScore("crp:rank:resource:hot:weekly:2026-11-02", "100", 5D);
+    }
+
+    @Test
+    void periodicRedisFailureShouldReturnEmptyWithoutSnapshot() {
+        mockRedisAvailable();
+        when(zSetOperations.reverseRangeWithScores(RedisKeyConstants.resourceHotRank(RankingPeriod.WEEKLY, NOW), 0, 19))
+                .thenThrow(new RuntimeException("redis unavailable"));
+        assertThat(rankingService.listHotResources(null)).isEmpty();
+        org.mockito.Mockito.verifyNoInteractions(resourceMapper);
+    }
+
+
+    @Test
+    void unfavoriteShouldRecordNegativeHeatInCurrentBucket() {
+        mockRedisAvailable();
+        rankingService.recordResourceUnfavorite(100L);
+        verify(zSetOperations).incrementScore("crp:rank:resource:hot:daily:2026-11-07", "100", -3D);
+        verify(zSetOperations).incrementScore("crp:rank:resource:hot:weekly:2026-11-02", "100", -3D);
+    }
+
+    @Test
+    void paginationShouldKeepOriginalBucketWhenClockCrossesMidnight() {
+        mockRedisAvailable();
+        Clock clock = org.mockito.Mockito.mock(Clock.class);
+        when(clock.instant()).thenReturn(NOW, NOW.plusSeconds(86400));
+        RankingService service = new RankingServiceImpl(resourceMapper, stringRedisTemplateProvider, redissonClient, clock);
+        HotResourceRankingQueryDTO query = new HotResourceRankingQueryDTO();
+        query.setPeriod("daily");
+        query.setLimit(1);
+        LinkedHashSet<ZSetOperations.TypedTuple<String>> candidates = new LinkedHashSet<>();
+        for (long id = 1; id <= 20; id++) {
+            candidates.add(tuple(String.valueOf(id), 10D));
+        }
+        when(zSetOperations.reverseRangeWithScores("crp:rank:resource:hot:daily:2026-11-07", 0, 19)).thenReturn(candidates);
+        when(zSetOperations.reverseRangeWithScores("crp:rank:resource:hot:daily:2026-11-07", 20, 39)).thenReturn(Set.of());
+        assertThat(service.listHotResources(query)).isEmpty();
+        verify(clock).instant();
+        verify(zSetOperations).reverseRangeWithScores("crp:rank:resource:hot:daily:2026-11-07", 20, 39);
     }
 
     private void mockRedisAvailable() {

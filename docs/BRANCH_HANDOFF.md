@@ -1,5 +1,13 @@
 # 分支交接记录
 
+## 2026-11-07 同步 dev、排行榜修复与 main
+
+- 来源：`dev@f4f7fa0b`、排行榜 `afcac95e` 和原 main `db6601e9`；在临时集成分支合并验证，Redis 常量中的文件保护锁和自然周期 Key helper 均保留。仅本文件与状态文档有内容冲突，已保留两侧历史章节。
+- 用户明确要求 dev 合并后保留：最终保留本地与远程 `main`、`dev`，两者同步到相同结果；排行榜分支及本轮临时集成分支在确认来源提交均已包含后删除。不再套用旧“只保留 main”的清理规则。
+- 验证命令与结果：`mvnw.cmd clean test` 264/264（0 失败/错误/跳过），`mvnw.cmd -DskipTests package` 通过；使用本轮专用隔离 MySQL，不访问日常 3306 数据库。42 个独立变更源码/测试文件与来源 blob 一致，合并时无生产代码重写。
+- 保护功能保持关闭，本轮未执行数据库迁移、真实 Redis/磁盘误删恢复演练或生产部署。启用前需先完成迁移和目录身份/恢复验收；活动目录与副本目录必须互不嵌套，即使开关关闭构造器仍会检查。
+- 以下章节是集成前的历史记录；排行榜新桶从运行版本切换后的事件开始累计、旧无日期分数不迁移等升级要求仍有效。真实 `.env`、简历和测试运行资料不纳入 Git。
+
 ## 2026-11-02 在线单文件保护交接
 
 - 当前分支：`dev`，已推送至 `origin/dev`。提交依次为：`e6b4e5f`（数据库与配置骨架）、`587ce2e`（SHA-256 在线副本）、`fb898af`（自动巡检和在线恢复）、`9a698f2`（业务可用性门禁）、`333a10f`（审核数据库切片测试接线）。
@@ -8,6 +16,17 @@
 - 受影响入口在恢复窗口返回 HTTP 503/`50301`，其他文件与后端服务继续正常运行。该机制不替代 `docs/LOCAL-DATA-PROTECTION.md` 的停机联合灾备。
 - 当前未完成真实磁盘演练、生产启用、事件管理接口或告警通知；不能把单元/H2 测试描述为真实 MySQL、Redis 与磁盘故障验证。
 - 用户原有未提交修改 `docs/DEPLOYMENT-QA-QUICK-REVIEW.md` 始终保留，未纳入本任务提交。
+
+## 2026-11-07 自然日/周/月排行榜
+
+- 开发分支：`codex/natural-period-ranking`，基线为 `main@db6601e9`；保留已有 `dev`，不合并其在线文件保护实现，本轮不部署服务器。
+- 已实现上海自然日、周一开始的自然周、自然月分桶；资料与热词全部读写同一周期模型，显式 Clock 支持确定性测试，每次查询/行为固定一个时点。
+- 固定到期为周期结束加 2/14/60 天，活跃写入不会延长旧桶寿命；all 继续原 Key/锁/快照。周期故障返回空，不使用总榜快照。取消收藏按发生当期扣分可负，下架清当前桶及 all。
+- 上线要求：所有实例统一切换；新桶从切换后事件开始累计，旧无日期 Key 的历史总分不能迁移或用来回填完整周期。停止旧写后由原 TTL 回收；无 TTL 的遗留 Key 需核实后定向清理，应用不扫描删除。
+- 验证：专项 7 类 `mvnw.cmd "-Dtest=RankingPeriodTest,RankingServiceImplTest,SearchServiceImplTest,RankingMapperIntegrationTest,SearchServiceDatabaseIntegrationTest,AuditServiceDatabaseIntegrationTest,HotRankingMaintenanceServiceImplTest" clean test` 49/49，全量 `mvnw.cmd test` 247/247，0 失败/错误/跳过。使用独立临时 MySQL；首次旧 target Mapper 污染已 clean 后纠正。日志保留于忽略目录 `tmp/`。
+- 本次未新增依赖、数据库表、公开接口或前端代码；真实 Redis 原子性、历史周期重建和生产部署未验证，`ZINCRBY`/`EXPIREAT` 联合原子性仍属独立改进项 IMP-025。
+- 文档覆盖 Redis/API/模块/架构/面试/需求/压测与 IMP-009，归档状态维持关闭。下一步可独立治理热词基数或原子计分，本轮不自动扩展。
+- 实际实现提交 `c82cd225`，已推送 `origin/codex/natural-period-ranking`，未合并 main。104 个本地文档链接与差异检查通过；隔离 MySQL 已关闭，临时目录删除遭自动审批 `blocked by policy` 拒绝而保留，本机路径见忽略文件 `tmp/natural-rank-mysql.json`。
 
 ## 2026-11-02 全部分支汇入 main 与网站停止维护
 

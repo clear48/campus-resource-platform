@@ -1,5 +1,13 @@
 # 当前项目状态
 
+## dev / main 完整同步（2026-11-07）
+
+- 集成来源为 `dev@f4f7fa0b`（在线文件保护）和 `codex/natural-period-ranking@afcac95e`（自然周期排行榜），包含原 `main@db6601e9`。生产代码自动合并；状态、交接两文档的新增章节冲突保留双方历史记录，以下旧章节中的“尚未合入 main”为当时状态。
+- 按用户最新要求，`dev` 与 `main` 同步到相同验证结果并长期保留；合入后只清理排行榜和本轮临时集成分支。根与 docs 协作规则已同步此要求，后续不得自动删除 dev。
+- 验证：隔离 MySQL 下 `mvnw.cmd clean test` 264/264，通过且无失败、错误或跳过；`mvnw.cmd -DskipTests package` 通过。两侧独立改动的 42 个源码/测试文件与来源分支一致，共同修改的 Redis 常量同时保留文件保护锁和日期桶方法。
+- 本轮仅 Git 集成和文档维护，不执行日常数据库迁移、不启用文件保护、不部署服务器。文件保护保持默认关闭；启用前仍需执行迁移、验证目录身份和真实误删恢复演练。即使开关关闭，存储 Bean 构造器仍校验两目录不可嵌套，自定义上传根时需确认副本目录不位于其中。
+- 自然周期测试与保护模块单元/H2/隔离 MySQL 接线测试通过，不代表真实 Redis、磁盘故障或跨平台原子发布验收。测试日志位于忽略目录 `tmp/integrate-dev-tests.log`、`tmp/integrate-dev-package.log`。
+
 ## 在线单文件保护（2026-11-02）
 
 - 当前开发分支 `dev` 已实现在线单文件副本、完整性巡检、两轮连续缺失确认、批量缺失熔断、Redis 单文件锁和无覆盖原子恢复；单文件误删不会停止后端，只有受影响文件在恢复期间返回 HTTP 503/业务码 `50301`。
@@ -7,6 +15,17 @@
 - 秒传授权、下载记录/票据创建、下载取流和管理员审核取流已接入可用性门禁。下载票据只在文件健康后消费，恢复成功会失效 MD5 缓存。
 - 保护功能默认关闭；必须先完成迁移、活动/副本根目录身份文件和真实误删恢复演练，再设置 `FILE_PROTECTION_ENABLED=true`。两个目录应位于不同物理磁盘，批量缺失或根目录异常只熔断告警，不自动写入。
 - 已推送代码提交 `e6b4e5f`、`587ce2e`、`fb898af`、`9a698f2` 及测试接线修复 `333a10f` 到 `origin/dev`；专项测试覆盖 Mapper、副本、恢复、门禁和受影响业务入口。完整设计与本地启用步骤见 `docs/modules/10-file-online-protection-development-process.md`。
+
+## 自然周期排行榜（2026-11-07）
+
+- 从干净 `main@db6601e9` 创建 `codex/natural-period-ranking`，不混入 `dev` 上的在线文件保护功能。本轮修改排行榜周期模型、Key、资料与热词 Service 及相应测试/文档，无新增依赖、表结构或前端变更。
+- 统一使用 `Asia/Shanghai`：日榜每日零点切换，周榜每周一零点切换，月榜每月一日零点切换；Key 分别携带日期、周一日期和年月。一次查询/行为只采样一次 Clock，分页和多周期写入复用该时点。
+- 旧桶固定在周期结束后额外保留 2/14/60 天；总榜 Key、累计计分、锁与维护任务保持原约定。取消收藏计入操作发生当期的净热度，允许负分；下架清当前桶及总榜。
+- Redis 故障时日/周/月榜返回空，仅 all 允许 MySQL 快照兜底。所有实例应统一升级；新桶只累计切换后的行为，不读取或复制无事件时间的旧固定 Key。旧桶不提供历史查询，计分与设置到期仍是两条独立命令。
+- 验证：7 类专项 `mvnw.cmd "-Dtest=RankingPeriodTest,RankingServiceImplTest,SearchServiceImplTest,RankingMapperIntegrationTest,SearchServiceDatabaseIntegrationTest,AuditServiceDatabaseIntegrationTest,HotRankingMaintenanceServiceImplTest" clean test`，49/49 通过；后端全量 `mvnw.cmd test`，247/247 通过，均无失败、错误、跳过。
+- MySQL 测试使用本轮新建的随机端口隔离实例，不访问日常业务库。首次未 clean 测试因 `dev` 残留的 target Mapper 失败，清理后重跑通过；证据在忽略目录 `tmp/natural-period-tests-{initial,clean,full}.log`。未执行真实 Redis 故障/并发或生产部署验证。
+- Redis 设计、API、架构、搜索/排行榜模块、面试材料及 IMP-009 状态已同步；问答归档维持 `DISABLED`。
+- 实现提交 `c82cd225` 已推送到 `origin/codex/natural-period-ranking`，尚未合入 main。104 个本地文档文件链接及 `git diff --check` 通过。测试 MySQL 实例已关闭；自动审批以 `blocked by policy` 拒绝删除临时数据目录，目录保留，位置记录仅在忽略文件 `tmp/natural-rank-mysql.json`。
 
 ## 分支集成与网站维护状态（2026-11-02）
 

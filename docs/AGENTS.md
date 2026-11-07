@@ -384,8 +384,8 @@ Redis Key 统一使用 `crp:` 应用前缀加业务域分段，命名以 `docs/0
 * `crp:auth:token:blacklist:{jti}`：退出登录 Token 黑名单（已实现）
 * `crp:cache:resource:detail:{resourceId}`：资料详情缓存
 * `crp:cache:file:md5:{fileMd5}:{fileSize}`：文件 MD5 去重缓存
-* `crp:rank:resource:hot:{period}`：热门资料排行榜
-* `crp:rank:search:keyword:{period}`：热门搜索词排行榜
+* `crp:rank:resource:hot:{period}:{bucket}`：自然周期热门资料排行榜；累计总榜为 `crp:rank:resource:hot:all`
+* `crp:rank:search:keyword:{period}:{bucket}`：自然周期热门搜索词排行榜；上海时区，日用日期、周用周一日期、月用年月
 * `crp:rate:download:user:{userId}`：按用户下载限流
 * `crp:rate:download:ip:{ip}`：按 IP 下载限流
 * `crp:dedup:download:{userId}:{resourceId}`：下载去重统计
@@ -535,6 +535,7 @@ docs/modules/xx-module.md
 推荐分支：
 
 * `main`：稳定版本
+* `dev`：开发集成分支，按用户 2026-11-07 的明确要求，合并到 `main` 后继续保留
 * `codex/功能名`：从 `main` 创建的临时功能分支，验证并合回后删除
 * `feature/auth`：登录认证模块
 * `feature/file-upload`：文件上传模块
@@ -585,8 +586,8 @@ test: add download limit test cases
 * 开发模块时，需要将模块拆分为可以独立验证的小功能。
 * 每完成一个模块内小功能，必须先完成针对性测试或说明无法测试的原因。
 * 测试通过后，必须立即执行一次 Git commit，并推送到当前开发分支。
-* 当前只保留 `main` 主干；新需求在临时 `codex/功能名` 或 `feature/模块名` 分支验证，不要把未稳定的小功能直接推送到 `main`。
-* `main` 只接收已经验证可长期运行的版本，功能分支稳定后合入并删除。
+* 当前保留 `main` 稳定主干与 `dev` 开发集成分支；新需求在临时 `codex/功能名` 或 `feature/模块名` 分支验证，不要把未稳定的小功能直接推送到 `main`。`dev` 合并后保留，仅清理已合并的临时功能分支。
+* `main` 只接收已经验证可长期运行的版本，临时功能分支稳定后合入并删除；`dev` 不在自动删除范围内。
 
 每次任务完成后，需要给出实际使用的 commit message；如果因为用户明确要求不提交，必须在总结中说明原因。
 
