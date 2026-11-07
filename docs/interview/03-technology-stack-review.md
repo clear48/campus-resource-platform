@@ -153,8 +153,8 @@ OR tags LIKE '%keyword%'
 | `crp:cache:resource:detail:{resourceId}` | String(JSON) | 30～35 分钟 | 不含用户态字段的公开详情快照 | 读写失败保留 MySQL 结果或回源 |
 | `crp:lock:cache:resource:detail:{resourceId}` | Redisson Lock | 看门狗 | 同一资料的热点回填与审核后失效互斥 | 最多等待 2 秒，失败直接回源/删除且不在锁外回填 |
 | `crp:user:favorites:{userId}` | Set | 30 分钟 | 收藏状态 | 回查 MySQL |
-| `crp:rank:search:keyword:{period}` | ZSet | 2/14/60 天 | 热门搜索词 | 写失败跳过，读失败返回空 |
-| `crp:rank:resource:hot:{period}` | ZSet | 2/14/60 天；all 无 TTL | 热门资料 | 写失败跳过，读失败降级 MySQL |
+| `crp:rank:search:keyword:{period}:{bucket}` | ZSet | 周期结束后额外保留 2/14/60 天，固定绝对到期 | 自然日/周/月热门搜索词 | 写失败跳过，读失败返回空 |
+| `crp:rank:resource:hot:{period}:{bucket}`；总榜 `crp:rank:resource:hot:all` | ZSet | 周期结束后额外保留 2/14/60 天；all 无 TTL | 自然日/周/月榜与累计总榜 | 写失败跳过；周期榜读失败返回空，仅 all 降级 MySQL |
 | `crp:rate:download:user:{userId}` | ZSet | 120 秒 | 用户 10 次/60 秒 | 失败关闭 |
 | `crp:rate:download:ip:{ip}` | ZSet | 120 秒 | IP 30 次/60 秒 | 失败关闭 |
 | `crp:dedup:download:{userId}:{resourceId}` | String | 10 分钟 | 重复下载不重复计数 | 失败时允许下载但跳过计数 |
@@ -168,7 +168,9 @@ OR tags LIKE '%keyword%'
 
 Redis Key 全部集中在 `RedisKeyConstants`，避免业务代码拼错前缀和层级。
 
-表中的 `daily/weekly/monthly` 是当前代码使用的标签，不代表自然周期切桶：Key 固定且每次行为都会续期，持续活跃时会继续累计。精确日榜、周榜、月榜需要把日期/周/月加入 Key 或定时换榜。
+排行榜按上海时区切桶：日桶为日期，周桶为当周周一日期，月桶为年月；周期起点标识负责隔离，固定过期时间负责回收。一次查询或行为只采样一次 `Clock`，分段候选查询不会跨桶；不需要定时清零，也不是最近 24 小时或最近 7 天的滚动窗口。
+
+旧版无日期周期 Key 已停止读写，分数没有事件时间，不能复制到新桶还原完整周期；统一切换版本后，新榜只累计切换后的行为。周期桶的到期设置与计分仍非联合原子，不能把自然周期隔离等同于可靠事件投递。
 
 ### 4.2 为什么使用不同数据结构
 
@@ -346,7 +348,7 @@ flowchart TD
 - 本地文件存储不适合多实例直接共享；
 - 资料详情缓存已经实现，但不存在或不可见资料不做负缓存；Redis/锁故障或锁等待超时时直接回源且不回填，失效删除失败仍依赖 30～35 分钟 TTL 兜底；
 - 浏览量没有真实写入链，热度公式中的浏览权重暂时缺少事件来源；
-- Redis 周期榜当前通过 TTL 保留窗口，不是按自然日/自然周精确切桶；
+- Redis 周期榜已按上海自然日/周/月切桶，但无历史榜查询或周期持久化重建；`ZINCRBY` 与 `EXPIREAT` 仍是独立命令；
 - 下载成功记录在实际文件传输完成前写入，成功时点仍可优化；
 - 项目没有生产压测数据，索引和限流阈值是设计值而不是容量结论。
 

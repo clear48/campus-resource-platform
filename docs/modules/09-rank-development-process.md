@@ -10,6 +10,19 @@
 > 当前状态：**步骤 1 至步骤 9、11、12 已完成；步骤 10 按用户要求跳过**。排行榜已具备查询、行为热度联动、下载增量同步、all 总榜缺失重建、热度快照和管理员手动重建能力。
 > 补强 P1 已完成真实 Mapper 集成测试；补强 P2 已完成进程内最近任务执行快照与统一日志；补强 P3 已完成下载增量同步幂等化。当前未实现跨实例任务指标聚合、失败告警和幂等明细保留期清理。
 
+
+## 自然周期修正（2026-11-07）
+
+当前实现统一按上海时区（`Asia/Shanghai`）切换自然日、周一开始的自然周、自然月。日期 Key 示例如 `daily:2026-11-07`、`weekly:2026-11-02`、`monthly:2026-11`；all 保持不变。周期榜不依赖定时清零，查询只读取当前桶。
+
+- 修改文件：`RankingPeriod.java`、`RedisKeyConstants.java`、`RankingServiceImpl.java`、`SearchServiceImpl.java`；测试由周期、排行榜 Service、搜索 Service 的固定 Clock 用例验证。接口路径、DTO、VO、数据库和依赖不变。
+- 周期保留期为结束后 2/14/60 天，通过 `expireAt` 设置固定绝对时刻。一次查询/行为仅取一次时间，分页扫描和多榜写入共享该时间；同桶多次写入不会续期。
+- Redis 未装配或查询失败：日/周/月返回空，all 保留 MySQL 快照兜底。当前桶为空不会使用历史总量填充。
+- 取消收藏按发生当期记 -3，可负，不是“当期新增收藏数”。下架清当前桶和 all，历史桶自然过期且公开查询仍查库过滤。
+- 升级须统一切换实例；新桶只统计上线后的行为，旧无日期 Key 不再读写，不复制历史分数，停止旧版本后等待原 TTL 清理。历史数据没有事件时间，无法据此补出本日/周/月完整榜。
+- 已有定时任务仍仅负责下载增量、all 重建和 all 快照；`ZINCRBY` 与 `EXPIREAT` 尚非联合原子，异常可能遗留无过期桶，但不会串入下个周期。
+- 本节为当前约定；后文带步骤或日期的测试数字、commit 和首版开发记录保留历史含义。当前测试命令与验收结果由 `docs/CURRENT_STATUS.md` 和 `docs/BRANCH_HANDOFF.md` 记录。
+
 ---
 
 ## 1. 模块基本信息
@@ -19,7 +32,7 @@
 | 模块名称 | 排行榜与定时任务模块 |
 | 英文标识 | rank |
 | 文档路径 | `docs/modules/09-rank-development-process.md` |
-| 当前分支 | `dev` |
+| 当前分支 | `codex/natural-period-ranking`（2026-11-07 自然周期修正） |
 | 当前状态 | 步骤 1 至 9、11、12 已完成；步骤 10 按用户要求跳过 |
 | 前置依赖模块 | 资料、审核、搜索、下载、收藏模块 |
 | 下游模块 | 首页热门资料展示、搜索框热门词展示、后台运营统计 |
@@ -50,7 +63,7 @@
 
 ## 3. 需求分析
 
-1. 搜索模块已在搜索成功后写入 `crp:rank:search:keyword:{period}`，但缺少查询热门搜索词的接口。
+1. 搜索模块已在搜索成功后写入 `crp:rank:search:keyword:{period}:{bucket}`，但缺少查询热门搜索词的接口。
 2. 下载模块已把去重后的下载次数写入 `crp:stats:resource:download:delta`，并在去重和增量写入成功后为四周期资料榜增加 +5；下载增量尚未同步到 MySQL。
 3. 收藏模块已维护 `resource.favorite_count`，并在 MySQL 提交后将真实收藏/取消收藏状态变化同步为四周期资料榜的 +3/-3。
 4. `resource` 表已经存在 `download_count`、`favorite_count`、`view_count`、`hot_score` 字段和 `idx_resource_hot` 索引，无需新增表或字段。
@@ -71,7 +84,7 @@
 - 首版不新增排行榜快照表或搜索词快照表，只复用 `resource.hot_score`、`download_count` 等现有字段。
 - 首版不实现热门课程榜、热门上传者榜、下载趋势报表等扩展榜单。
 - 首版不实现浏览量采集；`view_count` 仅作为总榜重建公式中的已有字段使用。
-- 首版不实现复杂时间衰减算法；周期榜通过独立 Key 与 TTL 控制时效，总榜使用行为权重累计。
+- 首版不实现复杂时间衰减算法；周期榜通过带周期起点的独立 Key 隔离，通过固定绝对过期时间回收旧桶，总榜使用行为权重累计。
 - 首版不把 MySQL 历史总量写入 `daily`、`weekly`、`monthly` 榜单。
 - 管理员手动重建仅针对 `all` 总榜，不提供管理员查询专属榜单，也不改变两个公开查询接口的可访问性。
 - 首版不修改数据库表结构或既有接口路径；步骤 8 已按用户要求新增 Redisson 依赖。
@@ -117,14 +130,14 @@
 - Redis 查询只提供候选 ID 和分数，资料标题、课程、统计字段仍从 MySQL 批量查询。
 - 必须过滤非 `APPROVED` 资料，防止 Redis 脏成员导致下架资料重新公开。
 - 有 `categoryId` 时按分类过滤，但最终顺序仍以 Redis 分数为主。
-- Redis 不可用时降级查询 MySQL `resource.hot_score`；周期语义会退化为总榜快照，日志中应明确记录降级。
+- Redis 不可用或读取异常时，只有 `all` 使用 MySQL `resource.hot_score` 兜底；日、周、月榜返回空，禁止用总榜快照冒充当期分数。
 
 可能错误码：
 
 | 错误码 | 场景 |
 | --- | --- |
 | `40001` | `limit`、`categoryId` 或 `period` 不合法 |
-| `50001` | Redis 查询失败且 MySQL 兜底也失败 |
+| `50001` | all 总榜 Redis 查询失败且 MySQL 兜底也失败 |
 
 ### 5.2 获取热门搜索词排行榜
 
@@ -207,16 +220,16 @@ idx_resource_hot (status, hot_score, download_count)
 
 | Key | 结构 | 当前状态 | 本模块用途 |
 | --- | --- | --- | --- |
-| `crp:rank:search:keyword:{period}` | ZSet | 搜索模块已写入 | 查询热门搜索词 Top N |
+| `crp:rank:search:keyword:{period}:{bucket}` | ZSet | 搜索模块已写入 | 查询热门搜索词 Top N |
 | `crp:stats:resource:download:delta` | Hash | 下载模块持续写入，步骤 8 已消费 | 原子隔离后定时同步下载量到 MySQL |
 
 ### 7.2 本模块使用的 Key
 
 | Key | 结构 | TTL | 用途 |
 | --- | --- | --- | --- |
-| `crp:rank:resource:hot:daily` | ZSet | 2 天 | 日榜，实时 ZINCRBY 维护 |
-| `crp:rank:resource:hot:weekly` | ZSet | 14 天 | 周榜，实时 ZINCRBY 维护 |
-| `crp:rank:resource:hot:monthly` | ZSet | 60 天 | 月榜，实时 ZINCRBY 维护 |
+| `crp:rank:resource:hot:daily:{yyyy-MM-dd}` | ZSet | 当日结束 + 2 天 | 日榜，实时 ZINCRBY 维护 |
+| `crp:rank:resource:hot:weekly:{weekMonday}` | ZSet | 当周结束 + 14 天 | 周榜，实时 ZINCRBY 维护 |
+| `crp:rank:resource:hot:monthly:{yyyy-MM}` | ZSet | 当月结束 + 60 天 | 月榜，实时 ZINCRBY 维护 |
 | `crp:rank:resource:hot:all` | ZSet | 不设置 | 总榜，实时 ZINCRBY 维护；缺失时由重建恢复 |
 | `crp:lock:sync:download-delta` | Redisson `RLock` | 看门狗自动续期 | 下载增量同步任务互斥锁（tryLock 不传 leaseTime） |
 | `crp:stats:resource:download:syncing:{batchId}` | Hash | UUID 批次按 field 删除，失败时保留 | Lua 原子隔离后的待同步批次；旧 `active` 仅人工迁移 |
@@ -311,14 +324,14 @@ idx_resource_hot (status, hot_score, download_count)
 RankingController
   ├── GET /rankings/resources/hot
   │     └── RankingService.listHotResources(query)
-  │           ├── Redis ZREVRANGE crp:rank:resource:hot:{period} WITHSCORES
+  │           ├── Redis ZREVRANGE crp:rank:resource:hot:{period}:{bucket} WITHSCORES
   │           ├── ResourceMapper 批量查询 APPROVED 候选资料
   │           ├── 按 categoryId 过滤并恢复 Redis 排名顺序
-  │           └── Redis 异常时 ResourceMapper 查询 hot_score 兜底
+  │           └── Redis 异常时仅 all 查询 hot_score 兜底；日/周/月返回空
   │
   └── GET /rankings/search-keywords/hot
         └── RankingService.listHotSearchKeywords(query)
-              └── Redis ZREVRANGE crp:rank:search:keyword:{period} WITHSCORES
+              └── Redis ZREVRANGE crp:rank:search:keyword:{period}:{bucket} WITHSCORES
 
 AdminRankingController
   └── POST /admin/rankings/resources/hot/rebuild
@@ -328,18 +341,18 @@ AdminRankingController
                     └── 写锁 lock() 阻塞等待 → 无条件执行完整重建
 
 DownloadServiceImpl（有效下载）
-  └── RankingService.increaseForDownload(resourceId) → 四周期 ZINCRBY +5
+  └── RankingService.recordResourceDownload(resourceId) → 四周期 ZINCRBY +5
         └── all 榜 ZINCRBY 先获取维护读锁（lock 阻塞等待重建完成）
 
 FavoriteServiceImpl（事务提交成功后）
-  ├── RankingService.increaseForFavorite(resourceId) → 四周期 ZINCRBY +3
+  ├── RankingService.recordResourceFavorite(resourceId) → 四周期 ZINCRBY +3
   │     └── all 榜 ZINCRBY 先获取维护读锁
-  └── RankingService.decreaseForFavorite(resourceId) → 四周期 ZINCRBY -3
+  └── RankingService.recordResourceUnfavorite(resourceId) → 四周期 ZINCRBY -3
         └── all 榜 ZINCRBY 先获取维护读锁
 
 AuditServiceImpl（MySQL 状态事务提交后）
   ├── 审核通过 → RankingService.initializeApprovedResource(resourceId)
-  └── 下架 → RankingService.removeResource(resourceId)
+  └── 下架 → RankingService.removeOfflineResource(resourceId)
 
 RankingSyncTask（定时 60s fixed-delay）
   └── DownloadDeltaSyncService.syncDownloadDeltas()
@@ -380,18 +393,18 @@ HotRankingMaintenanceTask（定时 5min fixed-delay）
 ### 10.1 热门资料排行榜
 
 1. Controller 绑定并校验 `limit`、`categoryId`、`period`。
-2. Service 根据周期生成 `crp:rank:resource:hot:{period}`。
+2. Service 根据周期生成 `crp:rank:resource:hot:{period}:{bucket}`。
 3. 从 ZSet 按分数倒序分段获取候选 `resourceId + score`。
 4. 批量查询 MySQL，固定过滤 `status = 1`，可选过滤 `category_id`。
 5. 移除不存在、下架、删除或分类不匹配的资料。
 6. 按 Redis 候选顺序组装 `HotResourceRankingVO`，直到达到 `limit` 或候选耗尽。
-7. Redis 访问失败时调用 MySQL `hot_score` 兜底查询。
+7. Redis 访问失败时日/周/月返回空，仅 all 调用 MySQL `hot_score` 兜底。
 8. 返回 `ApiResponse<List<HotResourceRankingVO>>`。
 
 ### 10.2 热门搜索词排行榜
 
 1. Controller 校验 `limit`、`period`。
-2. Service 读取 `crp:rank:search:keyword:{period}` Top N 和 score。
+2. Service 读取 `crp:rank:search:keyword:{period}:{bucket}` Top N 和 score。
 3. 过滤空白 member，按返回顺序生成名次。
 4. Redis 不可用时记录日志并返回空列表。
 5. 返回统一响应。
@@ -441,7 +454,7 @@ flowchart TD
     D --> E["独立 @Transactional 逐批 UPDATE<br/>SET hot_score = ? WHERE id = ? AND status = 1"]
     E --> F{"某批事务失败？"}
     F -- "是" --> G["当前批回滚，本轮终止<br/>已提交批次保留，下轮重新读取"]
-    F -- "否" --> H["搜索 hotScore 排序和 Redis 降级<br/>读取 MySQL 快照"]
+    F -- "否" --> H["搜索 hotScore 排序和 all 榜 Redis 降级<br/>读取 MySQL 快照"]
 ```
 
 ### 11.4 总榜初始化/重建
@@ -501,8 +514,8 @@ flowchart TD
 | 场景 | 处理策略 |
 | --- | --- |
 | 查询参数非法 | 抛 `BusinessException(ErrorCode.PARAM_ERROR)` |
-| 热门资料 Redis 查询失败 | 记录日志，降级 MySQL `hot_score` 查询 |
-| 热门资料 Redis 与 MySQL 都失败 | 抛 `BusinessException(ErrorCode.SERVER_ERROR)` 或交全局异常处理 |
+| 热门资料 Redis 查询失败 | 记录日志；日/周/月返回空，all 降级 MySQL `hot_score` |
+| all 总榜 Redis 与 MySQL 都失败 | 抛 `BusinessException(ErrorCode.SERVER_ERROR)` 或交全局异常处理 |
 | 热门搜索词 Redis 查询失败 | 记录日志，返回空列表 |
 | ZSet 存在非法资料 ID | 跳过该 member 并记录告警 |
 | ZSet 存在下架/删除资料 | 查询时过滤；异步清理脏 member |

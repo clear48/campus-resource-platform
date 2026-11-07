@@ -1,5 +1,9 @@
 package com.john.campus.common;
 
+import com.john.campus.enums.RankingPeriod;
+import java.time.Instant;
+import java.util.Objects;
+
 /**
  * Redis Key 统一入口，避免业务代码手写 Key 导致命名不一致。
  */
@@ -136,17 +140,25 @@ public final class RedisKeyConstants {
         return String.format(USER_FAVORITES, userId);
     }
 
-    /**
-     * 生成热门搜索词排行榜完整 Key，period 取 daily、weekly、monthly 等统计周期。
-     */
-    public static String searchKeywordRank(String period) {
-        return String.format(SEARCH_KEYWORD_RANK, period);
+    /** 热词只允许自然日、自然周、自然月桶，不支持总榜。 */
+    public static String searchKeywordRank(RankingPeriod period, Instant eventTime) {
+        Objects.requireNonNull(period, "周期不能为空");
+        if (!period.isSearchKeywordRankingSupported()) {
+            throw new IllegalArgumentException("热门搜索词不支持总榜");
+        }
+        return String.format(SEARCH_KEYWORD_RANK, period.keySuffix(eventTime));
     }
 
-    /**
-     * 生成热门资料排行榜完整 Key，period 由排行榜周期白名单提供。
-     */
+    /** 资料周期榜按事件时间分桶；总榜的 Key 始终不变。 */
+    public static String resourceHotRank(RankingPeriod period, Instant eventTime) {
+        return String.format(RESOURCE_HOT_RANK, Objects.requireNonNull(period, "周期不能为空").keySuffix(eventTime));
+    }
+
+    /** 兼容总榜维护入口；禁止再生成没有日期的周期 Key。 */
     public static String resourceHotRank(String period) {
+        if (!RankingPeriod.ALL.getCode().equals(period)) {
+            throw new IllegalArgumentException("周期榜必须提供具体事件时间");
+        }
         return String.format(RESOURCE_HOT_RANK, period);
     }
 

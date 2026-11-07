@@ -5,18 +5,22 @@ import com.john.campus.common.PageResult;
 import com.john.campus.common.RedisKeyConstants;
 import com.john.campus.dto.SearchResourceQueryDTO;
 import com.john.campus.entity.Resource;
+import com.john.campus.enums.RankingPeriod;
 import com.john.campus.exception.BusinessException;
 import com.john.campus.mapper.ResourceMapper;
 import com.john.campus.service.SearchService;
 import com.john.campus.vo.SearchResourceVO;
-import java.time.Duration;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -52,15 +56,6 @@ public class SearchServiceImpl implements SearchService {
      */
     private static final double KEYWORD_HIT_INCREMENT = 1.0D;
     /**
-     * 热门搜索词周期及各自 TTL，与 docs/05-redis-design.md 第 6.4 节保持一致。
-     * 周期榜保留时间略长于统计周期，方便展示昨日、本周等数据。
-     */
-    private static final Map<String, Duration> KEYWORD_RANK_PERIODS = Map.of(
-            "daily", Duration.ofDays(2),
-            "weekly", Duration.ofDays(14),
-            "monthly", Duration.ofDays(60));
-
-    /**
      * 资料 Mapper 只负责执行安全 SQL，业务参数归一化和兜底校验放在 Service 层。
      */
     private final ResourceMapper resourceMapper;
@@ -70,11 +65,22 @@ public class SearchServiceImpl implements SearchService {
      */
     private final ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider;
 
+    /** 事件时钟可替换，日期归属统一交给 RankingPeriod。 */
+    private final Clock clock;
+
+    @Autowired
     public SearchServiceImpl(
             ResourceMapper resourceMapper,
             ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider) {
+        this(resourceMapper, stringRedisTemplateProvider, Clock.systemUTC());
+    }
+
+    /** 测试使用固定时钟覆盖上海自然周期边界。 */
+    public SearchServiceImpl(ResourceMapper resourceMapper,
+            ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider, Clock clock) {
         this.resourceMapper = resourceMapper;
         this.stringRedisTemplateProvider = stringRedisTemplateProvider;
+        this.clock = Objects.requireNonNull(clock, "时钟不能为空");
     }
 
     /**
@@ -112,7 +118,7 @@ public class SearchServiceImpl implements SearchService {
     }
 
     /**
-     * 记录热门搜索词：对 daily、weekly、monthly 三个 ZSet 递增关键词分数并刷新 TTL。
+     * 记录热门搜索词：对 daily、weekly、monthly 三个自然周期 ZSet 递增关键词分数并设置固定到期时刻。
      * 该统计属于运营数据的可降级旁路，Redis 缺失或异常都不能影响搜索结果返回。
      */
     private void recordSearchKeyword(String keyword) {
@@ -126,11 +132,16 @@ public class SearchServiceImpl implements SearchService {
             return;
         }
         try {
-            for (Map.Entry<String, Duration> period : KEYWORD_RANK_PERIODS.entrySet()) {
-                String key = RedisKeyConstants.searchKeywordRank(period.getKey());
+            // 一次搜索仅采样一次，三个自然周期桶共享同一个事件时间。
+            Instant eventTime = clock.instant();
+            for (RankingPeriod period : RankingPeriod.values()) {
+                if (!period.isSearchKeywordRankingSupported()) {
+                    continue;
+                }
+                String key = RedisKeyConstants.searchKeywordRank(period, eventTime);
                 stringRedisTemplate.opsForZSet().incrementScore(key, keyword, KEYWORD_HIT_INCREMENT);
-                // 周期榜设过期时间，避免历史热词无限堆积；周期内重复搜索会顺带续期。
-                stringRedisTemplate.expire(key, period.getValue());
+                // 到期时刻由周期结束时间决定，活跃搜索不再延长旧桶寿命。
+                period.expiresAt(eventTime).ifPresent(expiry -> stringRedisTemplate.expireAt(key, Date.from(expiry)));
             }
         } catch (RuntimeException ex) {
             // 热词统计失败仅记录日志，绝不阻断搜索主流程。

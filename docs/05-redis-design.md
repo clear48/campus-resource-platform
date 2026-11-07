@@ -1,5 +1,15 @@
 # 校园资料共享与检索平台 Redis 设计文档
 
+## 2026-11-07 自然周期实现与升级规则
+
+- 排行榜统一使用 `Asia/Shanghai`，不依赖服务器默认时区。日桶为日期，周桶为所在周周一日期，月桶为年月。业务时间以当前同步处理该行为时采样的 Instant 为准，不接收客户端时间，不提供延迟事件回放。
+- 资料榜和热词榜的全部读写复用 `RankingPeriod.keySuffix(Instant)`；资料总榜固定为 `crp:rank:resource:hot:all`，无过期时间。
+- 固定回收时间由 `RankingPeriod.expiresAt(Instant)` 计算：自然周期结束加 2/14/60 天保留期。日期桶负责隔离，保留期不是统计窗口。跨零点、周一或月初后，查询自动读取新桶，不依赖清零任务。
+- 取消收藏按发生当期扣减 3 分，属于净行为热度，允许负分；不回改原收藏所在历史桶。下架清除当前三个周期桶和 all，历史桶按固定期限回收，公开查询继续按 MySQL 状态过滤。
+- Redis 无依赖或读取异常时，自然周期榜返回空；仅 all 允许 MySQL 热度快照兜底。当前桶不存在也返回空，不从历史累计值重建周期榜。
+- 升级时所有实例应统一切换，不能长期混用新旧版本。新周期桶从升级后行为开始累计；旧无日期 Key 没有事件时间，不能复制分数到新桶，也不再读取，停止旧写后等待原 TTL 回收。若旧 Key 曾因异常没有 TTL，可在核实全部旧实例停止后由运维定向清理，应用不自动删除或扫描。
+- `ZINCRBY` 与 `EXPIREAT` 仍是两条独立命令；进程中断可能遗留无过期桶，不能声称联合原子。日期隔离仍保证旧桶不会混入新周期；Lua 原子写入不属于本次范围。
+
 ## 1. 设计目标
 
 Redis 在本项目中不是简单缓存，而是承担以下真实业务能力：
@@ -25,7 +35,7 @@ crp:{业务模块}:{数据含义}:{维度}:{ID或周期}
 
 ```text
 crp:cache:resource:detail:20001
-crp:rank:resource:hot:daily
+crp:rank:resource:hot:daily:{yyyy-MM-dd}
 crp:rate:download:user:10001
 crp:stats:resource:download:delta
 ```
@@ -43,8 +53,8 @@ crp:stats:resource:download:delta
 | --- | --- | --- | --- |
 | 资料详情缓存 | `crp:cache:resource:detail:{resourceId}` | String | 30 分钟 + 随机 0-5 分钟 |
 | 资料详情读写锁 | `crp:lock:cache:resource:detail:{resourceId}` | Redisson RLock | 不传 leaseTime，使用看门狗自动续期 |
-| 热门资料排行榜 | `crp:rank:resource:hot:{period}` | ZSet | 按周期设置 |
-| 热门搜索词排行榜 | `crp:rank:search:keyword:{period}` | ZSet | 按周期设置 |
+| 热门资料排行榜 | `crp:rank:resource:hot:{period}:{bucket}`；总榜为 `crp:rank:resource:hot:all` | ZSet | 周期结束加保留期；总榜不过期 |
+| 热门搜索词排行榜 | `crp:rank:search:keyword:{period}:{bucket}` | ZSet | 按周期设置 |
 | 用户下载限流 | `crp:rate:download:user:{userId}` | ZSet | 限流窗口 + 60 秒 |
 | IP 下载限流 | `crp:rate:download:ip:{ip}` | ZSet | 限流窗口 + 60 秒 |
 | 同资料重复下载去重 | `crp:dedup:download:{userId}:{resourceId}` | String | 10-30 分钟 |
@@ -172,15 +182,15 @@ String，存储 JSON 字符串。
 ### 5.1 Key 设计
 
 ```text
-crp:rank:resource:hot:{period}
+crp:rank:resource:hot:{period}:{bucket}
 ```
 
 示例：
 
 ```text
-crp:rank:resource:hot:daily
-crp:rank:resource:hot:weekly
-crp:rank:resource:hot:monthly
+crp:rank:resource:hot:daily:{yyyy-MM-dd}
+crp:rank:resource:hot:weekly:{weekMonday}
+crp:rank:resource:hot:monthly:{yyyy-MM}
 crp:rank:resource:hot:all
 ```
 
@@ -209,7 +219,7 @@ Score：
 hot_score
 ```
 
-热度分建议：
+总榜初始化/重建公式（周期榜按当期行为增量计分）：
 
 ```text
 hot_score = download_count * 5 + favorite_count * 3 + view_count * 1
@@ -222,16 +232,16 @@ hot_score = download_count * 5 + favorite_count * 3 + view_count * 1
 - 搜索结果按热度排序时作为辅助数据。
 - 下载、收藏、浏览后实时更新资料热度。
 
-### 5.4 TTL 策略
+### 5.4 固定回收时间
 
 | Key | TTL |
 | --- | --- |
-| `crp:rank:resource:hot:daily` | 2 天 |
-| `crp:rank:resource:hot:weekly` | 14 天 |
-| `crp:rank:resource:hot:monthly` | 60 天 |
+| `crp:rank:resource:hot:daily:{yyyy-MM-dd}` | 当日结束 + 2 天 |
+| `crp:rank:resource:hot:weekly:{weekMonday}` | 当周结束 + 14 天 |
+| `crp:rank:resource:hot:monthly:{yyyy-MM}` | 当月结束 + 60 天 |
 | `crp:rank:resource:hot:all` | 不设置 TTL |
 
-周期榜保留时间略长于统计周期，方便页面展示昨日、本周等数据，也方便排查问题。
+周期隔离由日期桶保证，过期时间只负责回收旧桶；当前接口只查询当期，不提供昨日榜或历史榜查询。
 
 ### 5.5 更新时机
 
@@ -283,15 +293,15 @@ Redis 排行榜作为实时数据源，MySQL 保存快照或兜底字段：
 ### 6.1 Key 设计
 
 ```text
-crp:rank:search:keyword:{period}
+crp:rank:search:keyword:{period}:{bucket}
 ```
 
 示例：
 
 ```text
-crp:rank:search:keyword:daily
-crp:rank:search:keyword:weekly
-crp:rank:search:keyword:monthly
+crp:rank:search:keyword:daily:{yyyy-MM-dd}
+crp:rank:search:keyword:weekly:{weekMonday}
+crp:rank:search:keyword:monthly:{yyyy-MM}
 ```
 
 ### 6.2 数据结构
@@ -317,22 +327,22 @@ Score：
 - 搜索建议接口优先展示高频关键词。
 - 管理员观察学生最关心的课程和资料方向。
 
-### 6.4 TTL 策略
+### 6.4 固定回收时间
 
 | Key | TTL |
 | --- | --- |
-| `crp:rank:search:keyword:daily` | 2 天 |
-| `crp:rank:search:keyword:weekly` | 14 天 |
-| `crp:rank:search:keyword:monthly` | 60 天 |
+| `crp:rank:search:keyword:daily:{yyyy-MM-dd}` | 当日结束 + 2 天 |
+| `crp:rank:search:keyword:weekly:{weekMonday}` | 当周结束 + 14 天 |
+| `crp:rank:search:keyword:monthly:{yyyy-MM}` | 当月结束 + 60 天 |
 
 ### 6.5 更新时机
 
 搜索接口执行成功后更新：
 
 ```text
-ZINCRBY crp:rank:search:keyword:daily 1 "数据结构"
-ZINCRBY crp:rank:search:keyword:weekly 1 "数据结构"
-ZINCRBY crp:rank:search:keyword:monthly 1 "数据结构"
+ZINCRBY crp:rank:search:keyword:daily:{yyyy-MM-dd} 1 "数据结构"
+ZINCRBY crp:rank:search:keyword:weekly:{weekMonday} 1 "数据结构"
+ZINCRBY crp:rank:search:keyword:monthly:{yyyy-MM} 1 "数据结构"
 ```
 
 更新前需要做关键词归一化：
@@ -368,10 +378,10 @@ Redis 宕机或数据丢失时，不影响资料搜索主流程，只影响热�
 
 ```java
 RedisKeyConstants.SEARCH_KEYWORD_RANK      // "crp:rank:search:keyword:%s"
-RedisKeyConstants.searchKeywordRank(period) // period 取 daily、weekly、monthly
+RedisKeyConstants.searchKeywordRank(period, eventTime) // period 使用 RankingPeriod，eventTime 为本次事件 Instant
 ```
 
-`SearchServiceImpl` 在搜索执行成功后，对 `daily`、`weekly`、`monthly` 三个 ZSet 执行 `ZINCRBY +1` 并按 2 天、14 天、60 天设置 TTL，与本节 6.4 一致。
+`SearchServiceImpl` 在搜索计数查询成功后（含空结果），对本次时间所属的三个自然周期桶执行 `ZINCRBY +1`，再以 `EXPIREAT` 设置周期结束加 2/14/60 天的固定回收时间。每次事件只读取一次 Clock，重复写入不会延长同桶到期时间。
 
 已落地的降级策略：
 
@@ -565,9 +575,9 @@ HGETALL crp:stats:resource:download:delta
 
 ```text
 HINCRBY crp:stats:resource:download:delta {resourceId} 1
-ZINCRBY crp:rank:resource:hot:daily 5 {resourceId}
-ZINCRBY crp:rank:resource:hot:weekly 5 {resourceId}
-ZINCRBY crp:rank:resource:hot:monthly 5 {resourceId}
+ZINCRBY crp:rank:resource:hot:daily:{yyyy-MM-dd} 5 {resourceId}
+ZINCRBY crp:rank:resource:hot:weekly:{weekMonday} 5 {resourceId}
+ZINCRBY crp:rank:resource:hot:monthly:{yyyy-MM} 5 {resourceId}
 ZINCRBY crp:rank:resource:hot:all 5 {resourceId}
 ```
 
@@ -892,8 +902,8 @@ resourceId
 | 场景 | Redis 异常时处理 |
 | --- | --- |
 | 资料详情缓存 | 降级查 MySQL |
-| 热门资料排行榜 | 降级查 MySQL `hot_score` |
-| 热门搜索词 | 返回空列表或默认词 |
+| 热门资料排行榜 | 日/周/月返回空；仅 all 降级查 MySQL `hot_score` |
+| 热门搜索词 | 返回空列表 |
 | 下载限流 | 建议失败关闭，防止被刷 |
 | 下载量统计 | 下载主流程可继续，但记录补偿日志 |
 | Token 黑名单 / 刷新会话 | 当前所有认证 Redis 异常均失败关闭，HTTP 500/50001；无普通接口 MySQL 降级 |

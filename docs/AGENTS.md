@@ -384,8 +384,8 @@ Redis Key 统一使用 `crp:` 应用前缀加业务域分段，命名以 `docs/0
 * `crp:auth:token:blacklist:{jti}`：退出登录 Token 黑名单（已实现）
 * `crp:cache:resource:detail:{resourceId}`：资料详情缓存
 * `crp:cache:file:md5:{fileMd5}:{fileSize}`：文件 MD5 去重缓存
-* `crp:rank:resource:hot:{period}`：热门资料排行榜
-* `crp:rank:search:keyword:{period}`：热门搜索词排行榜
+* `crp:rank:resource:hot:{period}:{bucket}`：自然周期热门资料排行榜；累计总榜为 `crp:rank:resource:hot:all`
+* `crp:rank:search:keyword:{period}:{bucket}`：自然周期热门搜索词排行榜；上海时区，日用日期、周用周一日期、月用年月
 * `crp:rate:download:user:{userId}`：按用户下载限流
 * `crp:rate:download:ip:{ip}`：按 IP 下载限流
 * `crp:dedup:download:{userId}:{resourceId}`：下载去重统计

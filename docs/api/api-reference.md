@@ -1447,14 +1447,16 @@ Authorization: Bearer eyJhbG...
 }
 ```
 
-说明：该接口优先读取 Redis ZSet `crp:rank:resource:hot:{period}`；Redis 缺失或读取异常时，按 `resource.hot_score DESC, download_count DESC, id DESC` 查询 MySQL 快照兜底。只返回 `status = 1` 的资料。
+说明：日、周、月榜读取 `crp:rank:resource:hot:{period}:{bucket}`，统一使用 `Asia/Shanghai`：日桶为 `yyyy-MM-dd`，周桶为当周周一日期，月桶为 `yyyy-MM`。跨自然周期边界自动读新桶，无需定时清零；`all` 固定为 `crp:rank:resource:hot:all`。只返回 `status = 1` 的资料。
+
+Redis 未装配或读取异常时，日/周/月返回空列表，不用历史总量兜底；只有 `all` 按 `resource.hot_score DESC, download_count DESC, id DESC` 查询 MySQL 快照。当前 Key 不存在返回空列表。当前桶仅统计上线后本周期发生的净行为热度；取消收藏在发生当期扣分，允许负分，不能理解为当期新增收藏数量。
 
 可能的错误码：
 
 | 错误码 | 说明 |
 | --- | --- |
 | `40001` | `limit` 或 `period` 参数错误 |
-| `50001` | Redis 不可用且 MySQL 兜底查询失败 |
+| `50001` | 仅 all 总榜：Redis 不可用且 MySQL 兜底查询失败 |
 
 ### 9.2 获取热门搜索词排行榜
 
@@ -1504,7 +1506,9 @@ Authorization: Bearer eyJhbG...
 }
 ```
 
-说明：该接口读取 Redis ZSet `crp:rank:search:keyword:{period}`；Redis 未装配、Key 缺失或读取异常时返回空列表并记录日志，不返回 `50001`。
+说明：该接口读取 Redis ZSet `crp:rank:search:keyword:{period}:{bucket}`，使用 `Asia/Shanghai` 的当日日期、当周周一日期或当月年月，仅查询当前自然周期。Redis 未装配、Key 缺失或读取异常时返回空列表，读取异常记录日志，不返回 `50001`。
+
+资料与热词周期桶均在周期结束后额外保留日 2 天、周 14 天、月 60 天，使用固定绝对过期时间；保留期不延长统计范围。升级需统一切换实例，新桶从升级后行为开始，不复制旧无日期 Key 的历史累计分数，也不提供历史桶查询。
 
 可能的错误码：
 

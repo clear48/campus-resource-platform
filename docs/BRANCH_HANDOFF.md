@@ -1,5 +1,15 @@
 # 分支交接记录
 
+## 2026-11-07 自然日/周/月排行榜
+
+- 开发分支：`codex/natural-period-ranking`，基线为 `main@db6601e9`；保留已有 `dev`，不合并其在线文件保护实现，本轮不部署服务器。
+- 已实现上海自然日、周一开始的自然周、自然月分桶；资料与热词全部读写同一周期模型，显式 Clock 支持确定性测试，每次查询/行为固定一个时点。
+- 固定到期为周期结束加 2/14/60 天，活跃写入不会延长旧桶寿命；all 继续原 Key/锁/快照。周期故障返回空，不使用总榜快照。取消收藏按发生当期扣分可负，下架清当前桶及 all。
+- 上线要求：所有实例统一切换；新桶从切换后事件开始累计，旧无日期 Key 的历史总分不能迁移或用来回填完整周期。停止旧写后由原 TTL 回收；无 TTL 的遗留 Key 需核实后定向清理，应用不扫描删除。
+- 验证：专项 7 类 `mvnw.cmd "-Dtest=RankingPeriodTest,RankingServiceImplTest,SearchServiceImplTest,RankingMapperIntegrationTest,SearchServiceDatabaseIntegrationTest,AuditServiceDatabaseIntegrationTest,HotRankingMaintenanceServiceImplTest" clean test` 49/49，全量 `mvnw.cmd test` 247/247，0 失败/错误/跳过。使用独立临时 MySQL；首次旧 target Mapper 污染已 clean 后纠正。日志保留于忽略目录 `tmp/`。
+- 本次未新增依赖、数据库表、公开接口或前端代码；真实 Redis 原子性、历史周期重建和生产部署未验证，`ZINCRBY`/`EXPIREAT` 联合原子性仍属独立改进项 IMP-025。
+- 文档覆盖 Redis/API/模块/架构/面试/需求/压测与 IMP-009，归档状态维持关闭。下一步可独立治理热词基数或原子计分，本轮不自动扩展。
+
 ## 2026-11-02 全部分支汇入 main 与网站停止维护
 
 - 集成目标：`main`。先快进 `dev@fdd82716`，再合并分叉的 `codex/auth-auto-refresh@ed79a203`；仅 `CURRENT_STATUS.md` 和本文件存在内容冲突，保留本地备份、压测与认证双方记录。

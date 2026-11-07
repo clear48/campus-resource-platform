@@ -1,5 +1,15 @@
 # 当前项目状态
 
+## 自然周期排行榜（2026-11-07）
+
+- 从干净 `main@db6601e9` 创建 `codex/natural-period-ranking`，不混入 `dev` 上的在线文件保护功能。本轮修改排行榜周期模型、Key、资料与热词 Service 及相应测试/文档，无新增依赖、表结构或前端变更。
+- 统一使用 `Asia/Shanghai`：日榜每日零点切换，周榜每周一零点切换，月榜每月一日零点切换；Key 分别携带日期、周一日期和年月。一次查询/行为只采样一次 Clock，分页和多周期写入复用该时点。
+- 旧桶固定在周期结束后额外保留 2/14/60 天；总榜 Key、累计计分、锁与维护任务保持原约定。取消收藏计入操作发生当期的净热度，允许负分；下架清当前桶及总榜。
+- Redis 故障时日/周/月榜返回空，仅 all 允许 MySQL 快照兜底。所有实例应统一升级；新桶只累计切换后的行为，不读取或复制无事件时间的旧固定 Key。旧桶不提供历史查询，计分与设置到期仍是两条独立命令。
+- 验证：7 类专项 `mvnw.cmd "-Dtest=RankingPeriodTest,RankingServiceImplTest,SearchServiceImplTest,RankingMapperIntegrationTest,SearchServiceDatabaseIntegrationTest,AuditServiceDatabaseIntegrationTest,HotRankingMaintenanceServiceImplTest" clean test`，49/49 通过；后端全量 `mvnw.cmd test`，247/247 通过，均无失败、错误、跳过。
+- MySQL 测试使用本轮新建的随机端口隔离实例，不访问日常业务库。首次未 clean 测试因 `dev` 残留的 target Mapper 失败，清理后重跑通过；证据在忽略目录 `tmp/natural-period-tests-{initial,clean,full}.log`。未执行真实 Redis 故障/并发或生产部署验证。
+- Redis 设计、API、架构、搜索/排行榜模块、面试材料及 IMP-009 状态已同步；问答归档维持 `DISABLED`。
+
 ## 分支集成与网站维护状态（2026-11-02）
 
 - 将 `dev@fdd82716` 的本地数据保护、压测工具与报告，以及 `codex/auth-auto-refresh@ed79a203` 的双 Token 自动刷新实现汇入 `main`；代码自动合并，状态与交接文档冲突保留双方历史记录。
