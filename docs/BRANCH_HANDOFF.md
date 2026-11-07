@@ -9,6 +9,7 @@
 - 验证：专项 7 类 `mvnw.cmd "-Dtest=RankingPeriodTest,RankingServiceImplTest,SearchServiceImplTest,RankingMapperIntegrationTest,SearchServiceDatabaseIntegrationTest,AuditServiceDatabaseIntegrationTest,HotRankingMaintenanceServiceImplTest" clean test` 49/49，全量 `mvnw.cmd test` 247/247，0 失败/错误/跳过。使用独立临时 MySQL；首次旧 target Mapper 污染已 clean 后纠正。日志保留于忽略目录 `tmp/`。
 - 本次未新增依赖、数据库表、公开接口或前端代码；真实 Redis 原子性、历史周期重建和生产部署未验证，`ZINCRBY`/`EXPIREAT` 联合原子性仍属独立改进项 IMP-025。
 - 文档覆盖 Redis/API/模块/架构/面试/需求/压测与 IMP-009，归档状态维持关闭。下一步可独立治理热词基数或原子计分，本轮不自动扩展。
+- 实际实现提交 `c82cd225`，已推送 `origin/codex/natural-period-ranking`，未合并 main。104 个本地文档链接与差异检查通过；隔离 MySQL 已关闭，临时目录删除遭自动审批 `blocked by policy` 拒绝而保留，本机路径见忽略文件 `tmp/natural-rank-mysql.json`。
 
 ## 2026-11-02 全部分支汇入 main 与网站停止维护
 

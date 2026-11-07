@@ -22,6 +22,7 @@
 - 升级须统一切换实例；新桶只统计上线后的行为，旧无日期 Key 不再读写，不复制历史分数，停止旧版本后等待原 TTL 清理。历史数据没有事件时间，无法据此补出本日/周/月完整榜。
 - 已有定时任务仍仅负责下载增量、all 重建和 all 快照；`ZINCRBY` 与 `EXPIREAT` 尚非联合原子，异常可能遗留无过期桶，但不会串入下个周期。
 - 本节为当前约定；后文带步骤或日期的测试数字、commit 和首版开发记录保留历史含义。当前测试命令与验收结果由 `docs/CURRENT_STATUS.md` 和 `docs/BRANCH_HANDOFF.md` 记录。
+- 本次实现提交 `c82cd225` 已推送 `origin/codex/natural-period-ranking`；7 类专项 clean test 为 49/49，全量后端 test 为 247/247，无失败、错误或跳过。MySQL 使用临时隔离实例；未验证真实 Redis 进程故障或生产部署。
 
 ---
 

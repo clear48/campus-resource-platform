@@ -9,6 +9,7 @@
 - 验证：7 类专项 `mvnw.cmd "-Dtest=RankingPeriodTest,RankingServiceImplTest,SearchServiceImplTest,RankingMapperIntegrationTest,SearchServiceDatabaseIntegrationTest,AuditServiceDatabaseIntegrationTest,HotRankingMaintenanceServiceImplTest" clean test`，49/49 通过；后端全量 `mvnw.cmd test`，247/247 通过，均无失败、错误、跳过。
 - MySQL 测试使用本轮新建的随机端口隔离实例，不访问日常业务库。首次未 clean 测试因 `dev` 残留的 target Mapper 失败，清理后重跑通过；证据在忽略目录 `tmp/natural-period-tests-{initial,clean,full}.log`。未执行真实 Redis 故障/并发或生产部署验证。
 - Redis 设计、API、架构、搜索/排行榜模块、面试材料及 IMP-009 状态已同步；问答归档维持 `DISABLED`。
+- 实现提交 `c82cd225` 已推送到 `origin/codex/natural-period-ranking`，尚未合入 main。104 个本地文档文件链接及 `git diff --check` 通过。测试 MySQL 实例已关闭；自动审批以 `blocked by policy` 拒绝删除临时数据目录，目录保留，位置记录仅在忽略文件 `tmp/natural-rank-mysql.json`。
 
 ## 分支集成与网站维护状态（2026-11-02）
 
