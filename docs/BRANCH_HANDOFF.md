@@ -1,5 +1,13 @@
 # 分支交接记录
 
+## 2026-11-11 并发边界测试暂停交接
+
+- 分支`codex/local-concurrency-peak`，工具提交`8de17c3d`、`4b7ecb40`已推送；应用源码仍为main基线3b6b699f，main/dev未修改。
+- 后端264/264及打包、工具显式Groovy 61/61通过。修复原生线程生命周期与线程组计时窗口校验，新增自适应边界搜索。
+- 100/150混合诊断通过，200搜索P95 517ms而SLO不合格，未做正式边界确认；不是已测出峰值。用户要求200完成后暂停，现已停队列、175中断档、发压及监控，独立服务保留待命。
+- 明确等待用户许可后才能恢复测试；私有运行状态在仓库外C:/campusshare-loadtest/peak-run-state.json，证据和有效诊断均保留，不复用旧凭据到报告或Git。
+- 阶段报告与JSON：`docs/test/2026-11-11-local-concurrency-peak-report.md`、`docs/test/2026-11-11-local-concurrency-peak-summary.json`。本次仅保存暂停检查点，不再执行压测或新增业务变更。
+
 ## 2026-11-07 同步 dev、排行榜修复与 main
 
 - 来源：`dev@f4f7fa0b`、排行榜 `afcac95e` 和原 main `db6601e9`；在临时集成分支合并验证，Redis 常量中的文件保护锁和自然周期 Key helper 均保留。仅本文件与状态文档有内容冲突，已保留两侧历史章节。

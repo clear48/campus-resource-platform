@@ -1,0 +1,584 @@
+{
+  "status": "PAUSED_BY_USER",
+  "appRevision": "3b6b699fbfa742e370292f080cc7880bfcc1a31c",
+  "scope": "local mixed closed-loop, no think time",
+  "dataset": {
+    "users": 100,
+    "resources": 1000,
+    "approved": 800
+  },
+  "pause": {
+    "status": "PAUSED_BY_USER",
+    "requestedAfterThreads": 200,
+    "at": 1794383995.7193983,
+    "activeInterrupted": "peak-mixed-diag-c175-r1-a4",
+    "requiresExplicitUserPermissionToResume": true,
+    "loadAndProbeMonitorsStopped": true,
+    "runtimeServicesRetained": true,
+    "reason": "200线程测试完成后暂时停止测试，等待用户许可后继续下一步测试"
+  },
+  "completedDiagnostics": [
+    {
+      "name": "peak-mixed-diag-c100-r1-a1",
+      "scenario": "mixed",
+      "threads": 100,
+      "duration": 110,
+      "ramp": 15,
+      "excludedSeconds": 15,
+      "thinkMs": 0,
+      "nativeGroupStartEpoch": 1794383539.808,
+      "evaluation": {
+        "status": "PASS",
+        "reasons": [],
+        "labelChecks": {
+          "keyword": {
+            "p95LimitMs": 200,
+            "p99LimitMs": 500,
+            "passed": true
+          },
+          "detail": {
+            "p95LimitMs": 200,
+            "p99LimitMs": 500,
+            "passed": true
+          },
+          "rank": {
+            "p95LimitMs": 200,
+            "p99LimitMs": 500,
+            "passed": true
+          },
+          "search": {
+            "p95LimitMs": 500,
+            "p99LimitMs": 1000,
+            "passed": true
+          }
+        }
+      },
+      "overall": {
+        "samples": 163530,
+        "valid": true,
+        "success": 163530,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 95.0,
+        "successfulRps": 1721.368,
+        "attemptedRps": 1721.368,
+        "p50Ms": 46,
+        "p95Ms": 262,
+        "p99Ms": 323,
+        "maxMs": 435,
+        "meanMs": 57.081,
+        "responseCodes": {
+          "200": 163530
+        },
+        "startEpoch": 1794383554.808,
+        "endEpoch": 1794383649.808,
+        "activeStartEpoch": 1794383554.808,
+        "activeEndEpoch": 1794383649.871,
+        "activeWindowSeconds": 95.063
+      },
+      "labels": {
+        "keyword": {
+          "samples": 8231,
+          "valid": true,
+          "success": 8231,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 95.0,
+          "successfulRps": 86.642,
+          "attemptedRps": 86.642,
+          "p50Ms": 9,
+          "p95Ms": 54,
+          "p99Ms": 73,
+          "maxMs": 124,
+          "meanMs": 14.161,
+          "responseCodes": {
+            "200": 8231
+          },
+          "startEpoch": 1794383554.808,
+          "endEpoch": 1794383649.808,
+          "activeStartEpoch": 1794383554.808,
+          "activeEndEpoch": 1794383649.811,
+          "activeWindowSeconds": 95.003
+        },
+        "detail": {
+          "samples": 57033,
+          "valid": true,
+          "success": 57033,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 95.0,
+          "successfulRps": 600.347,
+          "attemptedRps": 600.347,
+          "p50Ms": 8,
+          "p95Ms": 51,
+          "p99Ms": 72,
+          "maxMs": 117,
+          "meanMs": 13.489,
+          "responseCodes": {
+            "200": 57033
+          },
+          "startEpoch": 1794383554.808,
+          "endEpoch": 1794383649.808,
+          "activeStartEpoch": 1794383554.812,
+          "activeEndEpoch": 1794383649.818,
+          "activeWindowSeconds": 95.006
+        },
+        "rank": {
+          "samples": 16410,
+          "valid": true,
+          "success": 16410,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 95.0,
+          "successfulRps": 172.737,
+          "attemptedRps": 172.737,
+          "p50Ms": 22,
+          "p95Ms": 61,
+          "p99Ms": 81,
+          "maxMs": 119,
+          "meanMs": 25.786,
+          "responseCodes": {
+            "200": 16410
+          },
+          "startEpoch": 1794383554.808,
+          "endEpoch": 1794383649.808,
+          "activeStartEpoch": 1794383554.808,
+          "activeEndEpoch": 1794383649.826,
+          "activeWindowSeconds": 95.018
+        },
+        "search": {
+          "samples": 81856,
+          "valid": true,
+          "success": 81856,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 95.0,
+          "successfulRps": 861.642,
+          "attemptedRps": 861.642,
+          "p50Ms": 74,
+          "p95Ms": 294,
+          "p99Ms": 343,
+          "maxMs": 435,
+          "meanMs": 98.043,
+          "responseCodes": {
+            "200": 81856
+          },
+          "startEpoch": 1794383554.808,
+          "endEpoch": 1794383649.808,
+          "activeStartEpoch": 1794383554.808,
+          "activeEndEpoch": 1794383649.871,
+          "activeWindowSeconds": 95.063
+        }
+      },
+      "threadActivity": {
+        "source": "JMeter INFO Thread started/finished",
+        "timezone": "UTC+08:00",
+        "complete": true,
+        "startedThreads": 100,
+        "finishedThreads": 100,
+        "actualPeak": 100,
+        "steadyStartEpoch": 1794383554.808,
+        "steadyEndEpoch": 1794383649.808,
+        "expectedSteadySeconds": 95,
+        "fullTargetSeconds": 95.0,
+        "fullTargetTimeFraction": 1.0
+      },
+      "threadCoverage": {
+        "fieldsAvailable": true,
+        "peakGrpThreads": 100,
+        "peakAllThreads": 100,
+        "targetThreads": 100,
+        "fullTargetSamples": 163473,
+        "fullTargetSampleFraction": 0.9996514401027334,
+        "steadyStartEpoch": 1794383554.808,
+        "steadyEndEpoch": 1794383649.808,
+        "timeOrigin": "native_thread_group",
+        "expectedSteadyBuckets": 95,
+        "expectedSteadySeconds": 95,
+        "fullTargetBuckets": 94,
+        "fullTargetSeconds": 94,
+        "fullTargetTimeFraction": 0.9894736842105263,
+        "effectiveSteadySeconds": 86.681
+      },
+      "planSha256": "97545b2830bae40cc44eb2e636f8003c4515de8f4d465e0b83bd778eea028dad",
+      "guardStop": null,
+      "sourceSummarySha256": "3a901ba6621adefd5d0412679a08a2e34738caf1473e3ee8932e48e6f6892375"
+    },
+    {
+      "name": "peak-mixed-diag-c200-r1-a2",
+      "scenario": "mixed",
+      "threads": 200,
+      "duration": 110,
+      "ramp": 15,
+      "excludedSeconds": 15,
+      "thinkMs": 0,
+      "nativeGroupStartEpoch": 1794383665.92,
+      "evaluation": {
+        "status": "FAIL",
+        "reasons": [
+          "LATENCY_SLO"
+        ],
+        "labelChecks": {
+          "detail": {
+            "p95LimitMs": 200,
+            "p99LimitMs": 500,
+            "passed": true
+          },
+          "keyword": {
+            "p95LimitMs": 200,
+            "p99LimitMs": 500,
+            "passed": true
+          },
+          "rank": {
+            "p95LimitMs": 200,
+            "p99LimitMs": 500,
+            "passed": true
+          },
+          "search": {
+            "p95LimitMs": 500,
+            "p99LimitMs": 1000,
+            "passed": false
+          }
+        }
+      },
+      "overall": {
+        "samples": 210092,
+        "valid": true,
+        "success": 210092,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 95.0,
+        "successfulRps": 2211.495,
+        "attemptedRps": 2211.495,
+        "p50Ms": 65,
+        "p95Ms": 327,
+        "p99Ms": 561,
+        "maxMs": 1520,
+        "meanMs": 89.576,
+        "responseCodes": {
+          "200": 210092
+        },
+        "startEpoch": 1794383680.92,
+        "endEpoch": 1794383775.92,
+        "activeStartEpoch": 1794383680.923,
+        "activeEndEpoch": 1794383776.049,
+        "activeWindowSeconds": 95.126
+      },
+      "labels": {
+        "detail": {
+          "samples": 73835,
+          "valid": true,
+          "success": 73835,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 95.0,
+          "successfulRps": 777.211,
+          "attemptedRps": 777.211,
+          "p50Ms": 3,
+          "p95Ms": 91,
+          "p99Ms": 146,
+          "maxMs": 545,
+          "meanMs": 14.004,
+          "responseCodes": {
+            "200": 73835
+          },
+          "startEpoch": 1794383680.92,
+          "endEpoch": 1794383775.92,
+          "activeStartEpoch": 1794383680.923,
+          "activeEndEpoch": 1794383775.921,
+          "activeWindowSeconds": 94.998
+        },
+        "keyword": {
+          "samples": 10562,
+          "valid": true,
+          "success": 10562,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 95.0,
+          "successfulRps": 111.179,
+          "attemptedRps": 111.179,
+          "p50Ms": 3,
+          "p95Ms": 93,
+          "p99Ms": 177,
+          "maxMs": 466,
+          "meanMs": 14.063,
+          "responseCodes": {
+            "200": 10562
+          },
+          "startEpoch": 1794383680.92,
+          "endEpoch": 1794383775.92,
+          "activeStartEpoch": 1794383680.932,
+          "activeEndEpoch": 1794383775.861,
+          "activeWindowSeconds": 94.929
+        },
+        "rank": {
+          "samples": 21145,
+          "valid": true,
+          "success": 21145,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 95.0,
+          "successfulRps": 222.579,
+          "attemptedRps": 222.579,
+          "p50Ms": 50,
+          "p95Ms": 112,
+          "p99Ms": 191,
+          "maxMs": 553,
+          "meanMs": 56.362,
+          "responseCodes": {
+            "200": 21145
+          },
+          "startEpoch": 1794383680.92,
+          "endEpoch": 1794383775.92,
+          "activeStartEpoch": 1794383680.933,
+          "activeEndEpoch": 1794383775.973,
+          "activeWindowSeconds": 95.04
+        },
+        "search": {
+          "samples": 104550,
+          "valid": true,
+          "success": 104550,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 95.0,
+          "successfulRps": 1100.526,
+          "attemptedRps": 1100.526,
+          "p50Ms": 111,
+          "p95Ms": 517,
+          "p99Ms": 843,
+          "maxMs": 1520,
+          "meanMs": 157.292,
+          "responseCodes": {
+            "200": 104550
+          },
+          "startEpoch": 1794383680.92,
+          "endEpoch": 1794383775.92,
+          "activeStartEpoch": 1794383680.923,
+          "activeEndEpoch": 1794383776.049,
+          "activeWindowSeconds": 95.126
+        }
+      },
+      "threadActivity": {
+        "source": "JMeter INFO Thread started/finished",
+        "timezone": "UTC+08:00",
+        "complete": true,
+        "startedThreads": 200,
+        "finishedThreads": 200,
+        "actualPeak": 200,
+        "steadyStartEpoch": 1794383680.92,
+        "steadyEndEpoch": 1794383775.92,
+        "expectedSteadySeconds": 95,
+        "fullTargetSeconds": 95.0,
+        "fullTargetTimeFraction": 1.0
+      },
+      "threadCoverage": {
+        "fieldsAvailable": true,
+        "peakGrpThreads": 200,
+        "peakAllThreads": 200,
+        "targetThreads": 200,
+        "fullTargetSamples": 209929,
+        "fullTargetSampleFraction": 0.999224149420254,
+        "steadyStartEpoch": 1794383680.92,
+        "steadyEndEpoch": 1794383775.92,
+        "timeOrigin": "native_thread_group",
+        "expectedSteadyBuckets": 95,
+        "expectedSteadySeconds": 95,
+        "fullTargetBuckets": 94,
+        "fullTargetSeconds": 94,
+        "fullTargetTimeFraction": 0.9894736842105263,
+        "effectiveSteadySeconds": 88.739
+      },
+      "planSha256": "97545b2830bae40cc44eb2e636f8003c4515de8f4d465e0b83bd778eea028dad",
+      "guardStop": null,
+      "sourceSummarySha256": "fa33021e315b352978a1b11c1b3df1300bd53a9c81ed2b3cbccf2bb9e79e4722"
+    },
+    {
+      "name": "peak-mixed-diag-c150-r1-a3",
+      "scenario": "mixed",
+      "threads": 150,
+      "duration": 110,
+      "ramp": 15,
+      "excludedSeconds": 15,
+      "thinkMs": 0,
+      "nativeGroupStartEpoch": 1794383790.145,
+      "evaluation": {
+        "status": "PASS",
+        "reasons": [],
+        "labelChecks": {
+          "detail": {
+            "p95LimitMs": 200,
+            "p99LimitMs": 500,
+            "passed": true
+          },
+          "keyword": {
+            "p95LimitMs": 200,
+            "p99LimitMs": 500,
+            "passed": true
+          },
+          "rank": {
+            "p95LimitMs": 200,
+            "p99LimitMs": 500,
+            "passed": true
+          },
+          "search": {
+            "p95LimitMs": 500,
+            "p99LimitMs": 1000,
+            "passed": true
+          }
+        }
+      },
+      "overall": {
+        "samples": 308112,
+        "valid": true,
+        "success": 308112,
+        "failures": 0,
+        "failureRate": 0.0,
+        "windowSeconds": 95.0,
+        "successfulRps": 3243.284,
+        "attemptedRps": 3243.284,
+        "p50Ms": 44,
+        "p95Ms": 112,
+        "p99Ms": 142,
+        "maxMs": 283,
+        "meanMs": 45.575,
+        "responseCodes": {
+          "200": 308112
+        },
+        "startEpoch": 1794383805.145,
+        "endEpoch": 1794383900.145,
+        "activeStartEpoch": 1794383805.145,
+        "activeEndEpoch": 1794383900.242,
+        "activeWindowSeconds": 95.097
+      },
+      "labels": {
+        "detail": {
+          "samples": 107770,
+          "valid": true,
+          "success": 107770,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 95.0,
+          "successfulRps": 1134.421,
+          "attemptedRps": 1134.421,
+          "p50Ms": 3,
+          "p95Ms": 6,
+          "p99Ms": 14,
+          "maxMs": 26,
+          "meanMs": 3.121,
+          "responseCodes": {
+            "200": 107770
+          },
+          "startEpoch": 1794383805.145,
+          "endEpoch": 1794383900.145,
+          "activeStartEpoch": 1794383805.145,
+          "activeEndEpoch": 1794383900.147,
+          "activeWindowSeconds": 95.002
+        },
+        "keyword": {
+          "samples": 15389,
+          "valid": true,
+          "success": 15389,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 95.0,
+          "successfulRps": 161.989,
+          "attemptedRps": 161.989,
+          "p50Ms": 3,
+          "p95Ms": 7,
+          "p99Ms": 15,
+          "maxMs": 25,
+          "meanMs": 3.283,
+          "responseCodes": {
+            "200": 15389
+          },
+          "startEpoch": 1794383805.145,
+          "endEpoch": 1794383900.145,
+          "activeStartEpoch": 1794383805.147,
+          "activeEndEpoch": 1794383900.133,
+          "activeWindowSeconds": 94.986
+        },
+        "rank": {
+          "samples": 30821,
+          "valid": true,
+          "success": 30821,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 95.0,
+          "successfulRps": 324.432,
+          "attemptedRps": 324.432,
+          "p50Ms": 36,
+          "p95Ms": 67,
+          "p99Ms": 92,
+          "maxMs": 188,
+          "meanMs": 35.776,
+          "responseCodes": {
+            "200": 30821
+          },
+          "startEpoch": 1794383805.145,
+          "endEpoch": 1794383900.145,
+          "activeStartEpoch": 1794383805.148,
+          "activeEndEpoch": 1794383900.214,
+          "activeWindowSeconds": 95.066
+        },
+        "search": {
+          "samples": 154132,
+          "valid": true,
+          "success": 154132,
+          "failures": 0,
+          "failureRate": 0.0,
+          "windowSeconds": 95.0,
+          "successfulRps": 1622.442,
+          "attemptedRps": 1622.442,
+          "p50Ms": 81,
+          "p95Ms": 118,
+          "p99Ms": 149,
+          "maxMs": 283,
+          "meanMs": 81.44,
+          "responseCodes": {
+            "200": 154132
+          },
+          "startEpoch": 1794383805.145,
+          "endEpoch": 1794383900.145,
+          "activeStartEpoch": 1794383805.148,
+          "activeEndEpoch": 1794383900.242,
+          "activeWindowSeconds": 95.094
+        }
+      },
+      "threadActivity": {
+        "source": "JMeter INFO Thread started/finished",
+        "timezone": "UTC+08:00",
+        "complete": true,
+        "startedThreads": 150,
+        "finishedThreads": 150,
+        "actualPeak": 150,
+        "steadyStartEpoch": 1794383805.145,
+        "steadyEndEpoch": 1794383900.145,
+        "expectedSteadySeconds": 95,
+        "fullTargetSeconds": 95.0,
+        "fullTargetTimeFraction": 1.0
+      },
+      "threadCoverage": {
+        "fieldsAvailable": true,
+        "peakGrpThreads": 150,
+        "peakAllThreads": 150,
+        "targetThreads": 150,
+        "fullTargetSamples": 308018,
+        "fullTargetSampleFraction": 0.9996949161343927,
+        "steadyStartEpoch": 1794383805.145,
+        "steadyEndEpoch": 1794383900.145,
+        "timeOrigin": "native_thread_group",
+        "expectedSteadyBuckets": 95,
+        "expectedSteadySeconds": 95,
+        "fullTargetBuckets": 94,
+        "fullTargetSeconds": 94,
+        "fullTargetTimeFraction": 0.9894736842105263,
+        "effectiveSteadySeconds": 92.69
+      },
+      "planSha256": "97545b2830bae40cc44eb2e636f8003c4515de8f4d465e0b83bd778eea028dad",
+      "guardStop": null,
+      "sourceSummarySha256": "8935eaf6f7f2e928603f4604ef009aa3639aae494b63786e3f0b4fc31810980a"
+    }
+  ],
+  "formalConfirmationsCompleted": 0,
+  "peakNotConfirmed": true
+}
