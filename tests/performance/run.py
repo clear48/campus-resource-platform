@@ -4,6 +4,7 @@ import argparse
 import collections
 import csv
 import ctypes
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import math
@@ -62,23 +63,155 @@ class SampleStats:
                 "activeWindowSeconds": round(max((self.end - self.start) / 1000, .001), 3)}
 
 
-def summarize(path, exclude=0):
-    """以首个样本开始时间为基准剔除升压/预热窗口，按真实 label 分别统计。"""
+def summarize(path, exclude=0, target_threads=None, duration=None):
+    """JTL按完成顺序写入；两遍流式读取以真实最早start排除预热，不缓存CSV全表。"""
     overall = SampleStats()
     labels = collections.defaultdict(SampleStats)
-    first = None
+    first, last_end = None, None
     with Path(path).open(newline="", encoding="utf-8-sig") as stream:
         for row in csv.DictReader(stream):
             timestamp = int(row["timeStamp"])
-            if first is None:
-                first = timestamp
+            first = timestamp if first is None else min(first, timestamp)
+            end = timestamp + int(row["elapsed"])
+            last_end = end if last_end is None else max(last_end, end)
+    peak_group = peak_all = full_samples = kept = 0
+    # 桶以样本开始时间归属，绝不把长尾请求的elapsed填充为持续并发；空桶与混入低线程的桶都失败。
+    budget = max(0, duration-exclude) if duration is not None else None
+    expected_buckets = math.ceil(budget) if budget is not None else 0
+    bucket_flags = {}
+    fields_available = True
+    error_kinds = collections.Counter()
+    with Path(path).open(newline="", encoding="utf-8-sig") as stream:
+        for row in csv.DictReader(stream):
+            timestamp = int(row["timeStamp"])
             if timestamp < first + exclude * 1000:
                 continue
+            kept += 1
+            fields_available = fields_available and bool(row.get("grpThreads")) and bool(row.get("allThreads"))
+            group, all_threads = int(row.get("grpThreads") or 0), int(row.get("allThreads") or 0)
+            peak_group, peak_all = max(peak_group, group), max(peak_all, all_threads)
+            full_samples += bool(target_threads and group >= target_threads and all_threads >= target_threads)
+            offset = (timestamp-first)/1000-exclude
+            if budget is not None and 0 <= offset < budget:
+                bucket = int(offset)
+                flag = 1 if target_threads and group >= target_threads and all_threads >= target_threads else 2
+                bucket_flags[bucket] = bucket_flags.get(bucket,0) | flag
+            for kind in classify_tool_error(row.get("responseCode", "") + " " + row.get("failureMessage", "")):
+                error_kinds[kind] += 1
             values = (timestamp, int(row["elapsed"]), row["success"] == "true", row["responseCode"])
             overall.add(*values)
             labels[row["label"]].add(*values)
     window = (overall.start, overall.end) if overall.start is not None else None
-    return {"overall": overall.result(), "labels": {name: stats.result(window) for name, stats in labels.items()}}
+    full_seconds = sum(min(1,budget-index) for index,flag in bucket_flags.items() if flag==1) if budget else 0
+    return {"overall": overall.result(), "labels": {name: stats.result(window) for name, stats in labels.items()},
+            "threadCoverage": {"fieldsAvailable": fields_available and kept > 0, "peakGrpThreads": peak_group,
+                "peakAllThreads": peak_all, "targetThreads": target_threads, "fullTargetSamples": full_samples,
+                "fullTargetSampleFraction": full_samples / kept if kept else 0,
+                "steadyStartEpoch":first/1000+exclude if first is not None else None,
+                "expectedSteadyBuckets":expected_buckets, "expectedSteadySeconds":budget,
+                "fullTargetBuckets":sum(flag==1 for flag in bucket_flags.values()),
+                "fullTargetSeconds":full_seconds, "fullTargetTimeFraction":full_seconds/budget if budget else 0,
+                "effectiveSteadySeconds": max(0, (last_end-first)/1000-exclude) if first is not None else 0},
+            "toolErrors": dict(error_kinds)}
+
+
+def classify_tool_error(text):
+    """只保存错误分类，原始日志可能含本地路径，不复制进公开评价。"""
+    kinds = []
+    for kind, markers in {"BIND": ("BindException", "Address already in use", "Cannot assign requested address"),
+                          "OOM": ("OutOfMemoryError", "unable to create native thread", "unable to create new native thread", "pthread_create failed"),
+                          "SCRIPT": ("ScriptException", "Problem in JSR223", "Error in JSR223")}.items():
+        if any(marker.lower() in text.lower() for marker in markers):
+            kinds.append(kind)
+    return kinds
+
+
+def scan_tool_logs(*paths):
+    errors = collections.Counter()
+    for path in paths:
+        if Path(path).exists():
+            with Path(path).open(encoding="utf-8", errors="replace") as stream:
+                for line in stream:
+                    errors.update(classify_tool_error(line))
+    return dict(errors)
+
+
+def thread_activity(path, steady_start, budget, target):
+    """以独立INFO生命周期积分实际活跃线程；请求稀疏不等于没有并发等待。"""
+    events = []
+    zone = timezone(timedelta(hours=8))
+    if Path(path).exists():
+        with Path(path).open(encoding="utf-8", errors="replace") as stream:
+            for line in stream:
+                match = re.search(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3}).*?Thread (started|finished): (.+?)\s*$", line)
+                if match:
+                    stamp = datetime.strptime(match[1],"%Y-%m-%d %H:%M:%S,%f").replace(tzinfo=zone).timestamp()
+                    events.append((stamp,match[2],match[3]))
+    active, started, finished = set(), set(), set()
+    malformed, peak, seconds = False, 0, 0.0
+    end = steady_start+budget
+    previous = steady_start
+    # 同一毫秒保持日志原顺序；同线程重复/缺失生命周期不能证明完整负载。
+    for stamp,kind,name in sorted(events,key=lambda event:event[0]):
+        boundary = min(max(stamp,steady_start),end)
+        if len(active)>=target:
+            seconds += max(0,boundary-previous)
+        previous = boundary
+        if kind=="started":
+            malformed |= name in started
+            started.add(name); active.add(name)
+        else:
+            malformed |= name not in active or name in finished
+            finished.add(name); active.discard(name)
+        peak=max(peak,len(active))
+    if len(active)>=target:
+        seconds += max(0,end-previous)
+    return {"source":"JMeter INFO Thread started/finished", "timezone":"UTC+08:00",
+            "complete":bool(started) and started==finished and not active and not malformed,
+            "startedThreads":len(started),"finishedThreads":len(finished),"actualPeak":peak,
+            "steadyStartEpoch":steady_start,"steadyEndEpoch":end,"expectedSteadySeconds":budget,
+            "fullTargetSeconds":round(seconds,6),"fullTargetTimeFraction":seconds/budget if budget>0 else 0}
+
+
+def evaluate(meta):
+    """先判实验有效性，再判零错误与逐label延迟；INVALID不能作为服务容量上界。"""
+    reasons = []
+    coverage = meta.get("threadCoverage", {})
+    overall = meta.get("overall", {})
+    if meta.get("exitCode", 0) or meta.get("guardStop") or any(meta.get("toolErrors", {}).values()):
+        reasons.append("INJECTOR_OR_PROCESS_ERROR")
+    if not overall.get("samples"):
+        reasons.append("NO_SAMPLES")
+    activity = meta.get("threadActivity",{})
+    if not activity.get("complete") or activity.get("actualPeak",0)<meta["threads"]:
+        reasons.append("INCOMPLETE_THREAD_LIFECYCLE_OR_INSUFFICIENT_PEAK")
+    if activity.get("fullTargetTimeFraction",0)<.95:
+        reasons.append("INSUFFICIENT_TARGET_ACTIVE_TIME")
+    limits = {"search": (500,1000), "detail": (200,500), "rank": (200,500), "keyword": (200,500),
+              "auth": (200,500), "login": (500,1000), "favorite": (500,1000)}
+    labels = meta.get("labels", {})
+    expected = {"search","detail","rank","keyword"} if meta["scenario"] == "mixed" else {meta["scenario"]}
+    if not expected.issubset({label.split('.')[0] for label in labels}):
+        reasons.append("MISSING_SCENARIO_LABELS")
+    checks = {}
+    for label, row in labels.items():
+        limit = limits.get(label.split('.')[0])
+        if not limit or row.get("p95Ms") is None or row.get("p99Ms") is None:
+            reasons.append("UNKNOWN_LABEL_OR_MISSING_PERCENTILE")
+            continue
+        checks[label] = {"p95LimitMs":limit[0], "p99LimitMs":limit[1],
+                         "passed":row["p95Ms"] <= limit[0] and row["p99Ms"] <= limit[1]}
+    if reasons:
+        return {"status":"INVALID", "reasons":sorted(set(reasons)), "labelChecks":checks}
+    failed = bool(overall.get("failures")) or any(not row["passed"] for row in checks.values())
+    return {"status":"FAIL" if failed else "PASS", "reasons":["HTTP_OR_BUSINESS_FAILURE"] if overall.get("failures")
+            else ["LATENCY_SLO"] if failed else [], "labelChecks":checks}
+
+
+class RunFailed(RuntimeError):
+    def __init__(self, meta):
+        self.meta = meta
+        super().__init__("运行评价未通过：" + meta["evaluation"]["status"] + " " + meta["name"])
 
 
 def validate_manifest(context, evidence):
@@ -155,13 +288,14 @@ def execute(context_path, jmeter_home, java, name, scenario, threads, duration,
     plan_path = Path(plan).resolve() if plan else evidence / "generic.jmx"
     if not plan_path.exists():
         generate(plan_path)
-    arguments = [java_binary, "-Xms128m", "-Xmx512m", "-XX:+UseG1GC", "-Djava.awt.headless=true",
+    arguments = [java_binary, "-Xms128m", "-Xmx512m", "-XX:+UseG1GC", "-Djava.awt.headless=true", "-Duser.timezone=Asia/Shanghai",
                  "-jar", str(jmeter_jar), "-n", "-t", str(plan_path),
                  "-Jscenario=" + scenario, "-Jthreads=" + str(threads), "-Jduration=" + str(duration),
                  "-Jramp=" + str(ramp), "-Jmanifest=" + str(manifest_file), "-Jcontext=" + str(context_path),
                  "-JsearchVariant=" + variant, "-JthinkMs=" + str(think),
                  "-l", str(result_path), "-j", str(log_path),
                  "-Jjmeter.save.saveservice.output_format=csv", "-Jjmeter.save.saveservice.response_data=false",
+                 "-Jjmeter.save.saveservice.thread_counts=true",
                  "-Jjmeter.save.saveservice.response_data.on_error=false", "-Jjmeter.save.saveservice.samplerData=false",
                  "-Jjmeter.save.saveservice.requestHeaders=false", "-Jjmeter.save.saveservice.responseHeaders=false",
                  "-Jjmeter.save.saveservice.autoflush=true"]
@@ -173,7 +307,16 @@ def execute(context_path, jmeter_home, java, name, scenario, threads, duration,
     process = None
     guard_since = None
     reason = None
+    runner_error = None
     try:
+        # 前置资源失败也保留完整INVALID summary，但绝不启动JMeter。
+        if shutil.disk_usage(evidence).free / 1024 ** 3 < min_disk_gib:
+            reason = "PREFLIGHT_DISK_GUARD"
+            raise ValueError("启动前磁盘不足安全余量，禁止发压")
+        memory = available_memory_fraction()
+        if memory is not None and memory < memory_threshold:
+            reason = "PREFLIGHT_MEMORY_GUARD"
+            raise ValueError("启动前可用物理内存不足，禁止发压")
         with console_path.open("x", encoding="utf-8") as console:
             process = subprocess.Popen(arguments, cwd=evidence, stdout=console, stderr=subprocess.STDOUT,
                                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
@@ -195,6 +338,8 @@ def execute(context_path, jmeter_home, java, name, scenario, threads, duration,
                     guard_since = guard_since or time.time()
                     if time.time() - guard_since >= 60:
                         reason = "MEMORY_GUARD"
+                    if memory_fraction < .05:
+                        reason = "CRITICAL_MEMORY_GUARD"
                 else:
                     guard_since = None
                 if reason:
@@ -208,18 +353,25 @@ def execute(context_path, jmeter_home, java, name, scenario, threads, duration,
         reason = "INTERRUPTED"
         if process:
             stop_process(process)
+    except Exception as error:
+        reason = reason or "RUNNER_ERROR"
+        runner_error = type(error).__name__
     finally:
         if process and process.poll() is None:
             stop_process(process)
-    if not result_path.exists():
-        raise RuntimeError("JMeter 未生成 JTL，请检查本轮私有日志：" + name)
-    summary = summarize(result_path, exclude)
-    meta.update(exitCode=process.returncode, ended=time.time(), guardStop=reason, **summary)
+    summary = summarize(result_path, exclude, threads, duration) if result_path.exists() else {
+        "overall":{"samples":0}, "labels":{}, "threadCoverage":{}, "toolErrors":{}}
+    summary["toolErrors"] = dict(collections.Counter(summary["toolErrors"]) + collections.Counter(scan_tool_logs(log_path, console_path)))
+    meta.update(exitCode=process.returncode if process else -1, ended=time.time(), guardStop=reason,
+                runnerErrorType=runner_error, **summary)
+    meta["threadActivity"] = thread_activity(log_path, summary.get("threadCoverage",{}).get("steadyStartEpoch") or started+exclude,
+                                              duration-exclude, threads)
+    meta["evaluation"] = evaluate(meta)
     write_json(summary_path, meta)
     print(json.dumps({"event": "FINISHED", "name": name, "overall": summary["overall"],
                       "guardStop": reason}), flush=True)
-    if process.returncode or reason or summary["overall"].get("samples", 0) == 0 or summary["overall"].get("failures", 0):
-        raise RuntimeError("本轮未通过业务断言/样本/资源保护校验：" + name)
+    if meta["evaluation"]["status"] != "PASS":
+        raise RunFailed(meta)
     return meta
 
 

@@ -2,6 +2,28 @@
 
 脚本使用 Python 标准库与 JMeter 5.6.3 自带组件，不修改应用依赖。运行前按 [本地压测设计](../../docs/12-local-load-test-plan.md) 准备独立 MySQL、Redis、上传目录和打包后端。所有运行文件放仓库外。
 
+## 并发边界搜索与统一评价
+
+```powershell
+python .\tests\performance\peak.py --context '<仓库外context.json>' `
+  --jmeter-home '<JMeter目录>' --java '<java.exe>' --name peak-mixed `
+  --scenario mixed --max-threads 1600 --precision 25 --plan '<本轮计划.jmx>'
+```
+
+默认从100按2倍升档，诊断每档110秒（升压/剔除各15秒），无思考时间；第一次有效SLO失败后，在真实通过与失败之间二分，直到差距不超过25线程或下界的10%。100即失败时下降50、25、12等寻找正数合格下界，不用0冒充测量结果。候选档正式运行340秒（升压/剔除各30秒）三次，邻近失败档正式一次；候选正式失败则降档重找，原上界正式通过则继续扩展。短诊断与正式确认发生冲突后，后续诊断失败会额外正式复核再决定方向。
+
+`--scenario` 支持mixed/search/detail/rank/keyword/auth/login，mixed逐label评价；登录/鉴权每线程需独立账号，账号池100时应显式 `--max-threads 100`，超出账号/发压端能力时INVALID停止。运行器不会调整JMeter或应用堆预算。`--diagnostic-duration`、`--confirm-duration` 可在运行前显式设置并保留记录，默认值分别110/340。
+
+`run.py` 显式保存JTL线程计数，逐label与overall使用相同窗口。JTL按完成顺序落盘，因此先流式扫描真实min(start)/max(end)，再按min(start)+exclude二次流式统计。`threadCoverage` 的grpThreads/allThreads峰值、样本比例、请求开始时间桶仅作辅助，不能因请求等待2秒而无新start就认定线程不足。
+
+实际负载依据独立JMeter INFO日志的 `Thread started:/Thread finished:` 生命周期。JMeter固定 `-Duser.timezone=Asia/Shanghai`，解析时间戳明确为UTC+8；`threadActivity` 在固定 `[minStart+exclude, minStart+duration]` 窗口积分active>=目标线程的累计秒数，要求至少覆盖预算95%并达到actualPeak，且各线程start/finish完整。线程不足、早退、日志缺生命周期、无样本/缺场景label、Bind/OOM/native-thread/脚本异常、资源保护或进程失败均为 `INVALID`，不能作为服务容量失败参与二分；线程确实一直等待但响应过慢则是合法的SLO FAIL。启动前可用内存低于10%或磁盘低于10GiB禁止发压；运行中内存低于5%立即停止，低于10%持续一分钟停止。完整summary在失败时仍保留，失败退出码非零。
+
+有效实验才评价 `PASS/FAIL`：非预期失败必须为零；search的P95/P99不超过500/1000ms，detail/rank/keyword/auth为200/500ms，login/favorite为500/1000ms。混合逐label检查，不能用总体平均掩盖慢接口。HTTP业务错误为FAIL；已识别的发压器错误优先INVALID。所有入口共用 `run.evaluate`，`peak.py`不会放宽原业务响应断言。
+
+报告为 `<name>.peak.json`，每个子轮保留原JTL/log/meta/summary和计划hash。`CONFIRMED_BRACKET` 给三次正式通过下界与一次正式失败上界；`LOWER_BOUND_ONLY` 表示已到探测上限仍通过，不能称探测上限为系统峰值；`INVALID`仅报告实验能力边界，`NO_PASSING_LEVEL/NO_CONFIRMED_PASS/INCONCLUSIVE`不发布未经确认的容量。执行前目标/清单校验沿用run.py，真实环境与缓存条件由本轮准备流程冻结。
+
+边界搜索测试使用合成JTL与注入探测函数，执行 `python -m unittest discover -s tests/performance -p test_peak.py -v`，不会启动服务或发压。
+
 ## 1. 环境与合成数据
 
 由环境准备流程在仓库外写入 `context.json`，字段为：
