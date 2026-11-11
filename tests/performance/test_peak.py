@@ -14,6 +14,7 @@ import run
 class EvaluationTests(unittest.TestCase):
     def meta(self,scenario="search"):
         return {"threads":100,"duration":110,"excludedSeconds":15,"scenario":scenario,"exitCode":0,"guardStop":None,
+                "nativeGroupStartEpoch":0,
                 "overall":{"samples":1000,"failures":0},"labels":{scenario:{"p95Ms":200,"p99Ms":400}},
                 "threadCoverage":{"fieldsAvailable":True,"peakGrpThreads":100,"peakAllThreads":100,
                                   "fullTargetSampleFraction":1,"effectiveSteadySeconds":95,
@@ -44,6 +45,15 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual("FAIL",run.evaluate(meta)["status"])
         del meta["labels"]["keyword"]
         self.assertEqual("INVALID",run.evaluate(meta)["status"])
+
+    def test_http_200_assertion_failure_is_not_a_downgradable_slo_bound(self):
+        meta=self.meta(); meta.update(correctnessAssertionsFailed=1)
+        meta["overall"]["failures"]=1
+        self.assertEqual("INVALID",run.evaluate(meta)["status"])
+        self.assertIn("DATA_OR_SCRIPT_ASSERTION_FAILURE",run.evaluate(meta)["reasons"])
+        report=peak.search_boundary(lambda t,f,r:{"status":"INVALID", "reasons":run.evaluate(meta)["reasons"]},100)
+        self.assertEqual("INVALID",report["status"])
+        self.assertIn("DATA_OR_SCRIPT_ASSERTION_FAILURE",report["invalidReasons"])
 
     def test_completion_order_does_not_define_first_start(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -97,7 +107,7 @@ class EvaluationTests(unittest.TestCase):
 
     def write_lifecycle(self,path,threads=100,finish_seconds=110,omit_finish=False):
         base=datetime(2026,11,11,12,0,0,tzinfo=timezone(timedelta(hours=8)))
-        lines=[]
+        lines=[f"{base.strftime('%Y-%m-%d %H:%M:%S')},000 INFO o.a.j.t.ThreadGroup: Starting thread group... number=1 threads={threads} ramp-up=15 delayedStart=false\n"]
         for index in range(threads):
             lines.append(f"{base.strftime('%Y-%m-%d %H:%M:%S')},000 INFO o.a.j.t.JMeterThread: Thread started: load 1-{index}\n")
         end=base+timedelta(seconds=finish_seconds)
@@ -122,6 +132,45 @@ class EvaluationTests(unittest.TestCase):
             self.assertEqual(95,meta["threadActivity"]["fullTargetSeconds"])
             self.assertEqual("FAIL",run.evaluate(meta)["status"])
             self.assertEqual(["LATENCY_SLO"],run.evaluate(meta)["reasons"])
+
+    def test_native_start_freezes_window_despite_first_http_eleven_seconds_late(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary); log=root/"run.log"
+            base=self.write_lifecycle(log,finish_seconds=120)
+            self.assertEqual(base,run.native_group_start(log))
+            path=root/"run.jtl"
+            with path.open("w",newline="",encoding="utf-8") as stream:
+                writer=csv.DictWriter(stream,fieldnames=("timeStamp","elapsed","label","success","responseCode","grpThreads","allThreads"))
+                writer.writeheader()
+                for second in (11,16,20,119,120,121):
+                    writer.writerow(dict(timeStamp=int((base+second)*1000),elapsed=1,label="search",success="true",responseCode="200",grpThreads=100,allThreads=100))
+            summary=run.summarize(path,15,100,120,origin=base)
+            self.assertEqual(3,summary["overall"]["samples"])
+            self.assertEqual(105,summary["overall"]["windowSeconds"])
+            self.assertEqual(base+15,summary["overall"]["startEpoch"])
+            self.assertEqual(base+120,summary["overall"]["endEpoch"])
+            meta=self.meta();meta.update(summary,duration=120,nativeGroupStartEpoch=base)
+            meta["threadActivity"]=run.thread_activity(log,base+15,105,100)
+            self.assertEqual(105,meta["threadActivity"]["fullTargetSeconds"])
+            self.assertEqual("PASS",run.evaluate(meta)["status"])
+            meta["nativeGroupStartEpoch"]=None
+            self.assertEqual("INVALID",run.evaluate(meta)["status"])
+
+    def test_fixed_window_preserves_slow_tail_failure_without_inflating_rps_denominator(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path=Path(temporary)/"run.jtl"
+            with path.open("w",newline="",encoding="utf-8") as stream:
+                writer=csv.DictWriter(stream,fieldnames=("timeStamp","elapsed","label","success","responseCode","grpThreads","allThreads"))
+                writer.writeheader()
+                for start,elapsed,success in ((5000,1,"true"),(19000,30000,"false"),(20000,1,"true")):
+                    writer.writerow(dict(timeStamp=start,elapsed=elapsed,label="search",success=success,responseCode="200",grpThreads=100,allThreads=100))
+            summary=run.summarize(path,5,100,20,origin=0)
+            self.assertEqual(2,summary["overall"]["samples"])
+            self.assertEqual(1,summary["overall"]["failures"])
+            self.assertEqual(30000,summary["overall"]["maxMs"])
+            self.assertEqual(1,summary["correctnessAssertionsFailed"])
+            self.assertEqual(15,summary["overall"]["windowSeconds"])
+            self.assertEqual(44,summary["overall"]["activeWindowSeconds"])
 
     def test_partial_start_early_finish_or_missing_lifecycle_is_invalid(self):
         with tempfile.TemporaryDirectory() as temporary:

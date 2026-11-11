@@ -14,9 +14,9 @@ python .\tests\performance\peak.py --context '<仓库外context.json>' `
 
 `--scenario` 支持mixed/search/detail/rank/keyword/auth/login，mixed逐label评价；登录/鉴权每线程需独立账号，账号池100时应显式 `--max-threads 100`，超出账号/发压端能力时INVALID停止。运行器不会调整JMeter或应用堆预算。`--diagnostic-duration`、`--confirm-duration` 可在运行前显式设置并保留记录，默认值分别110/340。
 
-`run.py` 显式保存JTL线程计数，逐label与overall使用相同窗口。JTL按完成顺序落盘，因此先流式扫描真实min(start)/max(end)，再按min(start)+exclude二次流式统计。`threadCoverage` 的grpThreads/allThreads峰值、样本比例、请求开始时间桶仅作辅助，不能因请求等待2秒而无新start就认定线程不足。
+`run.py` 显式保存JTL线程计数。真实运行从原生 `ThreadGroup: Starting thread group...` 事件冻结groupStart，稳态为 `[groupStart+exclude, groupStart+duration)`；缺失或出现多个原生组起点时INVALID，不用首个HTTP样本假代。JTL按完成顺序落盘，流式筛选该窗口内启动的请求，并在在途请求返回后保留全部延迟/失败；窗口外开始的请求不参与。各label与overall的RPS均为“窗口内启动请求最终成功数/固定预算秒数”，active跨度另列，不因慢尾撑大吞吐分母。`summarize` 显式传 `origin=native_group_start(log)` 使用此口径；无origin旧调用仅保留历史HTTP-min口径，不作为新运行有效性的证据。`threadCoverage` 的grpThreads/allThreads峰值、样本比例、请求开始时间桶仅作辅助，不能因请求等待2秒而无新start就认定线程不足。
 
-实际负载依据独立JMeter INFO日志的 `Thread started:/Thread finished:` 生命周期。JMeter固定 `-Duser.timezone=Asia/Shanghai`，解析时间戳明确为UTC+8；`threadActivity` 在固定 `[minStart+exclude, minStart+duration]` 窗口积分active>=目标线程的累计秒数，要求至少覆盖预算95%并达到actualPeak，且各线程start/finish完整。线程不足、早退、日志缺生命周期、无样本/缺场景label、Bind/OOM/native-thread/脚本异常、资源保护或进程失败均为 `INVALID`，不能作为服务容量失败参与二分；线程确实一直等待但响应过慢则是合法的SLO FAIL。启动前可用内存低于10%或磁盘低于10GiB禁止发压；运行中内存低于5%立即停止，低于10%持续一分钟停止。完整summary在失败时仍保留，失败退出码非零。
+实际负载依据独立JMeter INFO日志的 `Thread started:/Thread finished:` 生命周期。JMeter固定 `-Duser.timezone=Asia/Shanghai`，解析时间戳明确为UTC+8；`threadActivity` 在同一个groupStart固定稳态窗口积分active>=目标线程的累计秒数，要求至少覆盖预算95%并达到actualPeak，且各线程start/finish完整。线程不足、早退、日志缺生命周期、无样本/缺场景label、Bind/OOM/native-thread/脚本异常、资源保护或进程失败均为 `INVALID`，不能作为服务容量失败参与二分；线程确实一直等待但响应过慢则是合法的SLO FAIL。HTTP200而业务字段/白名单等断言失败计入correctnessAssertionsFailed，评价为INVALID/DATA_OR_SCRIPT_ASSERTION_FAILURE并停止人工核查，不能当普通可降档SLO上界；HTTP5xx/响应超时在负载有效且无发压器故障时可为FAIL。启动前可用内存低于10%或磁盘低于10GiB禁止发压；运行中内存低于5%立即停止，低于10%持续一分钟停止。完整summary在失败时仍保留，失败退出码非零。
 
 有效实验才评价 `PASS/FAIL`：非预期失败必须为零；search的P95/P99不超过500/1000ms，detail/rank/keyword/auth为200/500ms，login/favorite为500/1000ms。混合逐label检查，不能用总体平均掩盖慢接口。HTTP业务错误为FAIL；已识别的发压器错误优先INVALID。所有入口共用 `run.evaluate`，`peak.py`不会放宽原业务响应断言。
 
@@ -89,7 +89,7 @@ python .\tests\performance\run.py `
   --duration 330 --ramp 30 --exclude 30
 ```
 
-`run.py` 没有固定机器路径，`--java` 可省略而使用PATH中的java；默认计划为 `<evidenceDir>/generic.jmx`，不存在时自动生成，也可用 `--plan` 显式指定。`--exclude` 必须不小于 `--ramp` 且小于总时长；统计以首个HTTP样本开始时间为基准剔除指定秒数，因此保守排除相应启动/升压区间。
+`run.py` 没有固定机器路径，`--java` 可省略而使用PATH中的java；默认计划为 `<evidenceDir>/generic.jmx`，不存在时自动生成，也可用 `--plan` 显式指定。`--exclude` 必须不小于 `--ramp` 且小于总时长；统计从原生线程组Starting事件冻结起点，固定窗口起止，不把Groovy首次编译导致的HTTP晚开始平移成更晚的调度结束时间。
 
 运行器发压前要求manifest的runId、apiBase、mysqlTarget与context严格一致，并实时核对SQL/API分类绑定；旧清单缺少目标绑定也拒绝发压，必须先独立核实目标后补充，不能仅凭COMPLETE标记放行。
 

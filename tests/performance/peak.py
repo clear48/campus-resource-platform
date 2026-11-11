@@ -26,7 +26,7 @@ def search_boundary(probe, max_threads=1600, precision=25, relative_precision=.1
             raise ValueError("探测返回未知评价")
         attempts.append({"threads":threads, "formal":formal, "repetition":repetition, **result})
         if status == "INVALID":
-            raise RuntimeError("INJECTOR_CAPABILITY_BOUNDARY")
+            raise RuntimeError("INVALID_OR_CORRECTNESS_REQUIRES_REVIEW")
         if status == "PASS":
             passing.add(threads)
         else:
@@ -100,9 +100,10 @@ def search_boundary(probe, max_threads=1600, precision=25, relative_precision=.1
             low, high = high, None
             formal_guidance = True
     except RuntimeError as error:
-        return {"status":"INVALID" if str(error)=="INJECTOR_CAPABILITY_BOUNDARY" else "INCONCLUSIVE",
+        return {"status":"INVALID" if str(error)=="INVALID_OR_CORRECTNESS_REQUIRES_REVIEW" else "INCONCLUSIVE",
                 "reason":str(error), "attempts":attempts, "confirmedPass":None,
-                "diagnosticLower":low, "note":"实验能力/稳定性边界，不能作为服务端失败参与二分"}
+                "invalidReasons":attempts[-1].get("reasons",[]) if attempts else [],
+                "diagnosticLower":low, "note":"实验无效、资源能力或正确性异常待核查，不能作为服务端失败参与二分"}
 
 
 def run_peak(args):

@@ -63,9 +63,11 @@ class SampleStats:
                 "activeWindowSeconds": round(max((self.end - self.start) / 1000, .001), 3)}
 
 
-def summarize(path, exclude=0, target_threads=None, duration=None):
+def summarize(path, exclude=0, target_threads=None, duration=None, origin=None):
     """JTL按完成顺序写入；两遍流式读取以真实最早start排除预热，不缓存CSV全表。"""
     overall = SampleStats()
+    if origin is not None and (duration is None or duration<=exclude):
+        raise ValueError("显式origin必须配正数固定稳态预算")
     labels = collections.defaultdict(SampleStats)
     first, last_end = None, None
     with Path(path).open(newline="", encoding="utf-8-sig") as stream:
@@ -74,7 +76,11 @@ def summarize(path, exclude=0, target_threads=None, duration=None):
             first = timestamp if first is None else min(first, timestamp)
             end = timestamp + int(row["elapsed"])
             last_end = end if last_end is None else max(last_end, end)
-    peak_group = peak_all = full_samples = kept = 0
+    peak_group = peak_all = full_samples = kept = correctness_assertions_failed = 0
+    # 原生线程组调度起点优先；旧调用不传origin时保留历史HTTP-min口径供旧结果检索。
+    origin_ms = round(origin*1000) if origin is not None else first
+    steady_start_ms = origin_ms+exclude*1000 if origin_ms is not None else None
+    steady_end_ms = origin_ms+duration*1000 if origin is not None else None
     # 桶以样本开始时间归属，绝不把长尾请求的elapsed填充为持续并发；空桶与混入低线程的桶都失败。
     budget = max(0, duration-exclude) if duration is not None else None
     expected_buckets = math.ceil(budget) if budget is not None else 0
@@ -84,14 +90,15 @@ def summarize(path, exclude=0, target_threads=None, duration=None):
     with Path(path).open(newline="", encoding="utf-8-sig") as stream:
         for row in csv.DictReader(stream):
             timestamp = int(row["timeStamp"])
-            if timestamp < first + exclude * 1000:
+            if timestamp < steady_start_ms or (steady_end_ms is not None and timestamp>=steady_end_ms):
                 continue
             kept += 1
+            correctness_assertions_failed += row["responseCode"]=="200" and row["success"]!="true"
             fields_available = fields_available and bool(row.get("grpThreads")) and bool(row.get("allThreads"))
             group, all_threads = int(row.get("grpThreads") or 0), int(row.get("allThreads") or 0)
             peak_group, peak_all = max(peak_group, group), max(peak_all, all_threads)
             full_samples += bool(target_threads and group >= target_threads and all_threads >= target_threads)
-            offset = (timestamp-first)/1000-exclude
+            offset = (timestamp-steady_start_ms)/1000
             if budget is not None and 0 <= offset < budget:
                 bucket = int(offset)
                 flag = 1 if target_threads and group >= target_threads and all_threads >= target_threads else 2
@@ -101,18 +108,21 @@ def summarize(path, exclude=0, target_threads=None, duration=None):
             values = (timestamp, int(row["elapsed"]), row["success"] == "true", row["responseCode"])
             overall.add(*values)
             labels[row["label"]].add(*values)
-    window = (overall.start, overall.end) if overall.start is not None else None
+    # 固定窗口内启动的请求即使在窗口后返回，仍保留其最终延迟/错误；RPS分母固定预算，不被慢尾撑大。
+    window = (steady_start_ms,steady_end_ms) if origin is not None else ((overall.start, overall.end) if overall.start is not None else None)
     full_seconds = sum(min(1,budget-index) for index,flag in bucket_flags.items() if flag==1) if budget else 0
-    return {"overall": overall.result(), "labels": {name: stats.result(window) for name, stats in labels.items()},
+    return {"overall": overall.result(window), "labels": {name: stats.result(window) for name, stats in labels.items()},
             "threadCoverage": {"fieldsAvailable": fields_available and kept > 0, "peakGrpThreads": peak_group,
                 "peakAllThreads": peak_all, "targetThreads": target_threads, "fullTargetSamples": full_samples,
                 "fullTargetSampleFraction": full_samples / kept if kept else 0,
-                "steadyStartEpoch":first/1000+exclude if first is not None else None,
+                "steadyStartEpoch":steady_start_ms/1000 if steady_start_ms is not None else None,
+                "steadyEndEpoch":steady_end_ms/1000 if steady_end_ms is not None else None,
+                "timeOrigin":"native_thread_group" if origin is not None else "legacy_http_min",
                 "expectedSteadyBuckets":expected_buckets, "expectedSteadySeconds":budget,
                 "fullTargetBuckets":sum(flag==1 for flag in bucket_flags.values()),
                 "fullTargetSeconds":full_seconds, "fullTargetTimeFraction":full_seconds/budget if budget else 0,
                 "effectiveSteadySeconds": max(0, (last_end-first)/1000-exclude) if first is not None else 0},
-            "toolErrors": dict(error_kinds)}
+            "correctnessAssertionsFailed":correctness_assertions_failed, "toolErrors": dict(error_kinds)}
 
 
 def classify_tool_error(text):
@@ -134,6 +144,18 @@ def scan_tool_logs(*paths):
                 for line in stream:
                     errors.update(classify_tool_error(line))
     return dict(errors)
+
+
+def native_group_start(path):
+    """单线程组计划的原生调度时间；缺失/多组时不猜测HTTP首样本作为调度起点。"""
+    origins=[]
+    if Path(path).exists():
+        with Path(path).open(encoding="utf-8",errors="replace") as stream:
+            for line in stream:
+                match=re.search(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3}).*?ThreadGroup:\s+Starting thread group\.\.\.",line)
+                if match:
+                    origins.append(datetime.strptime(match[1],"%Y-%m-%d %H:%M:%S,%f").replace(tzinfo=timezone(timedelta(hours=8))).timestamp())
+    return origins[0] if len(origins)==1 else None
 
 
 def thread_activity(path, steady_start, budget, target):
@@ -178,10 +200,14 @@ def evaluate(meta):
     reasons = []
     coverage = meta.get("threadCoverage", {})
     overall = meta.get("overall", {})
+    if meta.get("nativeGroupStartEpoch") is None:
+        reasons.append("NATIVE_GROUP_START_MISSING")
     if meta.get("exitCode", 0) or meta.get("guardStop") or any(meta.get("toolErrors", {}).values()):
         reasons.append("INJECTOR_OR_PROCESS_ERROR")
     if not overall.get("samples"):
         reasons.append("NO_SAMPLES")
+    if meta.get("correctnessAssertionsFailed",0):
+        reasons.append("DATA_OR_SCRIPT_ASSERTION_FAILURE")
     activity = meta.get("threadActivity",{})
     if not activity.get("complete") or activity.get("actualPeak",0)<meta["threads"]:
         reasons.append("INCOMPLETE_THREAD_LIFECYCLE_OR_INSUFFICIENT_PEAK")
@@ -359,13 +385,14 @@ def execute(context_path, jmeter_home, java, name, scenario, threads, duration,
     finally:
         if process and process.poll() is None:
             stop_process(process)
-    summary = summarize(result_path, exclude, threads, duration) if result_path.exists() else {
+    group_origin = native_group_start(log_path)
+    summary = summarize(result_path, exclude, threads, duration, origin=group_origin) if result_path.exists() else {
         "overall":{"samples":0}, "labels":{}, "threadCoverage":{}, "toolErrors":{}}
     summary["toolErrors"] = dict(collections.Counter(summary["toolErrors"]) + collections.Counter(scan_tool_logs(log_path, console_path)))
     meta.update(exitCode=process.returncode if process else -1, ended=time.time(), guardStop=reason,
-                runnerErrorType=runner_error, **summary)
-    meta["threadActivity"] = thread_activity(log_path, summary.get("threadCoverage",{}).get("steadyStartEpoch") or started+exclude,
-                                              duration-exclude, threads)
+                runnerErrorType=runner_error, nativeGroupStartEpoch=group_origin, **summary)
+    meta["threadActivity"] = thread_activity(log_path, group_origin+exclude, duration-exclude, threads) if group_origin is not None else {
+        "complete":False,"reason":"NATIVE_GROUP_START_MISSING"}
     meta["evaluation"] = evaluate(meta)
     write_json(summary_path, meta)
     print(json.dumps({"event": "FINISHED", "name": name, "overall": summary["overall"],
