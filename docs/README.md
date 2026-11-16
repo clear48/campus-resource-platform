@@ -16,6 +16,7 @@
 | `LOCAL-DATA-PROTECTION.md` | 本地数据保护 | Windows本地MySQL、Redis、上传文件联合备份、SHA-256校验与隔离恢复 |
 | `modules/10-file-online-protection-development-process.md` | 在线文件保护 | 单文件自动检测、双重确认、批量熔断、在线原子恢复与业务503门禁 |
 | `12-local-load-test-plan.md` | 本地性能测试 | 单实例后端、MySQL、Redis、本地文件的压测流程、负载阶梯、限流边界与统计对账 |
+| `test/2026-11-13-local-concurrency-peak-report.md` | 本地并发边界测量 | 混合700/750、搜索350/375正式确认，11月16日恢复独立接口测量及额度停止规则 |
 | `test/2026-10-28-local-loadtest-report.md` | 本地压测执行记录 | 真实环境、稳态数据、并发失败证据、最终一致性与完成范围 |
 | `test/2026-10-28-local-loadtest-summary.json` | 脱敏压测证据 | 每轮参数/指标、资源窗口、专项结果、原始文件SHA256与最终验证 |
 | `../deploy/README.md` | 生产部署配置 | Compose 变量、镜像交付、HTTP / HTTPS、证书续期与运行维护 |
