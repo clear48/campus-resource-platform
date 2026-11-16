@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -23,7 +24,17 @@ def write_json(path, value):
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(target.suffix + ".tmp")
     temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
-    temporary.replace(target)
+    # Windows读句柄未共享DELETE时会短暂阻止原子替换；只重试替换，不重写文件或重试HTTP。
+    deadline = time.monotonic() + 2
+    while True:
+        try:
+            temporary.replace(target)
+            return
+        except PermissionError:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise
+            time.sleep(min(.02, remaining))
 
 
 def load_context(path):

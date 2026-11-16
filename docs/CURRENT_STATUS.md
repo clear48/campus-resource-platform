@@ -328,3 +328,9 @@
 - 后端代码`abf8a403`、前端代码`aa5b4f7f`均已推送`origin/codex/auth-auto-refresh`；尚未合入main，尚未部署。
 - 新增[完整生命周期指南](modules/01-auth-token-lifecycle.md)，同步认证/API/Redis主体、前端需求与页面说明、运行部署配置、索引与JWT局限口径。Access默认900秒可覆盖，Refresh固定七天；现存环境显式7200不会自动改变。
 - 上轮代码验证：后端认证及 Controller 本地 mock/unit 58/58、前端 101/101、生产构建通过；本轮纯文档，未重跑业务测试，未执行真实数据库/Redis 集成或部署。本轮校验 16 份文档的本地链接、锚点、指南 4 个 JSON 示例和代码围栏，结果通过；`git diff --check` 通过。
+
+## 11月16日执行器文件发布修复检查点
+
+600线程前两次完整正式测量已通过（4064.419/3866.755 RPS，P95 170/180ms），尚缺第3轮与上界确认；额度心跳过期导致的半轮及Windows文件替换PermissionError导致的启动失败均按INVALID保留，不作为服务端上界。
+
+压测工具write_json现仅对原子replace的PermissionError按20ms间隔、monotonic约2秒有界重试；临时内容只写一次，超时和其他异常仍抛出，不重试HTTP。工具全量含真实Windows文件句柄和Groovy并发回归64/64通过、0跳过，独立审查通过。Java业务/SQL/Redis协议/负载断言与统计口径未改。恢复C批次显式复用同日已验证证据，不重复发送已完成轮次；5小时与周任一额度剩余≤5%仍停止，记录过期保护保留。

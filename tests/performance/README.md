@@ -2,6 +2,8 @@
 
 脚本使用 Python 标准库与 JMeter 5.6.3 自带组件，不修改应用依赖。运行前按 [本地压测设计](../../docs/12-local-load-test-plan.md) 准备独立 MySQL、Redis、上传目录和打包后端。所有运行文件放仓库外。
 
+状态JSON先写同目录临时文件再原子替换。Windows读取句柄未共享删除权限时，仅对替换操作的`PermissionError`按20ms间隔、monotonic时钟最多等待2秒；超时保留原异常，其他异常立即抛出。这不会重试HTTP请求。`test_harness.py`包含真实Windows句柄短时占用后恢复、持续权限错误有界失败及其他错误不重试的回归。
+
 ## 并发边界搜索与统一评价
 
 ```powershell

@@ -8,6 +8,8 @@ from pathlib import Path
 import re
 import stat
 import tempfile
+import threading
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -79,6 +81,74 @@ try {
     assert result.generatedInvalidUrls == 0
 } finally { pool.shutdownNow() }
 '''
+
+
+class JsonWriteTests(unittest.TestCase):
+    def test_permanent_permission_error_is_bounded_and_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            error = PermissionError("synthetic sharing violation")
+            with patch.object(Path, "replace", side_effect=error) as replace, \
+                    patch.object(Path, "write_text", autospec=True) as write, \
+                    patch.object(common.time, "monotonic", side_effect=[10, 10.5, 12]), \
+                    patch.object(common.time, "sleep") as sleep:
+                with self.assertRaises(PermissionError) as caught:
+                    common.write_json(Path(directory) / "state.json", {"state": "new"})
+                self.assertIs(error, caught.exception)
+                self.assertEqual(2, replace.call_count)
+                write.assert_called_once()
+                sleep.assert_called_once_with(.02)
+
+    def test_other_replace_error_is_not_retried(self):
+        with tempfile.TemporaryDirectory() as directory:
+            error = OSError("synthetic non-permission error")
+            with patch.object(Path, "replace", side_effect=error) as replace, \
+                    patch.object(common.time, "sleep") as sleep:
+                with self.assertRaises(OSError) as caught:
+                    common.write_json(Path(directory) / "state.json", {})
+                self.assertIs(error, caught.exception)
+                replace.assert_called_once()
+                sleep.assert_not_called()
+
+    @unittest.skipUnless(os.name == "nt", "Windows真实无delete-share句柄回归")
+    def test_windows_reader_lock_released_then_atomic_replace_succeeds(self):
+        import ctypes
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+                                      wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+        kernel.CreateFileW.restype = wintypes.HANDLE
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "state.json"
+            target.write_text('{"state":"old"}', encoding="utf-8")
+            # FILE_SHARE_READ允许读取但不允许删除，真实复现Windows替换失败的句柄边界。
+            handle = kernel.CreateFileW(str(target), 0x80000000, 1, None, 3, 0x80, None)
+            self.assertNotEqual(ctypes.c_void_p(-1).value, handle)
+            released = threading.Event()
+
+            def release():
+                time.sleep(.15)
+                kernel.CloseHandle(handle)
+                released.set()
+
+            # 先证实该真实句柄确实阻塞替换，再让write_json等待短时锁释放。
+            temporary = target.with_suffix(".json.tmp")
+            temporary.write_text("{}", encoding="utf-8")
+            try:
+                with self.assertRaises(PermissionError):
+                    temporary.replace(target)
+            except BaseException:
+                kernel.CloseHandle(handle)
+                raise
+            worker = threading.Thread(target=release)
+            worker.start()
+            try:
+                common.write_json(target, {"state": "new"})
+            finally:
+                worker.join(timeout=3)
+            self.assertTrue(released.is_set())
+            self.assertEqual({"state": "new"}, common.read_json(target))
+            self.assertFalse(temporary.exists())
 
 
 class IsolationTests(unittest.TestCase):
